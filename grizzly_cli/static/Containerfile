@@ -1,0 +1,42 @@
+FROM alpine:latest as dependencies
+
+USER root
+
+RUN mkdir /root/ibm && cd /root/ibm && \
+    wget https://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqdev/redist/9.2.2.0-IBM-MQC-Redist-LinuxX64.tar.gz -O - | tar xzf -
+
+
+FROM locustio/locust:latest
+
+USER root
+
+RUN mkdir -p /opt/mqm/lib64 && mkdir -p /opt/mqm/lib && mkdir -p /opt/mqm/gskit8/lib64
+
+COPY --from=dependencies /root/ibm/inc /opt/mqm/inc
+COPY --from=dependencies /root/ibm/lib/libcurl.so /opt/mqm/lib/
+COPY --from=dependencies /root/ibm/lib/ccsid_part2.tbl /opt/mqm/lib/
+COPY --from=dependencies /root/ibm/lib/ccsid.tbl /opt/mqm/lib/
+COPY --from=dependencies /root/ibm/lib64/libmqic_r.so /opt/mqm/lib64/
+COPY --from=dependencies /root/ibm/lib64/libmqe_r.so /opt/mqm/lib64/
+COPY --from=dependencies /root/ibm/gskit8/lib64 /opt/mqm/gskit8/lib64/
+
+ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
+
+RUN apt-get -y update && \
+    apt-get install -y \
+        openssh-client \
+        lsof \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p -m 0600 /root/.ssh
+
+COPY requirements.txt /tmp
+
+RUN --mount=type=ssh GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' pip3 --disable-pip-version-check --no-cache-dir install -r /tmp/requirements.txt
+
+RUN apt-get purge -y openssh-client && \
+    apt-get autoremove -y && \
+    rm -rf /root/.ssh && \
+    rm /tmp/requirements.txt
+
+USER locust

@@ -1,0 +1,38 @@
+version: '3'
+services:
+  master:
+    hostname: master
+    image: ${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
+    user: "${GRIZZLY_UID}:${GRIZZLY_GID}"
+    ports:
+      - "8089:8089"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/locust
+    environment:
+      - PYTHONPATH=/srv/locust
+    entrypoint: /usr/local/bin/behave
+    command: -D master=true -D expected-workers=${GRIZZLY_EXPECTED_WORKERS} /srv/locust/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_MASTER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}
+    env_file: "${GRIZZLY_ENVIRONMENT_FILE}"
+    healthcheck:
+      test: ["CMD", "lsof", "-i", ":5557", "-sTCP:LISTEN"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  worker:
+    image: ${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
+    user: "${GRIZZLY_UID}:${GRIZZLY_GID}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/locust
+    environment:
+      - PYTHONPATH=/srv/locust
+    entrypoint: /usr/local/bin/behave
+    command: -q --no-summary --format null -D worker=true -D master-host=master /srv/locust/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_WORKER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}
+    env_file: "${GRIZZLY_ENVIRONMENT_FILE}"
+    depends_on:
+      master:
+        condition: service_healthy
