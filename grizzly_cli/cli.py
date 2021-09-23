@@ -360,11 +360,11 @@ def main() -> int:
         run_arguments: Dict[str, List[str]] = {
             'master': [],
             'worker': [],
-            'common': [],
+            'common': ['--stop'],
         }
 
         if args.verbose:
-            run_arguments['common'] += ['--verbose', '--no-logcapture']
+            run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
 
         return run(args, environ, run_arguments)
     except (KeyboardInterrupt, ValueError):
