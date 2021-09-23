@@ -8,6 +8,7 @@ from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
 from getpass import getuser
+from platform import node as get_hostname
 
 from . import ALL_STEPS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
 from . import GrizzlyCliParser, run_command, list_images, collect_steps
@@ -312,7 +313,10 @@ def main() -> int:
     try:
         args = _parse_arguments()
 
-        environ: Dict[str, Any] = {}
+        # always set hostname of host where grizzly-cli was executed, could be useful
+        environ: Dict[str, Any] = {
+            'GRIZZLY_CLI_HOST': get_hostname(),
+        }
 
         if args.mode == 'feature':
             # make sure the user want to run all feature files in project
