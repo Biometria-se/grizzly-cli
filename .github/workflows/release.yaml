@@ -135,10 +135,10 @@ jobs:
         sed -i "s/${PLACEHOLDER}/${VERSION_INFORMATION}/g" "${VERSION_FILE}"
 
         python setup.py sdist bdist_wheel
-        ls -l dist/grizzly?cli?loadtester-${{ steps.version.outputs.version }}*
+        ls -l dist/grizzly?loadtester?cli-${{ steps.version.outputs.version }}*
         if [[ "${{ github.event.inputs.dry-run }}" != "true" ]]; then
           # @TODO: still testing...
-          # twine upload dist/grizzly?cli?loadtester-${{ steps.version.outputs.version }}*
+          # twine upload dist/grizzly?loadtester?cli-${{ steps.version.outputs.version }}*
         else
           echo "!! dry-run, does not upload package to pypi"
         fi
