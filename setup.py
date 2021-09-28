@@ -5,6 +5,8 @@ from typing import List
 from setuptools import setup, find_packages
 from pathlib import Path
 
+from grizzly_cli import __version__
+
 
 def long_description() -> str:
     with codecs.open('README.md', encoding='utf-8') as fd:
@@ -35,9 +37,9 @@ def grizzly_cli_static_files() -> List[str]:
 
 
 setup(
-    name='grizzly-cli',
-    version='4.0.0',
-    description='Command line interface for grizzly',
+    name='grizzly-loadtester-cli',
+    version=__version__,
+    description='Command line interface for grizzly-loadtester',
     long_description=long_description(),
     long_description_content_type='text/markdown',
     url='https://github.com/biometria-se/grizzly-cli',
