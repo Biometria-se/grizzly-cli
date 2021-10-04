@@ -344,6 +344,8 @@ def main() -> int:
 
                     print('The following values was provided:')
                     for key, value in environ.items():
+                        if not key.startswith('TESTDATA_VARIABLE_'):
+                            continue
                         print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
 
                     if manual_input:
