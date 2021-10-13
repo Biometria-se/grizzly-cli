@@ -43,8 +43,8 @@ setup(
     long_description=long_description(),
     long_description_content_type='text/markdown',
     url='https://github.com/biometria-se/grizzly-cli',
-    author='Mikael Göransson',
-    author_email='github@mgor.se',
+    author='Biometria',
+    author_email='opensource@biometria.se',
     license='MIT',
     packages=find_packages(),
     package_data={
