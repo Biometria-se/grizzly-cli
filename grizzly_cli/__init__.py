@@ -10,7 +10,7 @@ from argparse import Namespace as Arguments, ArgumentParser
 from behave.parser import parse_file as feature_file_parser
 from behave.model import Step
 
-__version__ = 'develop'
+__version__ = '0.0.0'
 
 EXECUTION_CONTEXT = os.getcwd()
 

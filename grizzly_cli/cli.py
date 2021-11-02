@@ -236,7 +236,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
         if len(environ) > 0:
             for key, value in environ.items():
                 if key == 'GRIZZLY_CONFIGURATION_FILE':
-                    value = value.replace(EXECUTION_CONTEXT, MOUNT_CONTEXT).replace(MOUNT_CONTEXT, '/srv/locust')
+                    value = value.replace(EXECUTION_CONTEXT, MOUNT_CONTEXT).replace(MOUNT_CONTEXT, '/srv/grizzly')
 
                 fd.write(f'{key}={value}\n'.encode('utf-8'))
 
