@@ -40,3 +40,8 @@ services:
     depends_on:
       master:
         condition: service_healthy
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: ${GRIZZLY_MTU}

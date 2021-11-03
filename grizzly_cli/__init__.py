@@ -2,7 +2,7 @@ import sys
 import os
 import subprocess
 
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Dict, List, Set, Optional, cast
 from json import loads as jsonloads
 from pathlib import Path
 from argparse import Namespace as Arguments, ArgumentParser
@@ -70,6 +70,27 @@ def list_images(args: Arguments) -> Dict[str, Any]:
         images[name] = image
 
     return images
+
+def get_default_mtu(args: Arguments) -> Optional[str]:
+    try:
+        output = subprocess.check_output([
+            'docker',
+            'network',
+            'inspect',
+            'bridge',
+            '--format',
+            '{{ json .Options }}',
+        ]).decode('utf-8')
+
+        lines = output.split('\n')
+        line = lines[0]
+        network_options = jsonloads(line)
+        mtu = network_options.get('com.docker.network.driver.mtu', '1500')
+
+        return cast(str, mtu)
+    except:
+        print(output)
+        return None
 
 
 def run_command(command: List[str], env: Optional[Dict[str, str]] = None) -> int:
