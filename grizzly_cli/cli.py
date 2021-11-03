@@ -3,7 +3,7 @@ import sys
 import argparse
 import re
 
-from typing import List, Set, Dict, Any, Optional
+from typing import List, Set, Dict, Any, Optional, cast
 from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
@@ -11,7 +11,7 @@ from getpass import getuser
 from platform import node as get_hostname
 
 from . import ALL_STEPS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
-from . import GrizzlyCliParser, run_command, list_images, collect_steps
+from . import GrizzlyCliParser, run_command, list_images, collect_steps, get_default_mtu
 from .build import main as build
 
 
@@ -206,7 +206,14 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     if args.file is not None:
         os.environ['GRIZZLY_RUN_FILE'] = args.file
 
+    mtu = get_default_mtu(args)
+
+    if mtu is None and os.environ.get('GRIZZLY_MTU', None) is None:
+        print('!! unable determine MTU, try manually setting GRIZZLY_MTU environment variable if anything other than 1500 is needed')
+        mtu = '1500'
+
     # set environment variables needed by compose files, when *-compose executes
+    os.environ['GRIZZLY_MTU'] = cast(str, mtu)
     os.environ['GRIZZLY_EXECUTION_CONTEXT'] = EXECUTION_CONTEXT
     os.environ['GRIZZLY_STATIC_CONTEXT'] = STATIC_CONTEXT
     os.environ['GRIZZLY_MOUNT_CONTEXT'] = MOUNT_CONTEXT
