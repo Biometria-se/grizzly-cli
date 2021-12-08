@@ -178,7 +178,7 @@ def _find_variable_names_in_questions(file: Optional[str]) -> List[str]:
     collect_steps(file)
 
     for step in ALL_STEPS:
-        if not (step.keyword == 'And' and step.name.startswith('ask for value of variable')):
+        if not step.name.startswith('ask for value of variable'):
             continue
 
         match = re.match(r'ask for value of variable "([^"]*)"', step.name)
