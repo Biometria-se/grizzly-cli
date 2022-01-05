@@ -323,6 +323,8 @@ def main() -> int:
         # always set hostname of host where grizzly-cli was executed, could be useful
         environ: Dict[str, Any] = {
             'GRIZZLY_CLI_HOST': get_hostname(),
+            'GRIZZLY_EXECUTION_CONTEXT': EXECUTION_CONTEXT,
+            'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
         }
 
         if args.mode == 'feature':
