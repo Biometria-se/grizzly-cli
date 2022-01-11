@@ -10,7 +10,18 @@ FROM locustio/locust:2.2.1
 
 USER root
 
-RUN mkdir -p /opt/mqm/{lib,lib64,gskit8/lib64,msg/en_US} 
+ARG GRIZZLY_UID
+ARG GRIZZLY_GID
+
+RUN groupadd --gid "${GRIZZLY_GID}" grizzly \
+    && useradd \
+        --uid ${GRIZZLY_UID} \
+        --gid ${GRIZZLY_GID} \
+        --create-home \
+        --shell /bin/bash \
+        grizzly
+
+RUN mkdir -p /opt/mqm/{lib,lib64,gskit8/lib64,msg/en_US}
 
 COPY --from=dependencies /root/ibm/inc /opt/mqm/inc
 COPY --from=dependencies /root/ibm/lib/libcurl.so /opt/mqm/lib/
@@ -42,12 +53,12 @@ RUN apt-get purge -y openssh-client && \
     rm -rf /root/.ssh && \
     rm /tmp/requirements.txt
 
-RUN mkdir -p /home/locust/IBM/MQ/data
+RUN mkdir -p /home/grizzly/IBM/MQ/data
 
 USER root
 
 RUN mkdir -p /srv/grizzly/features/logs \
-    && ln -sf /srv/grizzly/features/logs /home/locust/IBM/MQ/data/errors \
+    && ln -sf /srv/grizzly/features/logs /home/grizzly/IBM/MQ/data/errors \
     && rm -rf /srv/grizzly/features
 
-USER locust
+USER grizzly

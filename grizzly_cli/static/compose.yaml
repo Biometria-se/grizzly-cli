@@ -3,7 +3,6 @@ services:
   master:
     hostname: master
     image: ${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
-    user: "${GRIZZLY_UID}:${GRIZZLY_GID}"
     ulimits:
       nofile: 10001
     ports:
@@ -25,7 +24,6 @@ services:
 
   worker:
     image: ${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
-    user: "${GRIZZLY_UID}:${GRIZZLY_GID}"
     ulimits:
       nofile: 10001
     extra_hosts:

@@ -115,6 +115,8 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None) -> int
                 break
 
             print(output.decode('utf-8').strip())
+
+        process.terminate()
     except KeyboardInterrupt:
         pass
     finally:
@@ -122,5 +124,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None) -> int
             process.kill()
         except Exception:
             pass
+
+    process.wait()
 
     return process.returncode
