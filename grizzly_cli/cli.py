@@ -220,8 +220,6 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     os.environ['GRIZZLY_PROJECT_NAME'] = PROJECT_NAME
     os.environ['GRIZZLY_USER_TAG'] = tag
     os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
-    os.environ['GRIZZLY_UID'] = str(os.getuid())
-    os.environ['GRIZZLY_GID'] = str(os.getgid())
 
     if len(run_arguments['master']) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
@@ -236,7 +234,10 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     images = list_images(args)
 
     if PROJECT_NAME not in images or args.force_build or args.build:
-        build(args)
+        rc = build(args)
+        if rc != 0:
+            print(f'!! failed to build {PROJECT_NAME}, rc={rc}')
+            return rc
 
     # file will be deleted when conContainertext exits
     with NamedTemporaryFile() as fd:

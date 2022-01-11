@@ -1,4 +1,4 @@
-from os import environ
+from os import environ, getuid, getgid
 from typing import List
 from argparse import Namespace as Arguments
 from getpass import getuser
@@ -12,6 +12,8 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         'image',
         'build',
         '--ssh', 'default',
+        '--build-arg', f'GRIZZLY_UID={getuid()}',
+        '--build-arg', f'GRIZZLY_GID={getgid()}',
         '-f', containerfile,
         '-t', tag,
         context
@@ -19,8 +21,6 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
 
 
 def main(args: Arguments) -> int:
-    tag = 'latest'
-    build_commands: List[List[str]] = []
     tag = getuser()
 
     build_command = _create_build_command(
@@ -33,16 +33,8 @@ def main(args: Arguments) -> int:
     if args.force_build:
         build_command.append('--no-cache')
 
-    build_commands.append(build_command)
-
     # make sure buildkit is used
     build_env = environ.copy()
     build_env['DOCKER_BUILDKIT'] = '1'
 
-    for build_command in build_commands:
-        rc = run_command(build_command, env=build_env)
-
-        if rc != 0:
-            return rc
-
-    return 0
+    return run_command(build_command, env=build_env)
