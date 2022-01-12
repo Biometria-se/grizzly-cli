@@ -8,7 +8,7 @@ from pathlib import Path
 from argparse import Namespace as Arguments, ArgumentParser
 
 from behave.parser import parse_file as feature_file_parser
-from behave.model import Step
+from behave.model import Scenario, Step
 
 __version__ = '0.0.0'
 
@@ -20,7 +20,7 @@ MOUNT_CONTEXT = os.environ.get('GRIZZLY_MOUNT_CONTEXT', EXECUTION_CONTEXT)
 
 PROJECT_NAME = os.path.basename(EXECUTION_CONTEXT)
 
-ALL_STEPS: Set[Step] = set()
+SCENARIOS: Set[Scenario] = set()
 
 
 class GrizzlyCliParser(ArgumentParser):
@@ -29,10 +29,8 @@ class GrizzlyCliParser(ArgumentParser):
         sys.exit(2)
 
 
-def collect_steps(file: Optional[str]) -> None:
-    global ALL_STEPS
-
-    if len(ALL_STEPS) > 0:
+def parse_feature_file(file: Optional[str]) -> None:
+    if len(SCENARIOS) > 0:
         return
 
     if file is None:
@@ -43,12 +41,7 @@ def collect_steps(file: Optional[str]) -> None:
     for feature_file in feature_files:
         feature = feature_file_parser(feature_file)
         for scenario in feature.scenarios:
-            steps = scenario.steps
-            if scenario.background is not None:
-                steps += scenario.background.steps
-
-            for step in steps:
-                ALL_STEPS.add(step)
+            SCENARIOS.add(scenario)
 
 
 def list_images(args: Arguments) -> Dict[str, Any]:

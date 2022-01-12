@@ -3,15 +3,20 @@ import sys
 import argparse
 import re
 
-from typing import List, Set, Dict, Any, Optional, cast
+from typing import List, Set, Dict, Any, Optional, Union, Tuple, cast
 from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
 from getpass import getuser
 from platform import node as get_hostname
+from hashlib import sha1 as sha1_hash
 
-from . import ALL_STEPS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
-from . import GrizzlyCliParser, run_command, list_images, collect_steps, get_default_mtu
+from behave.model import Scenario
+from roundrobin import smooth
+from jinja2 import Template
+
+from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
+from . import GrizzlyCliParser, run_command, list_images, get_default_mtu, parse_feature_file
 from .build import main as build
 
 
@@ -110,6 +115,14 @@ def _parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        default=False,
+        required=False,
+        help='Answer yes on any questions',
+    )
+
+    parser.add_argument(
         '-c', '--config-file',
         type=str,
         required=False,
@@ -175,23 +188,124 @@ def _parse_arguments() -> argparse.Namespace:
 def _find_variable_names_in_questions(file: Optional[str]) -> List[str]:
     unique_variables: Set[str] = set()
 
-    collect_steps(file)
+    parse_feature_file(file)
 
-    for step in ALL_STEPS:
-        if not step.name.startswith('ask for value of variable'):
-            continue
+    for scenario in SCENARIOS:
+        for step in scenario.steps + scenario.background.steps or []:
+            if not step.name.startswith('ask for value of variable'):
+                continue
 
-        match = re.match(r'ask for value of variable "([^"]*)"', step.name)
+            match = re.match(r'ask for value of variable "([^"]*)"', step.name)
 
-        if not match:
-            raise ValueError(f'could not find variable name in "{step.name}"')
+            if not match:
+                raise ValueError(f'could not find variable name in "{step.name}"')
 
-        unique_variables.add(match.group(1))
+            unique_variables.add(match.group(1))
 
     variables = list(unique_variables)
     variables.sort()
 
     return variables
+
+
+def _distribution_of_users_per_scenario(file: str, environ: Dict[str, Any]) -> None:
+    def _guess_datatype(value: str) -> Union[str, int, float, bool]:
+        check_value = value.replace('.', '', 1)
+
+        if check_value[0] == '-':
+            check_value = check_value[1:]
+
+        if check_value.isdecimal():
+            if float(value) % 1 == 0:
+                if value.startswith('0'):
+                    return str(value)
+                else:
+                    return int(float(value))
+            else:
+                return float(value)
+        elif value.lower() in ['true', 'false']:
+            return value.lower() == 'true'
+        else:
+            return value
+
+    distribution: Dict[str, Dict[str, Union[Optional[str], Optional[int], Optional[float]]]] = {}
+    variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
+
+    def _pre_populate_scenario(scenario: Scenario) -> None:
+        if scenario.name not in distribution:
+            distribution[scenario.name] = {
+                'user': None,
+                'weight': None,
+                'iterations': None,
+                'count': 0,
+            }
+
+    def generate_identifier(name: str) -> str:
+        return sha1_hash(name.encode('utf-8')).hexdigest()[:8]
+
+    for scenario in SCENARIOS:
+        for step in scenario.steps + scenario.background.steps or []:
+            if step.name.startswith('a user of type'):
+                _pre_populate_scenario(scenario)
+                match = re.match(r'a user of type "([^"]*)" with weight "([^"]*)".*', step.name)
+                if match:
+                    distribution[scenario.name].update({
+                        'user': match.group(1),
+                        'weight': float(match.group(2)),
+                    })
+            elif step.name.startswith('repeat for'):
+                _pre_populate_scenario(scenario)
+                match = re.match(r'repeat for "([^"]*)" iteration.*', step.name)
+                if match:
+                    distribution[scenario.name].update({
+                        'iterations': match.group(1),
+                    })
+
+    dataset: List[Tuple[str, float]] = [(name, cast(float, values['weight']), ) for name, values in distribution.items()]
+
+    get_weighted_smooth = smooth(dataset)
+
+    for values in distribution.values():
+        iter_template = cast(str, values['iterations'])
+        iterations = int(round(float(Template(iter_template).render(**variables)), 0))
+        values['iterations'] = iterations
+
+    total_iterations = sum([cast(int, values['iterations']) for values in distribution.values()])
+
+    for _ in range(0, total_iterations):
+        scenario = get_weighted_smooth()
+        distribution[scenario]['count'] = cast(int, distribution[scenario]['count']) + 1
+
+    def print_table_lines(length: int) -> None:
+        sys.stdout.write('-' * 11)
+        sys.stdout.write('|')
+        sys.stdout.write('-' * 4)
+        sys.stdout.write('|')
+        sys.stdout.write('-' * (length + 1))
+        sys.stdout.write('|\n')
+
+    rows: List[str] = []
+    max_length = len('description')
+
+    print(f'Feature file {file} will in total execute {total_iterations} iterations')
+
+    for name, values in distribution.items():
+        row = '{:11} {:>4} {}'.format(
+            generate_identifier(name),
+            values['iterations'],
+            name,
+        )
+        description_length = len(name)
+        if description_length > max_length:
+            max_length = description_length
+        rows.append(row)
+
+    print('Each scenario will execute accordingly:')
+    print('{:11} {:4} {}'.format('identifier', '#', 'description'))
+    print_table_lines(max_length)
+    for row in rows:
+        print(row)
+    print_table_lines(max_length)
 
 
 def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
@@ -367,6 +481,10 @@ def main() -> int:
             if args.config_file is not None:
                 config_file = os.path.realpath(args.config_file)
                 environ['GRIZZLY_CONFIGURATION_FILE'] = config_file
+
+            _distribution_of_users_per_scenario(cast(str, args.file), environ)
+            if not args.yes:
+                _ask_yes_no(f'Does it look reasonable?')
 
         if not args.local:
             run = _run_distributed
