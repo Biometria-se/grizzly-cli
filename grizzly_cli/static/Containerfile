@@ -13,7 +13,8 @@ USER root
 ARG GRIZZLY_UID
 ARG GRIZZLY_GID
 
-RUN groupadd --gid "${GRIZZLY_GID}" grizzly \
+RUN userdel -rf locust || true \
+    && groupadd --gid "${GRIZZLY_GID}" grizzly \
     && useradd \
         --uid ${GRIZZLY_UID} \
         --gid ${GRIZZLY_GID} \
