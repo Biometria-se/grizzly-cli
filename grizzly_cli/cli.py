@@ -3,15 +3,21 @@ import sys
 import argparse
 import re
 
-from typing import List, Set, Dict, Any, Optional, cast
+from typing import List, Set, Dict, Any, Optional, Union, Tuple, Generator, cast
 from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
 from getpass import getuser
 from platform import node as get_hostname
+from hashlib import sha1 as sha1_hash
+from operator import attrgetter
 
-from . import ALL_STEPS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
-from . import GrizzlyCliParser, run_command, list_images, collect_steps, get_default_mtu
+from behave.model import Scenario
+from roundrobin import smooth
+from jinja2 import Template
+
+from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
+from . import GrizzlyCliParser, run_command, list_images, get_default_mtu, parse_feature_file
 from .build import main as build
 
 
@@ -110,6 +116,14 @@ def _parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        default=False,
+        required=False,
+        help='Answer yes on any questions',
+    )
+
+    parser.add_argument(
         '-c', '--config-file',
         type=str,
         required=False,
@@ -175,23 +189,180 @@ def _parse_arguments() -> argparse.Namespace:
 def _find_variable_names_in_questions(file: Optional[str]) -> List[str]:
     unique_variables: Set[str] = set()
 
-    collect_steps(file)
+    parse_feature_file(file)
 
-    for step in ALL_STEPS:
-        if not step.name.startswith('ask for value of variable'):
-            continue
+    for scenario in SCENARIOS:
+        for step in scenario.steps + scenario.background.steps or []:
+            if not step.name.startswith('ask for value of variable'):
+                continue
 
-        match = re.match(r'ask for value of variable "([^"]*)"', step.name)
+            match = re.match(r'ask for value of variable "([^"]*)"', step.name)
 
-        if not match:
-            raise ValueError(f'could not find variable name in "{step.name}"')
+            if not match:
+                raise ValueError(f'could not find variable name in "{step.name}"')
 
-        unique_variables.add(match.group(1))
+            unique_variables.add(match.group(1))
 
     variables = list(unique_variables)
     variables.sort()
 
     return variables
+
+
+def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[str, Any]) -> None:
+    def _guess_datatype(value: str) -> Union[str, int, float, bool]:
+        check_value = value.replace('.', '', 1)
+
+        if check_value[0] == '-':
+            check_value = check_value[1:]
+
+        if check_value.isdecimal():
+            if float(value) % 1 == 0:
+                if value.startswith('0'):
+                    return str(value)
+                else:
+                    return int(float(value))
+            else:
+                return float(value)
+        elif value.lower() in ['true', 'false']:
+            return value.lower() == 'true'
+        else:
+            return value
+
+    class ScenarioProperties:
+        name: str
+        identifier: str
+        user: Optional[str]
+        symbol: str
+        weight: float
+        iterations: int
+
+        def __init__(
+            self,
+            name: str,
+            symbol: str,
+            weight: Optional[float]= None,
+            user: Optional[str] = None,
+            iterations: Optional[int] = None,
+        ) -> None:
+            self.name = name
+            self.symbol = symbol
+            self.user = user
+            self.iterations = iterations or 1
+            self.weight = weight or 1.0
+            self.identifier = generate_identifier(name)
+
+    distribution: Dict[str, ScenarioProperties] = {}
+    variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
+    current_symbol = 65  # ASCII decimal for A
+
+    def _pre_populate_scenario(scenario: Scenario) -> None:
+        nonlocal current_symbol
+        if scenario.name not in distribution:
+            distribution[scenario.name] = ScenarioProperties(
+                name=scenario.name,
+                user=None,
+                symbol=chr(current_symbol),
+                weight=None,
+                iterations=None,
+            )
+            current_symbol += 1
+
+    def generate_identifier(name: str) -> str:
+        return sha1_hash(name.encode('utf-8')).hexdigest()[:8]
+
+    for scenario in sorted(list(SCENARIOS), key=attrgetter('name')):
+        if len(scenario.steps) < 1:
+            raise ValueError(f'{scenario.name} does not have any steps')
+
+        _pre_populate_scenario(scenario)
+
+        for step in scenario.steps:
+            if step.name.startswith('a user of type'):
+                match = re.match(r'a user of type "([^"]*)" (with weight "([^"]*)")?.*', step.name)
+                if match:
+                    distribution[scenario.name].user = match.group(1)
+                    distribution[scenario.name].weight = float(match.group(3) or '1.0')
+            elif step.name.startswith('repeat for'):
+                match = re.match(r'repeat for "([^"]*)" iteration.*', step.name)
+                if match:
+                    distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
+
+    dataset: List[Tuple[str, float]] = [(scenario.name, scenario.weight, ) for scenario in distribution.values()]
+    get_weighted_smooth = smooth(dataset)
+
+    for scenario in distribution.values():
+        if scenario.user is None:
+            raise ValueError(f'{scenario.name} does not have a user type')
+
+    total_iterations = sum([scenario.iterations for scenario in distribution.values()])
+    timeline: List[str] = []
+
+    for _ in range(0, total_iterations):
+        scenario = get_weighted_smooth()
+        symbol = distribution[scenario].symbol
+        timeline.append(symbol)
+
+    def chunks(input: List[str], n: int) -> Generator[List[str], None, None]:
+        for i in range(0, len(input), n):
+            yield input[i:i + n]
+
+    def print_table_lines(length: int) -> None:
+        sys.stdout.write('-' * 11)
+        sys.stdout.write('|')
+        sys.stdout.write('-' * 7)
+        sys.stdout.write('|')
+        sys.stdout.write('-' * 7)
+        sys.stdout.write('|')
+        sys.stdout.write('-' * 7)
+        sys.stdout.write('|')
+        sys.stdout.write('-' * (length + 1))
+        sys.stdout.write('|\n')
+
+    rows: List[str] = []
+    max_length = len('description')
+
+    print(f'\nFeature file {args.file} will execute in total {total_iterations} iterations\n')
+
+    for scenario in distribution.values():
+        row = '{:11} {:^7} {:>7.1f} {:>7} {}'.format(
+            scenario.identifier,
+            scenario.symbol,
+            scenario.weight,
+            scenario.iterations,
+            scenario.name,
+        )
+        description_length = len(scenario.name)
+        if description_length > max_length:
+            max_length = description_length
+        rows.append(row)
+
+    print('Each scenario will execute accordingly:\n')
+    print('{:11} {:7} {:7} {:7} {}'.format('identifier', 'symbol', 'weight', 'iter', 'description'))
+    print_table_lines(max_length)
+    for row in rows:
+        print(row)
+    print_table_lines(max_length)
+
+    print('')
+
+    formatted_timeline: List[str] = []
+
+    for chunk in chunks(timeline, 120):
+        formatted_timeline.append('{} \\'.format(''.join(chunk)))
+
+    formatted_timeline[-1] = formatted_timeline[-1][:-2]
+
+    if len(formatted_timeline) > 10:
+        formatted_timeline = formatted_timeline[:5] + ['...'] + formatted_timeline[-5:]
+
+    print('Timeline of user scheduling will look as following:')
+    print('\n'.join(formatted_timeline))
+
+    print('')
+
+    if not args.yes:
+        _ask_yes_no('Continue?')
 
 
 def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
@@ -342,31 +513,30 @@ def main() -> int:
 
             if questions > 0:
                 print(f'Feature file requires values for {questions} variables')
-                try:
-                    for variable in sorted(variables):
-                        name = f'TESTDATA_VARIABLE_{variable}'
-                        value = os.environ.get(name, '')
-                        while len(value) < 1:
-                            value = input(f'Initial value for "{variable}": ').strip()
-                            manual_input = True
 
-                        environ[name] = value
+                for variable in sorted(variables):
+                    name = f'TESTDATA_VARIABLE_{variable}'
+                    value = os.environ.get(name, '')
+                    while len(value) < 1:
+                        value = input(f'Initial value for "{variable}": ').strip()
+                        manual_input = True
 
-                    print('The following values was provided:')
-                    for key, value in environ.items():
-                        if not key.startswith('TESTDATA_VARIABLE_'):
-                            continue
-                        print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+                    environ[name] = value
 
-                    if manual_input:
-                        _ask_yes_no('Continue')
-                except KeyboardInterrupt:
-                    print('\n!! Aborted grizzly-cli')
-                    return 1
+                print('The following values was provided:')
+                for key, value in environ.items():
+                    if not key.startswith('TESTDATA_VARIABLE_'):
+                        continue
+                    print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+
+                if manual_input:
+                    _ask_yes_no('Continue?')
 
             if args.config_file is not None:
                 config_file = os.path.realpath(args.config_file)
                 environ['GRIZZLY_CONFIGURATION_FILE'] = config_file
+
+            _distribution_of_users_per_scenario(args, environ)
 
         if not args.local:
             run = _run_distributed
@@ -383,7 +553,11 @@ def main() -> int:
             run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
 
         return run(args, environ, run_arguments)
-    except (KeyboardInterrupt, ValueError):
+    except (KeyboardInterrupt, ValueError) as e:
+        print('')
+        if isinstance(e, ValueError):
+            print(str(e))
+
         print('\n!! Aborted grizzly-cli')
         return 1
 
