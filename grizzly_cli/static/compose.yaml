@@ -5,8 +5,6 @@ services:
     image: ${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
     ulimits:
       nofile: 10001
-    ports:
-      - "8089:8089"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
