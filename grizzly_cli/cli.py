@@ -4,7 +4,6 @@ import argparse
 import re
 
 from typing import List, Set, Dict, Any, Optional, Union, Tuple, Generator, cast
-from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
 from getpass import getuser
@@ -39,66 +38,63 @@ def _get_distributed_system() -> Optional[str]:
 
 
 def _parse_arguments() -> argparse.Namespace:
-    parser = GrizzlyCliParser(description='Start grizzy load test')
+    parser = GrizzlyCliParser(description='grizzly command line interface')
 
-    group_runner = parser.add_mutually_exclusive_group()
+    sub_parser = parser.add_subparsers(dest='category')
 
-    group_runner.add_argument(
-        '-m', '--mode',
-        type=str,
-        choices=['guess', 'feature'],
-        required=False,
-        default='guess',
-        help=argparse.SUPPRESS,
-    )
-
-    group_runner.add_argument(
-        'file',
-        nargs='?',
-    )
-
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument(
-        '--local',
+    # grizzly-cli run ...
+    run_parser = sub_parser.add_parser('run', help='run feature fil')
+    run_parser.add_argument(
+        '--verbose',
         action='store_true',
-        default=None,
         required=False,
-        help='Force running local instead of distributed',
+        help='verbose output from runners',
+    )
+    run_parser.add_argument(
+        '-T', '--testdata-variable',
+        action='append',
+        type=str,
+        required=False,
+        help='testdata variables, specified as <name>=<value>',
+    )
+    run_parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        default=False,
+        required=False,
+        help='answer yes on any questions',
+    )
+    run_parser.add_argument(
+        '-e', '--environment-file',
+        type=str,
+        required=False,
+        default=None,
+        help='configuration file with environment specific information',
     )
 
-    group.add_argument(
+    run_sub_parser = run_parser.add_subparsers(dest='mode')
+
+    # grizzly-cli run local ...
+    run_local_parser = run_sub_parser.add_parser('local', help='arguments for running grizzly locally')
+    run_local_parser.add_argument(
+        'file',
+        nargs=None,  # type: ignore
+    )
+
+    # grizzly-cli run dist ...
+    run_dist_parser = run_sub_parser.add_parser('dist', help='arguments for running grizzly distributed')
+    run_dist_parser.add_argument(
+        'file',
+        nargs=None,  # type: ignore
+    )
+    run_dist_parser.add_argument(
         '--workers',
         type=int,
         required=False,
         default=1,
-        help='Number of worker containers to start',
+        help='number of worker containers to start',
     )
-
-    group_build = parser.add_mutually_exclusive_group()
-
-    group_build.add_argument(
-        '--force-build',
-        action='store_true',
-        required=False,
-        help='Force rebuild the grizzly projects container image (no cache)',
-    )
-
-    group_build.add_argument(
-        '--build',
-        action='store_true',
-        required=False,
-        help='Rebuild the grizzly projects container images (with cache)',
-    )
-
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        required=False,
-        help='Verbose output from runners',
-    )
-
-    parser.add_argument(
+    run_dist_parser.add_argument(
         '--container-system',
         type=str,
         choices=['podman', 'docker', None],
@@ -106,74 +102,56 @@ def _parse_arguments() -> argparse.Namespace:
         default=None,
         help=argparse.SUPPRESS,
     )
-
-    parser.add_argument(
-        '-T', '--testdata-variable',
-        action='append',
-        type=str,
-        required=False,
-        help='Testdata variables',
-    )
-
-    parser.add_argument(
-        '-y', '--yes',
-        action='store_true',
-        default=False,
-        required=False,
-        help='Answer yes on any questions',
-    )
-
-    parser.add_argument(
-        '-c', '--config-file',
+    run_dist_parser.add_argument(
+        '--id',
         type=str,
         required=False,
         default=None,
-        help='Configuration file with environment specific information',
+        help='unique identifier suffixed to compose project and container image names',
+    )
+    run_dist_parser.add_argument(
+        '--limit-nofile',
+        type=int,
+        required=False,
+        default=10001,
+        help='set system limit "nofile", default 10001'
+    )
+
+    group_build = run_dist_parser.add_mutually_exclusive_group()
+    group_build.add_argument(
+        '--force-build',
+        action='store_true',
+        required=False,
+        help='force rebuild the grizzly projects container image (no cache)',
+    )
+    group_build.add_argument(
+        '--build',
+        action='store_true',
+        required=False,
+        help='rebuild the grizzly projects container images (with cache)',
     )
 
     args = parser.parse_args()
+    if not os.path.exists(os.path.join(EXECUTION_CONTEXT, args.file)):
+        parser.error_no_help(f'{args.file} does not exist')
 
-    if args.local and args.force_build:
-        parser.error('argument --force-build: not allowed with argument --local')
+    if not args.file.endswith('.feature'):
+        parser.error_no_help(f'{args.file} does not have file extension .feature')
 
-    if args.local and args.build:
-        parser.error('argument --build: not allowed with argument --local')
+    if args.mode == 'dist':
+        args.container_system = _get_distributed_system()
 
-    if args.file is None:
-        feature_files = len(list(Path(os.path.join(EXECUTION_CONTEXT, 'features')).glob('*.feature')))
-
-        if args.mode == 'guess':
-            if feature_files > 0:
-                if feature_files > 1:
-                    parser.error_no_help(f'could not guess which of {feature_files} should execute, please specify')
-                args.mode = 'feature'
-            else:
-                parser.error_no_help(f"could not guess since there are no features files in '{EXECUTION_CONTEXT}'")
-        elif args.mode == 'feature':
-            if feature_files < 1:
-                parser.error_no_help(f"mode '{args.mode}' requires at least one feature file in '{EXECUTION_CONTEXT}/features'")
-            elif feature_files > 1:
-                parser.error_no_help(f'could not guess which of {feature_files} should execute, please specify')
-    else:
-        if args.file.endswith('.feature'):
-            args.mode = 'feature'
-        else:
-            parser.error_no_help(f'{args.file} is not a python nor a feature file')
-
-        if not os.path.exists(os.path.join(EXECUTION_CONTEXT, args.file)):
-            parser.error_no_help(f'{args.file} does not exist')
-
-    args.container_system = _get_distributed_system()
-    if args.local is None:
-        args.local = args.container_system is None
-
-    if not args.local and args.container_system is None:
-        parser.error_no_help(f"cannot run distributed")
-    elif not os.path.exists(os.path.join(EXECUTION_CONTEXT, 'requirements.txt')):
+        if args.container_system is None:
+            parser.error_no_help('cannot run distributed')
+        elif not os.path.exists(os.path.join(EXECUTION_CONTEXT, 'requirements.txt')):
             parser.error_no_help(f'there is no requirements.txt in {EXECUTION_CONTEXT}, building of container image not possible')
 
-    if args.local and args.mode == 'feature' and which('behave') is None:
-        parser.error_no_help("'behave' not found in PATH, needed when running local mode")
+        if args.limit_nofile < 10001 and not args.yes:
+            print('!! this will cause warnings messages from locust later on')
+            _ask_yes_no('are you sure what you are doing?')
+    elif args.mode == 'local':
+        if which('behave') is None:
+            parser.error_no_help("'behave' not found in PATH, needed when running local mode")
 
     if args.testdata_variable is not None:
         for variable in args.testdata_variable:
@@ -322,7 +300,7 @@ def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[
     rows: List[str] = []
     max_length = len('description')
 
-    print(f'\nFeature file {args.file} will execute in total {total_iterations} iterations\n')
+    print(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
 
     for scenario in distribution.values():
         row = '{:11} {:^7} {:>7.1f} {:>7} {}'.format(
@@ -337,7 +315,7 @@ def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[
             max_length = description_length
         rows.append(row)
 
-    print('Each scenario will execute accordingly:\n')
+    print('each scenario will execute accordingly:\n')
     print('{:11} {:7} {:7} {:7} {}'.format('identifier', 'symbol', 'weight', 'iter', 'description'))
     print_table_lines(max_length)
     for row in rows:
@@ -356,21 +334,22 @@ def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[
     if len(formatted_timeline) > 10:
         formatted_timeline = formatted_timeline[:5] + ['...'] + formatted_timeline[-5:]
 
-    print('Timeline of user scheduling will look as following:')
+    print('timeline of user scheduling will look as following:')
     print('\n'.join(formatted_timeline))
 
     print('')
 
     if not args.yes:
-        _ask_yes_no('Continue?')
+        _ask_yes_no('continue?')
 
 
 def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
+    suffix = '' if args.id is None else f'-{args.id}'
     tag = getuser()
 
     # default locust project
     compose_args: List[str] = [
-        '-p', f'{tag}-{PROJECT_NAME}',
+        '-p', f'{PROJECT_NAME}{suffix}-{tag}',
         '-f', f'{STATIC_CONTEXT}/compose.yaml',
     ]
 
@@ -404,7 +383,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     # check if we need to build image
     images = list_images(args)
 
-    if PROJECT_NAME not in images or args.force_build or args.build:
+    if PROJECT_NAME not in images or tag not in images[PROJECT_NAME] or args.force_build or args.build:
         rc = build(args)
         if rc != 0:
             print(f'!! failed to build {PROJECT_NAME}, rc={rc}')
@@ -425,6 +404,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
 
         compose_scale_argument = ['--scale', f'worker={args.workers}']
 
+        # bring up containers
         compose_command = [
             f'{args.container_system}-compose',
             *compose_args,
@@ -435,19 +415,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
 
         rc = run_command(compose_command)
 
-        # get logs if start failed
-        if rc != 0:
-            tail = os.environ.get('GRIZZLY_LOG_LINES', '10')
-            compose_command = [
-                f'{args.container_system}-compose',
-                *compose_args,
-                'logs',
-                f'--tail={tail}',
-                '--no-log-prefix',
-                'master',
-            ]
-            run_command(compose_command)
-
+        # stop containers
         compose_command = [
             f'{args.container_system}-compose',
             *compose_args,
@@ -455,6 +423,13 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
         ]
 
         run_command(compose_command)
+
+        if rc != 0:
+            print('!! something went wrong, check container logs with:')
+            print(f'{args.container_system} container logs {PROJECT_NAME}-{tag}_master_1')
+            for worker in range(1, args.workers+1):
+                print(f'{args.container_system} container logs {PROJECT_NAME}-{tag}_worker_{worker}')
+
 
         return rc
 
@@ -481,7 +456,7 @@ def _ask_yes_no(question: str) -> None:
     answer = 'undefined'
     while answer.lower() not in ['y', 'n']:
         if answer != 'undefined':
-            print('You must answer y (yes) or n (no)')
+            print('you must answer y (yes) or n (no)')
         answer = input(f'{question} [y/n]: ').strip()
 
         if answer == 'n':
@@ -499,46 +474,39 @@ def main() -> int:
             'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
         }
 
-        if args.mode == 'feature':
-            # make sure the user want to run all feature files in project
-            if args.file is None:
-                feature_files = list(Path(os.path.join(EXECUTION_CONTEXT, 'features')).glob('*.feature'))
-                if len(feature_files) > 1:
-                    print('\n'.join([str(feature) for feature in feature_files]))
-                    _ask_yes_no(f'Run the these {len(feature_files)} feature files')
 
-            variables = _find_variable_names_in_questions(args.file)
-            questions = len(variables)
-            manual_input = False
+        variables = _find_variable_names_in_questions(args.file)
+        questions = len(variables)
+        manual_input = False
 
-            if questions > 0:
-                print(f'Feature file requires values for {questions} variables')
+        if questions > 0:
+            print(f'feature file requires values for {questions} variables')
 
-                for variable in sorted(variables):
-                    name = f'TESTDATA_VARIABLE_{variable}'
-                    value = os.environ.get(name, '')
-                    while len(value) < 1:
-                        value = input(f'Initial value for "{variable}": ').strip()
-                        manual_input = True
+            for variable in sorted(variables):
+                name = f'TESTDATA_VARIABLE_{variable}'
+                value = os.environ.get(name, '')
+                while len(value) < 1:
+                    value = input(f'initial value for "{variable}": ').strip()
+                    manual_input = True
 
-                    environ[name] = value
+                environ[name] = value
 
-                print('The following values was provided:')
-                for key, value in environ.items():
-                    if not key.startswith('TESTDATA_VARIABLE_'):
-                        continue
-                    print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+            print('the following values was provided:')
+            for key, value in environ.items():
+                if not key.startswith('TESTDATA_VARIABLE_'):
+                    continue
+                print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
 
-                if manual_input:
-                    _ask_yes_no('Continue?')
+            if manual_input:
+                _ask_yes_no('continue?')
 
-            if args.config_file is not None:
-                config_file = os.path.realpath(args.config_file)
-                environ['GRIZZLY_CONFIGURATION_FILE'] = config_file
+        if args.environment_file is not None:
+            environment_file = os.path.realpath(args.environment_file)
+            environ['GRIZZLY_CONFIGURATION_FILE'] = environment_file
 
-            _distribution_of_users_per_scenario(args, environ)
+        _distribution_of_users_per_scenario(args, environ)
 
-        if not args.local:
+        if args.mode == 'dist':
             run = _run_distributed
         else:
             run = _run_local
@@ -552,13 +520,14 @@ def main() -> int:
         if args.verbose:
             run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
 
-        return run(args, environ, run_arguments)
+        rc = run(args, environ, run_arguments)
+        return rc
     except (KeyboardInterrupt, ValueError) as e:
         print('')
         if isinstance(e, ValueError):
             print(str(e))
 
-        print('\n!! Aborted grizzly-cli')
+        print('\n!! aborted grizzly-cli')
         return 1
 
 

@@ -11,7 +11,8 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         f'{args.container_system}',
         'image',
         'build',
-        '--ssh', 'default',
+        '--ssh',
+        'default',
         '--build-arg', f'GRIZZLY_UID={getuid()}',
         '--build-arg', f'GRIZZLY_GID={getgid()}',
         '-f', containerfile,
@@ -35,6 +36,7 @@ def main(args: Arguments) -> int:
 
     # make sure buildkit is used
     build_env = environ.copy()
-    build_env['DOCKER_BUILDKIT'] = '1'
+    if args.container_system == 'docker':
+        build_env['DOCKER_BUILDKIT'] = '1'
 
     return run_command(build_command, env=build_env)

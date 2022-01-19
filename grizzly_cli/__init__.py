@@ -59,8 +59,15 @@ def list_images(args: Arguments) -> Dict[str, Any]:
             continue
         image = jsonloads(line)
         name = image['name']
+        tag = image['tag']
         del image['name']
-        images[name] = image
+        del image['tag']
+
+        version = {tag: image}
+
+        if name not in images:
+            images[name] = {'tags': {}}
+        images[name]['tags'].update(version)
 
     return images
 
