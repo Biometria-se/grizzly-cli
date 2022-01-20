@@ -38,61 +38,77 @@ def _get_distributed_system() -> Optional[str]:
 
 
 def _parse_arguments() -> argparse.Namespace:
-    parser = GrizzlyCliParser(description='grizzly command line interface')
+    parser = GrizzlyCliParser(description=(
+        'the command line interface for grizzly, which makes it easer to start a test with all features of grizzly wrapped up nicely.\n\n'
+        'installing it is a matter of:\n\n'
+        '```bash\n'
+        'pip install grizzly-loadtester-cli\n'
+        '```'
+    ))
 
     sub_parser = parser.add_subparsers(dest='category')
 
     # grizzly-cli run ...
-    run_parser = sub_parser.add_parser('run', help='run feature fil')
+    run_parser = sub_parser.add_parser('run', description='execute load test scenarios specified in a feature file.')
     run_parser.add_argument(
         '--verbose',
         action='store_true',
         required=False,
-        help='verbose output from runners',
+        help=(
+            'changes the log level to `DEBUG`, regardless of what it says in the feature file. gives more verbose logging '
+            'that can be useful when troubleshooting a problem with a scenario.'
+        )
     )
     run_parser.add_argument(
         '-T', '--testdata-variable',
         action='append',
         type=str,
         required=False,
-        help='testdata variables, specified as <name>=<value>',
+        help=(
+            'specified in the format `<name>=<value>`. avoids being asked for an initial value for a scenario variable.'
+        )
     )
     run_parser.add_argument(
         '-y', '--yes',
         action='store_true',
         default=False,
         required=False,
-        help='answer yes on any questions',
+        help='answer yes on any questions that would require confirmation',
     )
     run_parser.add_argument(
         '-e', '--environment-file',
         type=str,
         required=False,
         default=None,
-        help='configuration file with environment specific information',
+        help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
     )
 
     run_sub_parser = run_parser.add_subparsers(dest='mode')
 
+    file_kwargs = {
+        'nargs': None,
+        'help': 'path to feature file with one or more scenarios',
+    }
+
     # grizzly-cli run local ...
-    run_local_parser = run_sub_parser.add_parser('local', help='arguments for running grizzly locally')
+    run_local_parser = run_sub_parser.add_parser('local', description='arguments for running grizzly locally.')
     run_local_parser.add_argument(
         'file',
-        nargs=None,  # type: ignore
+        **file_kwargs,
     )
 
     # grizzly-cli run dist ...
-    run_dist_parser = run_sub_parser.add_parser('dist', help='arguments for running grizzly distributed')
+    run_dist_parser = run_sub_parser.add_parser('dist', help='arguments for running grizzly distributed.')
     run_dist_parser.add_argument(
         'file',
-        nargs=None,  # type: ignore
+        **file_kwargs,
     )
     run_dist_parser.add_argument(
         '--workers',
         type=int,
         required=False,
         default=1,
-        help='number of worker containers to start',
+        help='how many instances of the `workers` container that should be created',
     )
     run_dist_parser.add_argument(
         '--container-system',
@@ -107,14 +123,14 @@ def _parse_arguments() -> argparse.Namespace:
         type=str,
         required=False,
         default=None,
-        help='unique identifier suffixed to compose project and container image names',
+        help='unique identifier suffixed to compose project, should be used when the same user needs to run more than one instance of `grizzly-cli`',
     )
     run_dist_parser.add_argument(
         '--limit-nofile',
         type=int,
         required=False,
         default=10001,
-        help='set system limit "nofile", default 10001'
+        help='set system limit "number of open files"',
     )
 
     group_build = run_dist_parser.add_mutually_exclusive_group()

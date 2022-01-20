@@ -1,3 +1,3 @@
 # Grizzly Command Line Interface
 
-Documentation in [`biometria-se/grizzly`](https://github.com/Biometria-se/grizzly/blob/main/docs/cli.md).
+Documentation in [`biometria-se/grizzly`](https://biometria-se.github.io/grizzly/usage/cli/).
