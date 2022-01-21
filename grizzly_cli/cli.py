@@ -16,8 +16,9 @@ from roundrobin import smooth
 from jinja2 import Template
 
 from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
-from . import GrizzlyCliParser, run_command, list_images, get_default_mtu, parse_feature_file
+from . import run_command, list_images, get_default_mtu, parse_feature_file
 from .build import main as build
+from .argparse import ArgumentParser
 
 
 def _get_distributed_system() -> Optional[str]:
@@ -38,7 +39,7 @@ def _get_distributed_system() -> Optional[str]:
 
 
 def _parse_arguments() -> argparse.Namespace:
-    parser = GrizzlyCliParser(description=(
+    parser = ArgumentParser(description=(
         'the command line interface for grizzly, which makes it easer to start a test with all features of grizzly wrapped up nicely.\n\n'
         'installing it is a matter of:\n\n'
         '```bash\n'
@@ -148,6 +149,13 @@ def _parse_arguments() -> argparse.Namespace:
     )
 
     args = parser.parse_args()
+
+    if args.category is None:
+        parser.error('no subcommand specified')
+
+    if args.mode is None:
+        parser.error(f'no subcommand for {parser.prog} {args.category} specified')
+
     if not os.path.exists(os.path.join(EXECUTION_CONTEXT, args.file)):
         parser.error_no_help(f'{args.file} does not exist')
 
