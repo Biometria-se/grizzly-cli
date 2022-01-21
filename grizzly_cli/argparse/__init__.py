@@ -5,7 +5,7 @@ from typing import Any, Dict, Tuple
 from argparse import ArgumentParser as CoreArgumentParser, Namespace, SUPPRESS
 
 from .markdown import MarkdownFormatter, MarkdownHelpAction
-from .bashcompletion import BashCompletionAction
+from .bashcompletion import BashCompletionAction, hook as bashcompletion_hook
 
 
 class ArgumentParser(CoreArgumentParser):
@@ -52,6 +52,9 @@ class ArgumentParser(CoreArgumentParser):
             self._actions = original_actions
 
     def parse_args(self) -> Namespace:
-        '''Hook to add `--bash-complete` to all parsers.'''
-        # @TODO: add it here
+        '''Hook to add `--bash-complete` to all parsers, if enabled for parser.
+        '''
+        if self.bash_completion:
+            bashcompletion_hook(self)
+
         return super().parse_args()

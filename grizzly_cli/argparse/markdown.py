@@ -77,7 +77,7 @@ class MarkdownHelpAction(Action):
         _subparsers = getattr(parser, '_subparsers', None)
         if _subparsers is not None:
             for subparsers in _subparsers._group_actions:
-                for _, subparser in subparsers.choices.items():
+                for subparser in subparsers.choices.values():
                     self.print_help(subparser, level=level+1)
 
 class MarkdownFormatter(HelpFormatter):

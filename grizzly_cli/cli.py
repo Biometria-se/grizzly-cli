@@ -15,6 +15,8 @@ from behave.model import Scenario
 from roundrobin import smooth
 from jinja2 import Template
 
+from .argparse.bashcompletion import BashCompletionTypes
+
 from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
 from . import run_command, list_images, get_default_mtu, parse_feature_file
 from .build import main as build
@@ -78,7 +80,7 @@ def _parse_arguments() -> argparse.Namespace:
     )
     run_parser.add_argument(
         '-e', '--environment-file',
-        type=str,
+        type=BashCompletionTypes.File('*.yaml'),
         required=False,
         default=None,
         help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
@@ -88,6 +90,7 @@ def _parse_arguments() -> argparse.Namespace:
 
     file_kwargs = {
         'nargs': None,
+        'type': BashCompletionTypes.File('*.feature'),
         'help': 'path to feature file with one or more scenarios',
     }
 
