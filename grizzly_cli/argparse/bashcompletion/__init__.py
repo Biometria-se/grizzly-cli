@@ -31,8 +31,9 @@ class BashCompletionAction(Action):
     def __call__(
         self,
         parser: ArgumentParser,
-        *args: Tuple[Any],
-        **kwargs: Dict[str, Any]
+        namespace: Namespace,
+        values: Union[str, Sequence[Any], None],
+        option_string: Optional[str] = None,
     ) -> None:
         file_directory = path.dirname(__file__)
         with open(path.join(file_directory, 'bashcompletion.bash'), encoding='utf-8') as fd:

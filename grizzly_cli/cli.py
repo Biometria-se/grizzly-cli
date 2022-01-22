@@ -80,7 +80,7 @@ def _parse_arguments() -> argparse.Namespace:
     )
     run_parser.add_argument(
         '-e', '--environment-file',
-        type=BashCompletionTypes.File('*.yaml'),
+        type=BashCompletionTypes.File('*.yaml', '*.yml'),
         required=False,
         default=None,
         help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
