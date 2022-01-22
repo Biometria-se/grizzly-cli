@@ -17,6 +17,7 @@
 
 	// Set *default* container specific settings.json values on container create.
 	"settings": {
+        "python.pythonPath": "/usr/local/bin/python",
 		"python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.linting.enabled": true,
 		"python.linting.pylintEnabled": true,
@@ -44,7 +45,7 @@
 			"tests/"
 		],
 		"coverage-gutters.xmlname": "coverage.xml",
-		"coverage-gutters.ignoredPathGlobs": "**/{node_modules,venv,.venv,vendor,tests}/**"
+		"coverage-gutters.ignoredPathGlobs": "**/tests/**"
 	},
 
 	// Add the IDs of extensions you want installed when the container is created.

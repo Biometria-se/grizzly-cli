@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Union, Sequence, Optional, Tuple
+from typing import Any, List, Union, Sequence, Optional, Tuple, Callable, Dict
 from types import MethodType
-from argparse import Action, SUPPRESS, ArgumentParser, Namespace, HelpFormatter, _SubParsersAction
+from argparse import Action, SUPPRESS, ArgumentParser, Namespace, HelpFormatter
+from re import split as resplit
 
 
 __all__ = [
@@ -35,8 +36,8 @@ class MarkdownHelpAction(Action):
 
         parser.exit()
 
-    def print_help(self, parser: Union[ArgumentParser, _SubParsersAction], level: int = 0) -> None:
-        def format_help_markdown(self):
+    def print_help(self, parser: ArgumentParser, level: int = 0) -> None:
+        def format_help_markdown(self: ArgumentParser) -> str:
             formatter = self._get_formatter()
 
             # description -- in markdown, should come before usage
@@ -46,6 +47,8 @@ class MarkdownHelpAction(Action):
             # usage
             formatter.add_usage(self.usage, self._actions,
                                 self._mutually_exclusive_groups)
+
+            # XXX: formatter.add_text(self.description) -- used to be here
 
             # positionals, optionals and user-defined groups
             for action_group in self._action_groups:
@@ -63,7 +66,7 @@ class MarkdownHelpAction(Action):
 
         # <!-- monkey patch our parser
         # switch format_help, so that stuff comes in an order that makes more sense in markdown
-        parser.format_help = MethodType(format_help_markdown, parser)
+        setattr(parser, 'format_help', MethodType(format_help_markdown, parser))
         # switch formatter class so we'll get markdown
         setattr(parser, 'formatter_class', MarkdownFormatter)
         # -->
@@ -81,14 +84,21 @@ class MarkdownHelpAction(Action):
                     self.print_help(subparser, level=level+1)
 
 class MarkdownFormatter(HelpFormatter):
-    level: int
+    level: int = 0
 
-    def __init__(self, *args: Tuple[Any], **kwargs: Dict[str, Any]) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._root_section = self.MarkdownSection(self, None)
+        self._root_section = self._MarkdownSection(self, None)
         self._current_section = self._root_section
+        self.level = MarkdownFormatter.level
 
-    class MarkdownSection(HelpFormatter._Section):
+    class _MarkdownSection:
+        def __init__(self, formatter: 'MarkdownFormatter', parent: Optional['MarkdownFormatter._MarkdownSection'], heading: Optional[str] = None) -> None:
+            self.formatter = formatter
+            self.parent = parent
+            self.heading = heading
+            self.items: List[Tuple[Callable, Tuple[Any, ...]]] = []
+
         def format_help(self) -> str:
             # format the indented section
             if self.parent is not None:
@@ -145,12 +155,13 @@ class MarkdownFormatter(HelpFormatter):
 
     @property
     def current_level(self) -> int:
-        return MarkdownFormatter.level + 1
+        return self.level + 1
 
-    def _format_usage(self, *args: Tuple[Any], **kwargs: Dict[str, Any]) -> str:
+    def _format_usage(self, *args: Any, **kwargs: Any) -> str:
         # remove last argument, which is prefix, we are going to set it
         args = args[:-1]
-        usage_text = super()._format_usage(*args, **kwargs, prefix='')
+        args += ('', )
+        usage_text = super()._format_usage(*args, **kwargs)
 
         # wrap usage text in a markdown code block, with bash syntax
         return '\n'.join([
@@ -185,23 +196,30 @@ class MarkdownFormatter(HelpFormatter):
                 if line.strip().startswith('```'):
                     in_code_block = not in_code_block
 
-                for sentence in line.split('.'):
-                    if len(sentence.strip()) > 0 and not in_code_block:
-                        sentence = f'{sentence[0].upper()}{sentence[1:]}'
+                for sentence in resplit(r'[?\.!:;]', line):
+                    if len(sentence.strip()) > 0 and not in_code_block and sentence != line:
+                        index = line.index(sentence)
+                        sentence_end = line[len(sentence) + index]
+                        if not sentence.startswith(self._prog):
+                            index = len(sentence) - len(sentence.lstrip())
+                            sentence = f'{sentence[:index]}{sentence[index].upper()}{sentence[index+1:]}'
+                        sentence = f'{sentence}{sentence_end}'
 
                     sentences.append(sentence)
 
-                line = '.'.join(sentences)
+                line = ''.join(sentences)
                 lines.append(line)
             text = '\n'.join(lines)
 
-        return f'{text}\n'
+        return text
 
-    def start_section(self, heading: str) -> None:
-        heading = f'{heading[0].upper()}{heading[1:]}'
-        heading = f'{"#" * self.current_level}# {heading}'
+    def start_section(self, heading: Optional[str]) -> None:
+        if heading is not None:
+            heading = f'{heading[0].upper()}{heading[1:]}'  # first letter in first words to upper case
+            heading = f'{"#" * self.current_level}# {heading}'
+
         self._indent()
-        section = self.MarkdownSection(self, self._current_section, heading)
+        section = self._MarkdownSection(self, self._current_section, heading)
         self._add_item(section.format_help, [])
         self._current_section = section
 

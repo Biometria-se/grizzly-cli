@@ -41,12 +41,6 @@ class BashCompletionAction(Action):
 
         parser.exit()
 
-import sys
-def printerr(message: str) -> None:
-    sys.stderr.write(f'{message}\n')
-    pass
-
-
 class BashCompleteAction(Action):
     def __init__(
         self,
@@ -72,8 +66,7 @@ class BashCompleteAction(Action):
     ) -> None:
         all_suggestions: Dict[str, Any] = {}
         suggestions: Dict[str, Any] = {}
-
-        printerr(values)
+        provided_options: List[str] = []
 
         for action in parser._actions:
             if isinstance(action, (BashCompleteAction, BashCompletionAction, )) or (action.default == '==SUPPRESS==' and action.dest != 'help'):
@@ -83,73 +76,69 @@ class BashCompleteAction(Action):
             elif getattr(action, 'option_strings', None) is not None:
                 suggestions.update({key: action for key in action.option_strings})
 
-        values = [value.strip() for value in values.replace(f'{parser.prog}', '').strip().split(' ') if len(value.strip()) > 0]
+        if isinstance(values, str):
+            provided_options = [value.strip() for value in values.replace(f'{parser.prog}', '').strip().split(' ') if len(value.strip()) > 0]
+        elif isinstance(values, Sequence):
+            provided_options = [str(value).strip() for value in values if len(str(value).strip()) and parser.prog not in values]
 
         # remove any completed values
-        if len(values) > 2:
-            completed = ' '.join(values[:2])
-            values = ' '.join(values).replace(completed, ' ').strip().split(' ')
-            filtered_values: List[str] = []
+        if len(provided_options) > 2:
+            completed_options = ' '.join(provided_options[:2])
+            provided_options = ' '.join(provided_options).replace(completed_options, ' ').strip().split(' ')
+            filtered_options: List[str] = []
             skip = False
-            for index, value in enumerate(values):
+
+            for index, option in enumerate(provided_options):
                 if skip:
                     skip = False
                     continue
-                value = value.strip()
-                if len(value) < 1:
+                option = option.strip()
+                if len(option) < 1:
                     continue
 
-                suggestion = suggestions.get(value, None)
-                print(f'value={value}, suggestion={suggestion}')
+                suggestion = suggestions.get(option, None)
                 if suggestion is not None:
                     if isinstance(suggestion, _StoreConstAction):
                         for option in suggestion.option_strings:
                             del suggestions[option]
                         continue
                     if isinstance(suggestion, _AppendAction):
-                        if len(values) > index + 1 and not values[index+1].strip().startswith('-'):
+                        if len(provided_options) > index + 1 and not provided_options[index+1].strip().startswith('-'):
                             skip = True
                             continue
 
-                filtered_values.append(value)
+                filtered_options.append(option)
 
-            values = filtered_values
+            provided_options = filtered_options
 
         all_suggestions = suggestions.copy()
 
-
-        printerr(values)
-
-        if len(values) > 0:
+        if len(provided_options) > 0:
             filtered_suggestions: Dict[str, Any] = {}
-            for value in values:
+            for option in provided_options:
                 for option, action in suggestions.items():
-                    if option.startswith(value):
+                    if option.startswith(option):
                         filtered_suggestions.update({option: action})
 
             suggestions = filtered_suggestions
 
-        if len(values) > 0 and values[0] in suggestions:
-            suggestion = suggestions[values[0]]
+        if len(provided_options) > 0 and provided_options[0] in suggestions:
+            suggestion = suggestions[provided_options[0]]
             if isinstance(suggestion, _StoreConstAction):
                 suggestions = all_suggestions
                 for option in suggestion.option_strings:
                     del suggestions[option]
-            elif isinstance(suggestion, _AppendAction) and len(values) == 2:
+            elif isinstance(suggestion, _AppendAction) and len(provided_options) == 2:
                 suggestions = all_suggestions
 
-        printerr(f'values={values}')
-        printerr(f'suggestions={suggestions}')
-
         # value for an argument
-        if len(values) > 0:
-            action = suggestions.get(values[0].strip(), None)
-            printerr(f'action={action}')
+        if len(provided_options) > 0:
+            action = suggestions.get(provided_options[0], None)
             if len(suggestions) == 1 and action is not None:
                 if isinstance(action.type, BashCompletionTypes.File):
-                    file_suggestions = action.type.list_files(values[-2:])
+                    file_suggestions = action.type.list_files(provided_options[-2:])
 
-                    if not (len(file_suggestions) == 1 and values[-1] in file_suggestions):
+                    if not (len(file_suggestions) == 1 and provided_options[-1] in file_suggestions):
                         suggestions = file_suggestions
                     else:
                         suggestions = all_suggestions
@@ -162,7 +151,7 @@ class BashCompleteAction(Action):
         parser.exit()
 
 
-def hook(parser: Union[ArgumentParser, _SubParsersAction]) -> None:
+def hook(parser: ArgumentParser) -> None:
     parser.add_argument('--bash-complete', action=BashCompleteAction, help=SUPPRESS)
 
     _subparsers = getattr(parser, '_subparsers', None)

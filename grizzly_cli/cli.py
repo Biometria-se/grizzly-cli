@@ -98,14 +98,14 @@ def _parse_arguments() -> argparse.Namespace:
     run_local_parser = run_sub_parser.add_parser('local', description='arguments for running grizzly locally.')
     run_local_parser.add_argument(
         'file',
-        **file_kwargs,
+        **file_kwargs,  # type: ignore
     )
 
     # grizzly-cli run dist ...
     run_dist_parser = run_sub_parser.add_parser('dist', help='arguments for running grizzly distributed.')
     run_dist_parser.add_argument(
         'file',
-        **file_kwargs,
+        **file_kwargs,  # type: ignore
     )
     run_dist_parser.add_argument(
         '--workers',
