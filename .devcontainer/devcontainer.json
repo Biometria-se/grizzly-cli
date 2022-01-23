@@ -55,7 +55,8 @@
         "editorconfig.editorconfig",
         "eamodio.gitlens",
         "ryanluker.vscode-coverage-gutters",
-        "matangover.mypy"
+        "matangover.mypy",
+        "oderwat.indent-rainbow",
 	],
 
     "containerEnv": {

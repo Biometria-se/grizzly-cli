@@ -1,4 +1,4 @@
-from typing import Any, List, Union, Sequence, Optional, Tuple, Callable, Dict
+from typing import Any, List, Union, Sequence, Optional, Tuple, Callable
 from types import MethodType
 from argparse import Action, SUPPRESS, ArgumentParser, Namespace, HelpFormatter
 from re import split as resplit
@@ -45,6 +45,7 @@ class MarkdownHelpAction(Action):
             formatter.add_text(self.description)
 
             # usage
+            formatter.add_text('\n')
             formatter.add_usage(self.usage, self._actions,
                                 self._mutually_exclusive_groups)
 
@@ -141,8 +142,8 @@ class MarkdownFormatter(HelpFormatter):
                 heading = '%*s%s\n' % (current_indent, '', self.heading)
 
                 # increase header if we're in a subparser
-                if MarkdownFormatter.level > 0:
-                    # a bit hackish, to get a space when adding a subparsers help
+                if self.formatter.level > 0:
+                    # a bit hackish, to get a line break when adding a subparsers help
                     if self.parent is None:
                         print('')
 
@@ -226,20 +227,22 @@ class MarkdownFormatter(HelpFormatter):
     def _format_action(self, action: Action) -> str:
         # do not include -h/--help or --md-help in the markdown
         # help
-        if 'help' in action.dest or not action.help:
+        if 'help' in action.dest or action.dest == SUPPRESS:
             return ''
 
         lines: List[str] = []
 
-        expanded_help = self._expand_help(action)
-        help_text = self._split_lines(expanded_help, 80)
+        if action.help is not None:
+            expanded_help = self._expand_help(action)
+            help_text = self._split_lines(expanded_help, 80)
+        else:
+            help_text = ['']
+
+        argument = ', '.join(action.option_strings) if getattr(action, 'option_strings', None) is not None and len(action.option_strings) > 0 else action.dest
+        default = f'`{action.default}`' if action.default is not None else ''
+        help = '<br/>'.join(help_text)
 
         # format arguments as a markdown table row
-        lines.append('| `{argument}` | {default} | {help} |'.format(
-            argument=', '.join(action.option_strings) or action.dest,
-            default=action.default or '',
-            help='<br/>'.join(help_text)),
-        )
-        lines.extend([''])
+        lines.extend([f'| `{argument}` | {default} | {help} |', ''])
 
         return '\n'.join(lines)

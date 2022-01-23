@@ -1,10 +1,9 @@
-from pydoc import describe
-from re import A
-import pytest
-
 import argparse
 
-from pytest_mock import mocker, MockerFixture
+import pytest
+
+from pytest_mock import MockerFixture
+from _pytest.capture import CaptureFixture
 
 from grizzly_cli.argparse.markdown import MarkdownFormatter, MarkdownHelpAction
 
@@ -83,7 +82,7 @@ class TestMarkdownHelpAction:
         action.print_help(parser)
 
         assert _get_formatter.call_count == 1
-        assert add_text.call_count == 5
+        assert add_text.call_count == 6
         assert add_usage.call_count == 1
         assert start_section.call_count == 2
         assert start_section.call_args_list[0][0][0] == 'positional arguments'
@@ -168,3 +167,98 @@ You cannot belive it, it's another sentence.
         assert formatter._current_section.heading == '## Test-section-01'
         assert len(formatter._current_section.items) == 0
         assert formatter._current_section.parent.items[0] == (formatter._current_section.format_help, [],)
+
+    def test__format_action(self) -> None:
+        formatter = MarkdownFormatter('test-prog')
+        action = argparse.Action(['-t', '--test'], dest='help', nargs=1, help='test argument')
+
+        assert formatter._format_action(action) == ''
+
+        action.dest = 'test'
+
+        assert formatter._format_action(action) == '| `-t, --test` |  | test argument |\n'
+
+        action.default = 'test-default'
+        action.option_strings = ['-t']
+
+        assert formatter._format_action(action) == '| `-t` | `test-default` | test argument |\n'
+
+    def test_current_level(self) -> None:
+        formatter = MarkdownFormatter('test-prog')
+        formatter.level = 10
+        assert formatter.current_level == 11
+
+    class Test_MarkdownSection:
+        def test___init__(self) -> None:
+            formatter = MarkdownFormatter('test-prog')
+            section1 = MarkdownFormatter._MarkdownSection(formatter, None)
+
+            assert section1.formatter is formatter
+            assert section1.parent is None
+            assert section1.heading is None
+            assert len(section1.items) == 0
+
+            section2 = MarkdownFormatter._MarkdownSection(formatter, section1)
+            assert section2.formatter is formatter
+            assert section2.parent is section1
+            assert section2.heading is None
+            assert len(section2.items) == 0
+
+            section3 = MarkdownFormatter._MarkdownSection(formatter, section2, 'test heading')
+            assert section3.formatter is formatter
+            assert section3.parent is section2
+            assert section3.heading == 'test heading'
+            assert len(section3.items) == 0
+
+        def test_format_help(self, capsys: CaptureFixture) -> None:
+            formatter = MarkdownFormatter('test-prog')
+
+            action1 = argparse.Action(['-r', '--root'], dest='root', nargs=2, help='root argument')
+            action2 = argparse.Action(['--root-const'], dest='root', nargs=0, default=True)
+
+            formatter.start_section('root section')
+            formatter._add_item(formatter._format_action, [action1])
+            formatter._add_item(formatter._format_action, [action2])
+            formatter.end_section()
+
+            format_help_text = formatter._current_section.format_help()
+            assert capsys.readouterr().out == ''
+            assert format_help_text == '''
+
+## Root section
+
+| argument | default | help |
+| -------- | ------- | ---- |
+| `-r, --root` |  | root argument |
+| `--root-const` | `True` |  |
+
+
+'''
+            #MarkdownFormatter.level = 1
+            formatter = MarkdownFormatter('test-prog')
+            formatter.level = 1
+
+            action1 = argparse.Action(['-r', '--root'], dest='root', nargs=2, help='root argument')
+            action2 = argparse.Action(['--root-const'], dest='root', nargs=0, default=True)
+
+            formatter.start_section('root section')
+            formatter._add_item(formatter._format_action, [action1])
+            formatter._add_item(formatter._format_action, [action2])
+            parent = formatter._current_section.parent
+            formatter._current_section.parent = None
+            formatter.end_section()
+            formatter._current_section = parent
+            format_help_text = formatter._current_section.format_help()
+            assert capsys.readouterr().out == '\n'  # @TODO: whyyyyyyyyyy?!
+            print(format_help_text)
+            assert format_help_text == '''
+
+#### Root section
+
+| argument | default | help |
+| -------- | ------- | ---- |
+| `-r, --root` |  | root argument |
+| `--root-const` | `True` |  |
+
+
+'''

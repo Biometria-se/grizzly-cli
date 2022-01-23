@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Tuple, Union, Sequence, Optional
-from argparse import ArgumentParser, Action, Namespace, SUPPRESS, _SubParsersAction, _StoreConstAction, _AppendAction
+from argparse import ArgumentParser, Action, Namespace, SUPPRESS, _SubParsersAction, _StoreConstAction, _AppendAction, ArgumentError
 from os import path
 
 from .types import BashCompletionTypes
@@ -152,10 +152,17 @@ class BashCompleteAction(Action):
 
 
 def hook(parser: ArgumentParser) -> None:
-    parser.add_argument('--bash-complete', action=BashCompleteAction, help=SUPPRESS)
+    try:
+        parser.add_argument('--bash-complete', action=BashCompleteAction, help=SUPPRESS)
 
-    _subparsers = getattr(parser, '_subparsers', None)
-    if _subparsers is not None:
-        for subparsers in _subparsers._group_actions:
-            for subparser in subparsers.choices.values():
-                hook(subparser)
+        _subparsers = getattr(parser, '_subparsers', None)
+        if _subparsers is not None:
+            for subparsers in _subparsers._group_actions:
+                for subparser in subparsers.choices.values():
+                    hook(subparser)
+    except ArgumentError as e:
+        # we've already "hooked" the parser
+        if '--bash-complete: conflicting option string' in str(e):
+            return
+
+        raise e
