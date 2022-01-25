@@ -1,6 +1,7 @@
-from typing import Dict, List, Tuple
+from typing import Dict, Optional
 from pathlib import Path
 from os import getcwd
+from os.path import sep as path_separator
 from fnmatch import filter as fnmatch_filter
 from argparse import ArgumentTypeError
 
@@ -14,40 +15,44 @@ class BashCompletionTypes:
             self.patterns = list(args)
 
         def __call__(self, value: str) -> str:
+            path = Path(value)
+            if not path.exists():
+                raise ArgumentTypeError(f'{value} does not exist')
+
+            if not path.is_file():
+                raise ArgumentTypeError(f'{value} is not a file')
             matches = [match for pattern in self.patterns for match in fnmatch_filter([value], pattern)]
-            if len(matches) > 0:
-                return value
-            else:
+
+            if len(matches) < 1:
                 raise ArgumentTypeError(f'{value} does not match {", ".join(self.patterns)}')
 
-        def list_files(self, values: List[str]) -> Dict[str, str]:
-            # first is the argument that has this type
-            values.pop(0)
+            return value
 
-            # there should be 0 or 1 items in list
-            if len(values) > 0:
-                value = values[0]
-            else:
-                value = None
-
+        def list_files(self, value: Optional[str]) -> Dict[str, str]:
             cwd = getcwd()
 
             matches: Dict[str, str] = {}
 
             for pattern in self.patterns:
                 for path in Path(cwd).rglob(pattern):
-                    path_match = str(path).replace(f'{cwd}/', '')
+                    path_match = str(path).replace(f'{cwd}{path_separator}', '')
 
                     if path_match.startswith('.') or (value is not None and not path_match.startswith(value)):
                         continue
 
-                    if path.is_file():
-                        path_type = 'file'
-                    elif path.is_dir():
-                        path_type = 'dir'
-                    else:
-                        path_type = 'unknown'
+                    match: Optional[Dict[str, str]] = None
 
-                    matches.update({path_match: path_type})
+                    if path_separator in path_match:
+                        try:
+                            index_match = len(value or '')
+                            index_sep = path_match[index_match:].index(path_separator) + index_match
+                            match = {path_match[:index_sep]: 'dir'}
+                        except ValueError:
+                            pass
+
+                    if match is None:
+                        match = {path_match: 'file'}
+
+                    matches.update(match)
 
             return matches

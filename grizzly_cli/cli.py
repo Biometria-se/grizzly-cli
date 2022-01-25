@@ -39,8 +39,7 @@ def _get_distributed_system() -> Optional[str]:
 
     return container_system
 
-
-def _parse_arguments() -> argparse.Namespace:
+def _create_parser() -> ArgumentParser:
     parser = ArgumentParser(description=(
         'the command line interface for grizzly, which makes it easer to start a test with all features of grizzly wrapped up nicely.\n\n'
         'installing it is a matter of:\n\n'
@@ -48,6 +47,9 @@ def _parse_arguments() -> argparse.Namespace:
         'pip install grizzly-loadtester-cli\n'
         '```'
     ))
+
+    if parser.prog != 'grizzly-cli':
+        parser.prog = 'grizzly-cli'
 
     sub_parser = parser.add_subparsers(dest='category')
 
@@ -86,6 +88,9 @@ def _parse_arguments() -> argparse.Namespace:
         help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
     )
 
+    if run_parser.prog != 'grizzly-cli run':
+        run_parser.prog = 'grizzly-cli run'
+
     run_sub_parser = run_parser.add_subparsers(dest='mode')
 
     file_kwargs = {
@@ -100,6 +105,9 @@ def _parse_arguments() -> argparse.Namespace:
         'file',
         **file_kwargs,  # type: ignore
     )
+
+    if run_local_parser.prog != 'grizzly-cli run local':
+        run_local_parser.prog = 'grizzly-cli run local'
 
     # grizzly-cli run dist ...
     run_dist_parser = run_sub_parser.add_parser('dist', help='arguments for running grizzly distributed.')
@@ -151,6 +159,13 @@ def _parse_arguments() -> argparse.Namespace:
         help='rebuild the grizzly projects container images (with cache)',
     )
 
+    if run_dist_parser.prog != 'grizzly-cli run dist':
+        run_dist_parser.prog = 'grizzly-cli run dist'
+
+    return parser
+
+def _parse_arguments() -> argparse.Namespace:
+    parser = _create_parser()
     args = parser.parse_args()
 
     if args.category is None:

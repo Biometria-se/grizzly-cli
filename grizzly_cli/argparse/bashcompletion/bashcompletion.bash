@@ -1,19 +1,9 @@
 _bashcompletion_template() {
-    local current previous
-    local command
+    local current previous command
     declare -a suggestions
 
     current="${COMP_WORDS[COMP_CWORD]}"
     previous="${COMP_WORDS[$((COMP_CWORD - 1))]}"
-
-    case "${previous}" in
-        -h|--help)
-            return
-            ;;
-        default)
-            ;;
-    esac
-
 
     if (( ${#COMP_WORDS[@]} > 1 )); then
         if [[ "${previous}" == "-"* ]]; then
@@ -27,9 +17,6 @@ _bashcompletion_template() {
     fi
 
 
-    >&2 echo "command=${command}"
-    >&2 echo "current=${current}, previous=${previous}, argument=$1"
-    >&2 echo "${command} --bash-complete=\"${command} ${current}\""
     # the space in the value is needed for argparse... :S
     # otherwise argument value will be empty, if it starts with --
     suggestions=($(${command} --bash-complete="${command} ${current}" 2>&1))
@@ -37,4 +24,4 @@ _bashcompletion_template() {
     COMPREPLY=(${suggestions[*]})
 }
 
-complete -F _bashcompletion_template bashcompletion_template
+complete -F _bashcompletion_template -o filenames bashcompletion_template

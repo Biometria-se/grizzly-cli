@@ -15,12 +15,14 @@ class MarkdownHelpAction(Action):
         option_strings: List[str],
         dest: str = SUPPRESS,
         default: str = SUPPRESS,
+        help: str = SUPPRESS,
         **kwargs: Any,
     ) -> None:
         super().__init__(
             option_strings=option_strings,
             dest=dest,
             default=default,
+            help=help,
             nargs=0,
             **kwargs,
         )

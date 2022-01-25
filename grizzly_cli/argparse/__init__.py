@@ -16,10 +16,10 @@ class ArgumentParser(CoreArgumentParser):
         self.bash_completion = bash_completion
 
         if self.markdown_help:
-            self.add_argument('--md-help', action=MarkdownHelpAction, help=SUPPRESS)
+            self.add_argument('--md-help', action=MarkdownHelpAction)
 
         if self.bash_completion:
-            self.add_argument('--bash-completion', action=BashCompletionAction, help=SUPPRESS)
+            self.add_argument('--bash-completion', action=BashCompletionAction)
 
     def error_no_help(self, message: str) -> None:
         sys.stderr.write('{}: error: {}\n'.format(self.prog, message))

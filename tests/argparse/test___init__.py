@@ -1,4 +1,4 @@
-from argparse import ArgumentError
+from argparse import ArgumentError, ArgumentParser as CoreArgumentParser
 from typing import Tuple
 import pytest
 
@@ -8,7 +8,7 @@ from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.argparse.markdown import MarkdownFormatter
 
 @pytest.fixture
-def parsers() -> Tuple[ArgumentParser, ...]:
+def parsers() -> Tuple[CoreArgumentParser, ...]:
     parser = ArgumentParser(prog='test-prog', description='test parser')
 
     parser.add_argument('--root-parser', type=str, default='root-parser', help='root parser argument')
