@@ -9,7 +9,7 @@ from grizzly_cli.argparse.markdown import MarkdownFormatter
 
 @pytest.fixture
 def parsers() -> Tuple[CoreArgumentParser, ...]:
-    parser = ArgumentParser(prog='test-prog', description='test parser')
+    parser = ArgumentParser(prog='test-prog', description='test parser', markdown_help=True, bash_completion=True)
 
     parser.add_argument('--root-parser', type=str, default='root-parser', help='root parser argument')
 
@@ -27,6 +27,12 @@ class TestArgumentParser:
     def test___init__(self) -> None:
         parser = ArgumentParser(description='test parser')
 
+        assert not parser.markdown_help
+        assert not parser.bash_completion
+        assert len(parser._actions) == 1
+
+        parser = ArgumentParser(description='test parser', markdown_help=True, bash_completion=True)
+
         assert parser.markdown_help
         assert parser.bash_completion
         assert len(parser._actions) == 3
@@ -35,7 +41,7 @@ class TestArgumentParser:
 
         assert option_strings == ['-h', '--help', '--md-help', '--bash-completion']
 
-        parser = ArgumentParser(markdown_help=False, description='test parser')
+        parser = ArgumentParser(bash_completion=True, description='test parser')
 
         assert not parser.markdown_help
         assert parser.bash_completion
@@ -45,7 +51,7 @@ class TestArgumentParser:
 
         assert option_strings == ['-h', '--help', '--bash-completion']
 
-        parser = ArgumentParser(bash_completion=False, description='test parser')
+        parser = ArgumentParser(markdown_help=True, description='test parser')
 
         assert parser.markdown_help
         assert not parser.bash_completion

@@ -17,7 +17,7 @@ from jinja2 import Template
 
 from .argparse.bashcompletion import BashCompletionTypes
 
-from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
+from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, __version__
 from . import run_command, list_images, get_default_mtu, parse_feature_file
 from .build import main as build
 from .argparse import ArgumentParser
@@ -30,7 +30,7 @@ def _get_distributed_system() -> Optional[str]:
     elif which('docker') is not None:
         container_system = 'docker'
     else:
-        print(f'neither "podman" nor "docker" not found in PATH')
+        print(f'neither "podman" nor "docker" found in PATH')
         return None
 
     if which(f'{container_system}-compose') is None:
@@ -40,16 +40,26 @@ def _get_distributed_system() -> Optional[str]:
     return container_system
 
 def _create_parser() -> ArgumentParser:
-    parser = ArgumentParser(description=(
-        'the command line interface for grizzly, which makes it easer to start a test with all features of grizzly wrapped up nicely.\n\n'
-        'installing it is a matter of:\n\n'
-        '```bash\n'
-        'pip install grizzly-loadtester-cli\n'
-        '```'
-    ))
+    parser = ArgumentParser(
+        description=(
+            'the command line interface for grizzly, which makes it easer to start a test with all features of grizzly wrapped up nicely.\n\n'
+            'installing it is a matter of:\n\n'
+            '```bash\n'
+            'pip install grizzly-loadtester-cli\n'
+            '```\n\n'
+            'enable bash completion by adding the following to your shell profile:\n\n'
+            '```bash\n'
+            'eval "$(grizzly-cli --bash-completion)"\n'
+            '```'
+        ),
+        markdown_help=True,
+        bash_completion=True,
+    )
 
     if parser.prog != 'grizzly-cli':
         parser.prog = 'grizzly-cli'
+
+    parser.add_argument('--version', action='store_true', help='print version of command line interface, and exit')
 
     sub_parser = parser.add_subparsers(dest='category')
 
@@ -168,17 +178,15 @@ def _parse_arguments() -> argparse.Namespace:
     parser = _create_parser()
     args = parser.parse_args()
 
+    if args.version:
+        print(__version__)
+        raise SystemExit(0)
+
     if args.category is None:
         parser.error('no subcommand specified')
 
     if args.mode is None:
-        parser.error(f'no subcommand for {parser.prog} {args.category} specified')
-
-    if not os.path.exists(os.path.join(EXECUTION_CONTEXT, args.file)):
-        parser.error_no_help(f'{args.file} does not exist')
-
-    if not args.file.endswith('.feature'):
-        parser.error_no_help(f'{args.file} does not have file extension .feature')
+        parser.error(f'no subcommand for {args.category} specified')
 
     if args.mode == 'dist':
         args.container_system = _get_distributed_system()
@@ -189,11 +197,11 @@ def _parse_arguments() -> argparse.Namespace:
             parser.error_no_help(f'there is no requirements.txt in {EXECUTION_CONTEXT}, building of container image not possible')
 
         if args.limit_nofile < 10001 and not args.yes:
-            print('!! this will cause warnings messages from locust later on')
-            _ask_yes_no('are you sure what you are doing?')
+            print('!! this will cause warning messages from locust later on')
+            _ask_yes_no('are you sure you know what you are doing?')
     elif args.mode == 'local':
         if which('behave') is None:
-            parser.error_no_help("'behave' not found in PATH, needed when running local mode")
+            parser.error_no_help('"behave" not found in PATH, needed when running local mode')
 
     if args.testdata_variable is not None:
         for variable in args.testdata_variable:
@@ -206,13 +214,13 @@ def _parse_arguments() -> argparse.Namespace:
     return args
 
 
-def _find_variable_names_in_questions(file: Optional[str]) -> List[str]:
+def _find_variable_names_in_questions(file: str) -> List[str]:
     unique_variables: Set[str] = set()
 
     parse_feature_file(file)
 
     for scenario in SCENARIOS:
-        for step in scenario.steps + scenario.background.steps or []:
+        for step in scenario.steps + scenario.background_steps or []:
             if not step.name.startswith('ask for value of variable'):
                 continue
 
@@ -223,10 +231,7 @@ def _find_variable_names_in_questions(file: Optional[str]) -> List[str]:
 
             unique_variables.add(match.group(1))
 
-    variables = list(unique_variables)
-    variables.sort()
-
-    return variables
+    return sorted(list(unique_variables))
 
 
 def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[str, Any]) -> None:
@@ -401,7 +406,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     mtu = get_default_mtu(args)
 
     if mtu is None and os.environ.get('GRIZZLY_MTU', None) is None:
-        print('!! unable determine MTU, try manually setting GRIZZLY_MTU environment variable if anything other than 1500 is needed')
+        print('!! unable to determine MTU, try manually setting GRIZZLY_MTU environment variable if anything other than 1500 is needed')
         mtu = '1500'
 
     # set environment variables needed by compose files, when *-compose executes
@@ -413,19 +418,19 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     os.environ['GRIZZLY_USER_TAG'] = tag
     os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
 
-    if len(run_arguments['master']) > 0:
+    if len(run_arguments.get('master', [])) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
 
-    if len(run_arguments['worker']) > 0:
+    if len(run_arguments.get('worker', [])) > 0:
         os.environ['GRIZZLY_WORKER_RUN_ARGS'] = ' '.join(run_arguments['worker'])
 
-    if len(run_arguments['common']) > 0:
+    if len(run_arguments.get('common', [])) > 0:
         os.environ['GRIZZLY_COMMON_RUN_ARGS'] = ' '.join(run_arguments['common'])
 
     # check if we need to build image
     images = list_images(args)
 
-    if PROJECT_NAME not in images or tag not in images[PROJECT_NAME] or args.force_build or args.build:
+    if images.get(PROJECT_NAME, {}).get(tag, None) is None or args.force_build or args.build:
         rc = build(args)
         if rc != 0:
             print(f'!! failed to build {PROJECT_NAME}, rc={rc}')
@@ -472,7 +477,6 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
             for worker in range(1, args.workers+1):
                 print(f'{args.container_system} container logs {PROJECT_NAME}-{tag}_worker_{worker}')
 
-
         return rc
 
 
@@ -488,18 +492,21 @@ def _run_local(args: argparse.Namespace, environ: Dict[str, Any], run_arguments:
     if args.file is not None:
         command += [args.file]
 
-    if len(run_arguments['master']) > 0 or len(run_arguments['worker']) > 0 or len(run_arguments['common']) > 0:
+    if len(run_arguments.get('master', [])) > 0 or len(run_arguments.get('worker', [])) > 0 or len(run_arguments.get('common', [])) > 0:
         command += run_arguments['master'] + run_arguments['worker'] + run_arguments['common']
 
     return run_command(command)
 
+
+def _get_input(text: str) -> str:
+    return input(text).strip()
 
 def _ask_yes_no(question: str) -> None:
     answer = 'undefined'
     while answer.lower() not in ['y', 'n']:
         if answer != 'undefined':
             print('you must answer y (yes) or n (no)')
-        answer = input(f'{question} [y/n]: ').strip()
+        answer = _get_input(f'{question} [y/n]: ')
 
         if answer == 'n':
             raise KeyboardInterrupt()
@@ -524,11 +531,11 @@ def main() -> int:
         if questions > 0:
             print(f'feature file requires values for {questions} variables')
 
-            for variable in sorted(variables):
+            for variable in variables:
                 name = f'TESTDATA_VARIABLE_{variable}'
                 value = os.environ.get(name, '')
                 while len(value) < 1:
-                    value = input(f'initial value for "{variable}": ').strip()
+                    value = _get_input(f'initial value for "{variable}": ')
                     manual_input = True
 
                 environ[name] = value
@@ -562,8 +569,7 @@ def main() -> int:
         if args.verbose:
             run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
 
-        rc = run(args, environ, run_arguments)
-        return rc
+        return run(args, environ, run_arguments)
     except (KeyboardInterrupt, ValueError) as e:
         print('')
         if isinstance(e, ValueError):

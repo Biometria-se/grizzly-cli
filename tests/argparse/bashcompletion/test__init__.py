@@ -2,7 +2,7 @@ import argparse
 import inspect
 
 from typing import Optional, Generator, cast
-from os import path, chdir
+from os import path, chdir, getcwd
 from shutil import rmtree
 
 import pytest
@@ -14,6 +14,9 @@ from _pytest.tmpdir import TempdirFactory
 from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompletionAction, hook
 from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.cli import _create_parser
+
+
+CWD = getcwd()
 
 @pytest.fixture
 def test_parser() -> ArgumentParser:
@@ -190,9 +193,9 @@ class TestBashCompleteAction:
     @pytest.mark.parametrize(
         'input,expected',
         [
-            ('grizzly-cli ', '-h --help run',),
-            ('grizzly-cli -', '-h --help'),
-            ('grizzly-cli --', '--help'),
+            ('grizzly-cli ', '-h --help --version run',),
+            ('grizzly-cli -', '-h --help --version'),
+            ('grizzly-cli --', '--help --version'),
             ('grizzly-cli ru', 'run'),
             ('grizzly-cli -h', ''),
         ]
@@ -258,6 +261,8 @@ class TestBashCompleteAction:
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
+        finally:
+            chdir(CWD)
 
     @pytest.mark.parametrize(
         'input,expected',
@@ -343,6 +348,8 @@ class TestBashCompleteAction:
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
+        finally:
+            chdir(CWD)
 
     @pytest.mark.parametrize(
         'input,expected',
@@ -408,6 +415,8 @@ class TestBashCompleteAction:
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
+        finally:
+            chdir(CWD)
 
 
 def test_hook(mocker: MockerFixture) -> None:

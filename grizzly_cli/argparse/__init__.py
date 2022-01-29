@@ -9,7 +9,7 @@ from .bashcompletion import BashCompletionAction, hook as bashcompletion_hook
 
 
 class ArgumentParser(CoreArgumentParser):
-    def __init__(self, markdown_help: bool = True, bash_completion: bool = True, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, markdown_help: bool = False, bash_completion: bool = False, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self.markdown_help = markdown_help

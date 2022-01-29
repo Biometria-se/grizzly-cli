@@ -1,5 +1,5 @@
 from shutil import rmtree
-from os import chdir
+from os import chdir, getcwd
 from argparse import ArgumentTypeError
 
 import pytest
@@ -23,6 +23,7 @@ class TestBashCompletionTypes:
             test_context.join('test.xml').write('<value>test.xml file</value>')
             test_context_root = str(test_context)
 
+            cwd = getcwd()
             chdir(test_context_root)
 
             try:
@@ -52,6 +53,7 @@ class TestBashCompletionTypes:
                 assert impl('test.json') == 'test.json'
             finally:
                 rmtree(test_context_root)
+                chdir(cwd)
 
         def test_list_files(self, tmpdir_factory: TempdirFactory) -> None:
             test_context = tmpdir_factory.mktemp('test_context')

@@ -26,19 +26,13 @@ PROJECT_NAME = os.path.basename(EXECUTION_CONTEXT)
 SCENARIOS: Set[Scenario] = set()
 
 
-def parse_feature_file(file: Optional[str]) -> None:
+def parse_feature_file(file: str) -> None:
     if len(SCENARIOS) > 0:
         return
 
-    if file is None:
-        feature_files = list(Path(os.path.join(EXECUTION_CONTEXT, 'features')).rglob('*.feature'))
-    else:
-        feature_files = [Path(file)]
-
-    for feature_file in feature_files:
-        feature = feature_file_parser(feature_file)
-        for scenario in feature.scenarios:
-            SCENARIOS.add(scenario)
+    feature = feature_file_parser(file)
+    for scenario in feature.scenarios:
+        SCENARIOS.add(scenario)
 
 
 def list_images(args: Arguments) -> Dict[str, Any]:
@@ -63,15 +57,15 @@ def list_images(args: Arguments) -> Dict[str, Any]:
         version = {tag: image}
 
         if name not in images:
-            images[name] = {'tags': {}}
-        images[name]['tags'].update(version)
+            images[name] = {}
+        images[name].update(version)
 
     return images
 
 def get_default_mtu(args: Arguments) -> Optional[str]:
     try:
         output = subprocess.check_output([
-            'docker',
+            f'{args.container_system}',
             'network',
             'inspect',
             'bridge',
@@ -79,14 +73,10 @@ def get_default_mtu(args: Arguments) -> Optional[str]:
             '{{ json .Options }}',
         ]).decode('utf-8')
 
-        lines = output.split('\n')
-        line = lines[0]
-        network_options = jsonloads(line)
-        mtu = network_options.get('com.docker.network.driver.mtu', '1500')
-
-        return cast(str, mtu)
+        line, _ = output.split('\n', 1)
+        network_options: Dict[str, str] = jsonloads(line)
+        return network_options.get('com.docker.network.driver.mtu', '1500')
     except:
-        print(output)
         return None
 
 
