@@ -1,6 +1,6 @@
 import os
 
-from typing import List
+from typing import List, cast
 from argparse import Namespace as Arguments
 from getpass import getuser
 
@@ -11,14 +11,14 @@ def getuid() -> int:
     if os.name == 'nt' or not hasattr(os, 'getuid'):
         return 1000
     else:
-        return getattr(os, 'getuid')()
+        return cast(int, getattr(os, 'getuid')())
 
 
 def getgid() -> int:
     if os.name == 'nt' or not hasattr(os, 'getgid'):
         return 1000
     else:
-        return getattr(os, 'getgid')()
+        return cast(int, getattr(os, 'getgid')())
 
 
 def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
