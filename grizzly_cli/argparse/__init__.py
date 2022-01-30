@@ -21,6 +21,8 @@ class ArgumentParser(CoreArgumentParser):
         if self.bash_completion:
             self.add_argument('--bash-completion', action=BashCompletionAction)
 
+        self._optionals.title = 'optional arguments'
+
     def error_no_help(self, message: str) -> None:
         sys.stderr.write('{}: error: {}\n'.format(self.prog, message))
         sys.exit(2)

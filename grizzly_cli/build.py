@@ -1,9 +1,17 @@
-from os import environ, getuid, getgid
+import os
+
 from typing import List
 from argparse import Namespace as Arguments
 from getpass import getuser
 
 from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT, run_command
+
+if os.name == 'nt' or not hasattr(os, 'getuid'):
+    UID = 1000
+    GID = 1000
+else:
+    UID = getattr(os, 'getuid')()
+    GID = getattr(os, 'getgid')()
 
 
 def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
@@ -13,8 +21,8 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         'build',
         '--ssh',
         'default',
-        '--build-arg', f'GRIZZLY_UID={getuid()}',
-        '--build-arg', f'GRIZZLY_GID={getgid()}',
+        '--build-arg', f'GRIZZLY_UID={UID}',
+        '--build-arg', f'GRIZZLY_GID={GID}',
         '-f', containerfile,
         '-t', tag,
         context
@@ -35,7 +43,7 @@ def main(args: Arguments) -> int:
         build_command.append('--no-cache')
 
     # make sure buildkit is used
-    build_env = environ.copy()
+    build_env = os.environ.copy()
     if args.container_system == 'docker':
         build_env['DOCKER_BUILDKIT'] = '1'
 

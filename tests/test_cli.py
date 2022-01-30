@@ -25,6 +25,8 @@ from grizzly_cli.cli import (
     main,
 )
 
+from .helpers import onerror
+
 CWD = getcwd()
 
 
@@ -285,8 +287,8 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_f
         assert environ.get('TESTDATA_VARIABLE_key', None) == 'value'
 
     finally:
-        rmtree(test_context_root)
         chdir(CWD)
+        rmtree(test_context_root, onerror=onerror)
 
 def test__find_variable_names_in_questions(mocker: MockerFixture) -> None:
     import grizzly_cli.cli

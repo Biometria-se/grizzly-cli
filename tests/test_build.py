@@ -12,8 +12,9 @@ CWD = getcwd()
 
 
 def test__create_build_command(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.build.getuid', side_effect=[1337])
-    mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647])
+    import grizzly_cli.build
+    mocker.patch.object(grizzly_cli.build, 'UID', 1337)
+    mocker.patch.object(grizzly_cli.build, 'GID', 2147483647)
     args = Namespace(container_system='test')
 
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
@@ -32,8 +33,9 @@ def test__create_build_command(mocker: MockerFixture) -> None:
 
 def test_main(mocker: MockerFixture) -> None:
     mocker.patch('grizzly_cli.build.getuser', side_effect=['test-user'] * 2)
-    mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 2)
-    mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 2)
+    import grizzly_cli.build
+    mocker.patch.object(grizzly_cli.build, 'UID', 1337)
+    mocker.patch.object(grizzly_cli.build, 'GID', 2147483647)
     run_command = mocker.patch('grizzly_cli.build.run_command', side_effect=[254, 133])
     test_args = Namespace(container_system='test', force_build=False)
 

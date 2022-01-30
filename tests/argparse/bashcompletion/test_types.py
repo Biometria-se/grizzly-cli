@@ -8,6 +8,10 @@ from _pytest.tmpdir import TempdirFactory
 
 from grizzly_cli.argparse.bashcompletion.types import BashCompletionTypes
 
+from ...helpers import onerror
+
+CWD = getcwd()
+
 class TestBashCompletionTypes:
     class TestFile:
         def test___init__(self) -> None:
@@ -23,7 +27,6 @@ class TestBashCompletionTypes:
             test_context.join('test.xml').write('<value>test.xml file</value>')
             test_context_root = str(test_context)
 
-            cwd = getcwd()
             chdir(test_context_root)
 
             try:
@@ -52,8 +55,8 @@ class TestBashCompletionTypes:
                 assert impl('test.txt') == 'test.txt'
                 assert impl('test.json') == 'test.json'
             finally:
-                rmtree(test_context_root)
-                chdir(cwd)
+                chdir(CWD)
+                rmtree(test_context_root, onerror=onerror)
 
         def test_list_files(self, tmpdir_factory: TempdirFactory) -> None:
             test_context = tmpdir_factory.mktemp('test_context')
@@ -94,4 +97,5 @@ class TestBashCompletionTypes:
                     'test-dir': 'dir',
                 }
             finally:
-                rmtree(test_context_root)
+                chdir(CWD)
+                rmtree(test_context_root, onerror=onerror)
