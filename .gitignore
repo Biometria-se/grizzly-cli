@@ -7,3 +7,5 @@ dist/
 coverage.xml
 .coverage
 features/
+*.yaml
+!.github/**/*.yaml
