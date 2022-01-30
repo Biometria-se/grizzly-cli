@@ -17,18 +17,35 @@
 
 	// Set *default* container specific settings.json values on container create.
 	"settings": {
+        "python.pythonPath": "/usr/local/bin/python",
 		"python.defaultInterpreterPath": "/usr/local/bin/python",
-		"python.linting.enabled": true,
+        "python.linting.enabled": true,
 		"python.linting.pylintEnabled": true,
+		"python.linting.flake8Enabled": false,
+		"python.linting.mypyEnabled": false,
+		"python.linting.pycodestyleEnabled": false,
 		"python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
 		"python.formatting.blackPath": "/usr/local/py-utils/bin/black",
 		"python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
 		"python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
 		"python.linting.flake8Path": "/usr/local/py-utils/bin/flake8",
-		"python.linting.mypyPath": "/usr/local/py-utils/bin/mypy",
+		"python.linting.mypyPath": "mypy",
 		"python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
 		"python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
-		"python.linting.pylintPath": "/usr/local/py-utils/bin/pylint"
+		"python.linting.pylintPath": "pylint",
+        "mypy.targets": [
+			"grizzly_cli/",
+			"tests/"
+		],
+        "python.testing.pytestEnabled": true,
+		"python.testing.pytestArgs": [
+			"-o testpaths=tests",
+			"--cov=.",
+			"--cov-report=xml:coverage.xml",
+			"tests/"
+		],
+		"coverage-gutters.xmlname": "coverage.xml",
+		"coverage-gutters.ignoredPathGlobs": "**/tests/**"
 	},
 
 	// Add the IDs of extensions you want installed when the container is created.
@@ -36,7 +53,10 @@
 		"ms-python.python",
 		"ms-python.vscode-pylance",
         "editorconfig.editorconfig",
-        "eamodio.gitlens"
+        "eamodio.gitlens",
+        "ryanluker.vscode-coverage-gutters",
+        "matangover.mypy",
+        "oderwat.indent-rainbow",
 	],
 
     "containerEnv": {
@@ -47,16 +67,22 @@
         "GRIZZLY_MOUNT_CONTEXT": "${localWorkspaceFolder}"
     },
 
+    "mounts": [
+		"source=/etc/timezone,target=/etc/timezone,type=bind",
+		"source=/etc/localtime,target=/etc/localtime,type=bind",
+	],
+
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "ssh-add -l && pip3 install --user -r requirements.txt",
+	"postCreateCommand": "ssh-add -l && pip3 install --user -r requirements.txt && pip3 install --user -r requirements-dev.txt",
 
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 	"features": {
 		"docker-from-docker": "latest",
-		"github-cli": "latest"
+		"github-cli": "latest",
+        "git": "os-provided"
 	}
 }

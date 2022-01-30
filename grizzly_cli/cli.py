@@ -4,7 +4,6 @@ import argparse
 import re
 
 from typing import List, Set, Dict, Any, Optional, Union, Tuple, Generator, cast
-from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
 from getpass import getuser
@@ -16,9 +15,12 @@ from behave.model import Scenario
 from roundrobin import smooth
 from jinja2 import Template
 
-from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
-from . import GrizzlyCliParser, run_command, list_images, get_default_mtu, parse_feature_file
+from .argparse.bashcompletion import BashCompletionTypes
+
+from . import SCENARIOS, EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, __version__
+from . import run_command, list_images, get_default_mtu, parse_feature_file
 from .build import main as build
+from .argparse import ArgumentParser
 
 
 def _get_distributed_system() -> Optional[str]:
@@ -28,7 +30,7 @@ def _get_distributed_system() -> Optional[str]:
     elif which('docker') is not None:
         container_system = 'docker'
     else:
-        print(f'neither "podman" nor "docker" not found in PATH')
+        print(f'neither "podman" nor "docker" found in PATH')
         return None
 
     if which(f'{container_system}-compose') is None:
@@ -37,68 +39,100 @@ def _get_distributed_system() -> Optional[str]:
 
     return container_system
 
-
-def _parse_arguments() -> argparse.Namespace:
-    parser = GrizzlyCliParser(description='Start grizzy load test')
-
-    group_runner = parser.add_mutually_exclusive_group()
-
-    group_runner.add_argument(
-        '-m', '--mode',
-        type=str,
-        choices=['guess', 'feature'],
-        required=False,
-        default='guess',
-        help=argparse.SUPPRESS,
+def _create_parser() -> ArgumentParser:
+    parser = ArgumentParser(
+        description=(
+            'the command line interface for grizzly, which makes it easer to start a test with all features of grizzly wrapped up nicely.\n\n'
+            'installing it is a matter of:\n\n'
+            '```bash\n'
+            'pip install grizzly-loadtester-cli\n'
+            '```\n\n'
+            'enable bash completion by adding the following to your shell profile:\n\n'
+            '```bash\n'
+            'eval "$(grizzly-cli --bash-completion)"\n'
+            '```'
+        ),
+        markdown_help=True,
+        bash_completion=True,
     )
 
-    group_runner.add_argument(
-        'file',
-        nargs='?',
-    )
+    if parser.prog != 'grizzly-cli':
+        parser.prog = 'grizzly-cli'
 
-    group = parser.add_mutually_exclusive_group()
+    parser.add_argument('--version', action='store_true', help='print version of command line interface, and exit')
 
-    group.add_argument(
-        '--local',
+    sub_parser = parser.add_subparsers(dest='category')
+
+    # grizzly-cli run ...
+    run_parser = sub_parser.add_parser('run', description='execute load test scenarios specified in a feature file.')
+    run_parser.add_argument(
+        '--verbose',
         action='store_true',
-        default=None,
         required=False,
-        help='Force running local instead of distributed',
+        help=(
+            'changes the log level to `DEBUG`, regardless of what it says in the feature file. gives more verbose logging '
+            'that can be useful when troubleshooting a problem with a scenario.'
+        )
+    )
+    run_parser.add_argument(
+        '-T', '--testdata-variable',
+        action='append',
+        type=str,
+        required=False,
+        help=(
+            'specified in the format `<name>=<value>`. avoids being asked for an initial value for a scenario variable.'
+        )
+    )
+    run_parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        default=False,
+        required=False,
+        help='answer yes on any questions that would require confirmation',
+    )
+    run_parser.add_argument(
+        '-e', '--environment-file',
+        type=BashCompletionTypes.File('*.yaml', '*.yml'),
+        required=False,
+        default=None,
+        help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
     )
 
-    group.add_argument(
+    if run_parser.prog != 'grizzly-cli run':
+        run_parser.prog = 'grizzly-cli run'
+
+    run_sub_parser = run_parser.add_subparsers(dest='mode')
+
+    file_kwargs = {
+        'nargs': None,
+        'type': BashCompletionTypes.File('*.feature'),
+        'help': 'path to feature file with one or more scenarios',
+    }
+
+    # grizzly-cli run local ...
+    run_local_parser = run_sub_parser.add_parser('local', description='arguments for running grizzly locally.')
+    run_local_parser.add_argument(
+        'file',
+        **file_kwargs,  # type: ignore
+    )
+
+    if run_local_parser.prog != 'grizzly-cli run local':
+        run_local_parser.prog = 'grizzly-cli run local'
+
+    # grizzly-cli run dist ...
+    run_dist_parser = run_sub_parser.add_parser('dist', help='arguments for running grizzly distributed.')
+    run_dist_parser.add_argument(
+        'file',
+        **file_kwargs,  # type: ignore
+    )
+    run_dist_parser.add_argument(
         '--workers',
         type=int,
         required=False,
         default=1,
-        help='Number of worker containers to start',
+        help='how many instances of the `workers` container that should be created',
     )
-
-    group_build = parser.add_mutually_exclusive_group()
-
-    group_build.add_argument(
-        '--force-build',
-        action='store_true',
-        required=False,
-        help='Force rebuild the grizzly projects container image (no cache)',
-    )
-
-    group_build.add_argument(
-        '--build',
-        action='store_true',
-        required=False,
-        help='Rebuild the grizzly projects container images (with cache)',
-    )
-
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        required=False,
-        help='Verbose output from runners',
-    )
-
-    parser.add_argument(
+    run_dist_parser.add_argument(
         '--container-system',
         type=str,
         choices=['podman', 'docker', None],
@@ -106,74 +140,68 @@ def _parse_arguments() -> argparse.Namespace:
         default=None,
         help=argparse.SUPPRESS,
     )
-
-    parser.add_argument(
-        '-T', '--testdata-variable',
-        action='append',
-        type=str,
-        required=False,
-        help='Testdata variables',
-    )
-
-    parser.add_argument(
-        '-y', '--yes',
-        action='store_true',
-        default=False,
-        required=False,
-        help='Answer yes on any questions',
-    )
-
-    parser.add_argument(
-        '-c', '--config-file',
+    run_dist_parser.add_argument(
+        '--id',
         type=str,
         required=False,
         default=None,
-        help='Configuration file with environment specific information',
+        help='unique identifier suffixed to compose project, should be used when the same user needs to run more than one instance of `grizzly-cli`',
+    )
+    run_dist_parser.add_argument(
+        '--limit-nofile',
+        type=int,
+        required=False,
+        default=10001,
+        help='set system limit "number of open files"',
     )
 
+    group_build = run_dist_parser.add_mutually_exclusive_group()
+    group_build.add_argument(
+        '--force-build',
+        action='store_true',
+        required=False,
+        help='force rebuild the grizzly projects container image (no cache)',
+    )
+    group_build.add_argument(
+        '--build',
+        action='store_true',
+        required=False,
+        help='rebuild the grizzly projects container images (with cache)',
+    )
+
+    if run_dist_parser.prog != 'grizzly-cli run dist':
+        run_dist_parser.prog = 'grizzly-cli run dist'
+
+    return parser
+
+def _parse_arguments() -> argparse.Namespace:
+    parser = _create_parser()
     args = parser.parse_args()
 
-    if args.local and args.force_build:
-        parser.error('argument --force-build: not allowed with argument --local')
+    if args.version:
+        print(__version__)
+        raise SystemExit(0)
 
-    if args.local and args.build:
-        parser.error('argument --build: not allowed with argument --local')
+    if args.category is None:
+        parser.error('no subcommand specified')
 
-    if args.file is None:
-        feature_files = len(list(Path(os.path.join(EXECUTION_CONTEXT, 'features')).glob('*.feature')))
+    if args.mode is None:
+        parser.error(f'no subcommand for {args.category} specified')
 
-        if args.mode == 'guess':
-            if feature_files > 0:
-                if feature_files > 1:
-                    parser.error_no_help(f'could not guess which of {feature_files} should execute, please specify')
-                args.mode = 'feature'
-            else:
-                parser.error_no_help(f"could not guess since there are no features files in '{EXECUTION_CONTEXT}'")
-        elif args.mode == 'feature':
-            if feature_files < 1:
-                parser.error_no_help(f"mode '{args.mode}' requires at least one feature file in '{EXECUTION_CONTEXT}/features'")
-            elif feature_files > 1:
-                parser.error_no_help(f'could not guess which of {feature_files} should execute, please specify')
-    else:
-        if args.file.endswith('.feature'):
-            args.mode = 'feature'
-        else:
-            parser.error_no_help(f'{args.file} is not a python nor a feature file')
+    if args.mode == 'dist':
+        args.container_system = _get_distributed_system()
 
-        if not os.path.exists(os.path.join(EXECUTION_CONTEXT, args.file)):
-            parser.error_no_help(f'{args.file} does not exist')
-
-    args.container_system = _get_distributed_system()
-    if args.local is None:
-        args.local = args.container_system is None
-
-    if not args.local and args.container_system is None:
-        parser.error_no_help(f"cannot run distributed")
-    elif not os.path.exists(os.path.join(EXECUTION_CONTEXT, 'requirements.txt')):
+        if args.container_system is None:
+            parser.error_no_help('cannot run distributed')
+        elif not os.path.exists(os.path.join(EXECUTION_CONTEXT, 'requirements.txt')):
             parser.error_no_help(f'there is no requirements.txt in {EXECUTION_CONTEXT}, building of container image not possible')
 
-    if args.local and args.mode == 'feature' and which('behave') is None:
-        parser.error_no_help("'behave' not found in PATH, needed when running local mode")
+        if args.limit_nofile < 10001 and not args.yes:
+            print('!! this will cause warning messages from locust later on')
+            _ask_yes_no('are you sure you know what you are doing?')
+    elif args.mode == 'local':
+        if which('behave') is None:
+            parser.error_no_help('"behave" not found in PATH, needed when running local mode')
 
     if args.testdata_variable is not None:
         for variable in args.testdata_variable:
@@ -186,13 +214,13 @@ def _parse_arguments() -> argparse.Namespace:
     return args
 
 
-def _find_variable_names_in_questions(file: Optional[str]) -> List[str]:
+def _find_variable_names_in_questions(file: str) -> List[str]:
     unique_variables: Set[str] = set()
 
     parse_feature_file(file)
 
     for scenario in SCENARIOS:
-        for step in scenario.steps + scenario.background.steps or []:
+        for step in scenario.steps + scenario.background_steps or []:
             if not step.name.startswith('ask for value of variable'):
                 continue
 
@@ -203,10 +231,7 @@ def _find_variable_names_in_questions(file: Optional[str]) -> List[str]:
 
             unique_variables.add(match.group(1))
 
-    variables = list(unique_variables)
-    variables.sort()
-
-    return variables
+    return sorted(list(unique_variables))
 
 
 def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[str, Any]) -> None:
@@ -322,7 +347,7 @@ def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[
     rows: List[str] = []
     max_length = len('description')
 
-    print(f'\nFeature file {args.file} will execute in total {total_iterations} iterations\n')
+    print(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
 
     for scenario in distribution.values():
         row = '{:11} {:^7} {:>7.1f} {:>7} {}'.format(
@@ -337,7 +362,7 @@ def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[
             max_length = description_length
         rows.append(row)
 
-    print('Each scenario will execute accordingly:\n')
+    print('each scenario will execute accordingly:\n')
     print('{:11} {:7} {:7} {:7} {}'.format('identifier', 'symbol', 'weight', 'iter', 'description'))
     print_table_lines(max_length)
     for row in rows:
@@ -356,21 +381,22 @@ def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[
     if len(formatted_timeline) > 10:
         formatted_timeline = formatted_timeline[:5] + ['...'] + formatted_timeline[-5:]
 
-    print('Timeline of user scheduling will look as following:')
+    print('timeline of user scheduling will look as following:')
     print('\n'.join(formatted_timeline))
 
     print('')
 
     if not args.yes:
-        _ask_yes_no('Continue?')
+        _ask_yes_no('continue?')
 
 
 def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
+    suffix = '' if args.id is None else f'-{args.id}'
     tag = getuser()
 
     # default locust project
     compose_args: List[str] = [
-        '-p', f'{tag}-{PROJECT_NAME}',
+        '-p', f'{PROJECT_NAME}{suffix}-{tag}',
         '-f', f'{STATIC_CONTEXT}/compose.yaml',
     ]
 
@@ -380,7 +406,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     mtu = get_default_mtu(args)
 
     if mtu is None and os.environ.get('GRIZZLY_MTU', None) is None:
-        print('!! unable determine MTU, try manually setting GRIZZLY_MTU environment variable if anything other than 1500 is needed')
+        print('!! unable to determine MTU, try manually setting GRIZZLY_MTU environment variable if anything other than 1500 is needed')
         mtu = '1500'
 
     # set environment variables needed by compose files, when *-compose executes
@@ -392,19 +418,19 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     os.environ['GRIZZLY_USER_TAG'] = tag
     os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
 
-    if len(run_arguments['master']) > 0:
+    if len(run_arguments.get('master', [])) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
 
-    if len(run_arguments['worker']) > 0:
+    if len(run_arguments.get('worker', [])) > 0:
         os.environ['GRIZZLY_WORKER_RUN_ARGS'] = ' '.join(run_arguments['worker'])
 
-    if len(run_arguments['common']) > 0:
+    if len(run_arguments.get('common', [])) > 0:
         os.environ['GRIZZLY_COMMON_RUN_ARGS'] = ' '.join(run_arguments['common'])
 
     # check if we need to build image
     images = list_images(args)
 
-    if PROJECT_NAME not in images or args.force_build or args.build:
+    if images.get(PROJECT_NAME, {}).get(tag, None) is None or args.force_build or args.build:
         rc = build(args)
         if rc != 0:
             print(f'!! failed to build {PROJECT_NAME}, rc={rc}')
@@ -425,6 +451,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
 
         compose_scale_argument = ['--scale', f'worker={args.workers}']
 
+        # bring up containers
         compose_command = [
             f'{args.container_system}-compose',
             *compose_args,
@@ -435,19 +462,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
 
         rc = run_command(compose_command)
 
-        # get logs if start failed
-        if rc != 0:
-            tail = os.environ.get('GRIZZLY_LOG_LINES', '10')
-            compose_command = [
-                f'{args.container_system}-compose',
-                *compose_args,
-                'logs',
-                f'--tail={tail}',
-                '--no-log-prefix',
-                'master',
-            ]
-            run_command(compose_command)
-
+        # stop containers
         compose_command = [
             f'{args.container_system}-compose',
             *compose_args,
@@ -455,6 +470,12 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
         ]
 
         run_command(compose_command)
+
+        if rc != 0:
+            print('!! something went wrong, check container logs with:')
+            print(f'{args.container_system} container logs {PROJECT_NAME}-{tag}_master_1')
+            for worker in range(1, args.workers+1):
+                print(f'{args.container_system} container logs {PROJECT_NAME}-{tag}_worker_{worker}')
 
         return rc
 
@@ -471,18 +492,21 @@ def _run_local(args: argparse.Namespace, environ: Dict[str, Any], run_arguments:
     if args.file is not None:
         command += [args.file]
 
-    if len(run_arguments['master']) > 0 or len(run_arguments['worker']) > 0 or len(run_arguments['common']) > 0:
+    if len(run_arguments.get('master', [])) > 0 or len(run_arguments.get('worker', [])) > 0 or len(run_arguments.get('common', [])) > 0:
         command += run_arguments['master'] + run_arguments['worker'] + run_arguments['common']
 
     return run_command(command)
 
 
+def _get_input(text: str) -> str:
+    return input(text).strip()
+
 def _ask_yes_no(question: str) -> None:
     answer = 'undefined'
     while answer.lower() not in ['y', 'n']:
         if answer != 'undefined':
-            print('You must answer y (yes) or n (no)')
-        answer = input(f'{question} [y/n]: ').strip()
+            print('you must answer y (yes) or n (no)')
+        answer = _get_input(f'{question} [y/n]: ')
 
         if answer == 'n':
             raise KeyboardInterrupt()
@@ -499,46 +523,39 @@ def main() -> int:
             'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
         }
 
-        if args.mode == 'feature':
-            # make sure the user want to run all feature files in project
-            if args.file is None:
-                feature_files = list(Path(os.path.join(EXECUTION_CONTEXT, 'features')).glob('*.feature'))
-                if len(feature_files) > 1:
-                    print('\n'.join([str(feature) for feature in feature_files]))
-                    _ask_yes_no(f'Run the these {len(feature_files)} feature files')
 
-            variables = _find_variable_names_in_questions(args.file)
-            questions = len(variables)
-            manual_input = False
+        variables = _find_variable_names_in_questions(args.file)
+        questions = len(variables)
+        manual_input = False
 
-            if questions > 0:
-                print(f'Feature file requires values for {questions} variables')
+        if questions > 0:
+            print(f'feature file requires values for {questions} variables')
 
-                for variable in sorted(variables):
-                    name = f'TESTDATA_VARIABLE_{variable}'
-                    value = os.environ.get(name, '')
-                    while len(value) < 1:
-                        value = input(f'Initial value for "{variable}": ').strip()
-                        manual_input = True
+            for variable in variables:
+                name = f'TESTDATA_VARIABLE_{variable}'
+                value = os.environ.get(name, '')
+                while len(value) < 1:
+                    value = _get_input(f'initial value for "{variable}": ')
+                    manual_input = True
 
-                    environ[name] = value
+                environ[name] = value
 
-                print('The following values was provided:')
-                for key, value in environ.items():
-                    if not key.startswith('TESTDATA_VARIABLE_'):
-                        continue
-                    print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+            print('the following values was provided:')
+            for key, value in environ.items():
+                if not key.startswith('TESTDATA_VARIABLE_'):
+                    continue
+                print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
 
-                if manual_input:
-                    _ask_yes_no('Continue?')
+            if manual_input:
+                _ask_yes_no('continue?')
 
-            if args.config_file is not None:
-                config_file = os.path.realpath(args.config_file)
-                environ['GRIZZLY_CONFIGURATION_FILE'] = config_file
+        if args.environment_file is not None:
+            environment_file = os.path.realpath(args.environment_file)
+            environ['GRIZZLY_CONFIGURATION_FILE'] = environment_file
 
-            _distribution_of_users_per_scenario(args, environ)
+        _distribution_of_users_per_scenario(args, environ)
 
-        if not args.local:
+        if args.mode == 'dist':
             run = _run_distributed
         else:
             run = _run_local
@@ -558,7 +575,7 @@ def main() -> int:
         if isinstance(e, ValueError):
             print(str(e))
 
-        print('\n!! Aborted grizzly-cli')
+        print('\n!! aborted grizzly-cli')
         return 1
 
 
