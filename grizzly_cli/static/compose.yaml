@@ -3,6 +3,7 @@ services:
   master:
     hostname: master
     image: ${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
+    tty: true
     ulimits:
       nofile: 10001
     extra_hosts:
