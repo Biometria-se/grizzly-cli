@@ -1,5 +1,5 @@
 from shutil import rmtree
-from os import chdir, getcwd
+from os import chdir, getcwd, sep
 from argparse import ArgumentTypeError
 
 import pytest
@@ -85,8 +85,8 @@ class TestBashCompletionTypes:
                     'test-dir': 'dir',
                 }
 
-                assert impl.list_files('test-dir/') == {
-                    'test-dir/test.txt': 'file',
+                assert impl.list_files(f'test-dir{sep}') == {
+                    f'test-dir{sep}test.txt': 'file',
                 }
 
                 impl = BashCompletionTypes.File('*.txt', '*.json', '*.xml')

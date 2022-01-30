@@ -9,3 +9,4 @@ coverage.xml
 features/
 *.yaml
 .venv/
+grizzly-example/

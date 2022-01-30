@@ -2,7 +2,7 @@ import argparse
 import inspect
 
 from typing import Optional, Generator, cast
-from os import path, chdir, getcwd
+from os import path, chdir, getcwd, sep
 from shutil import rmtree
 
 import pytest
@@ -375,8 +375,8 @@ class TestBashCompleteAction:
                 'test.feature test-dir',
             ),
             (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local test-dir/',
-                'test-dir/test.feature',
+                f'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local test-dir{sep}',
+                f'test-dir{sep}test.feature',
             ),
         ]
     )
