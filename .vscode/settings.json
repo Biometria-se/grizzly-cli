@@ -1,0 +1,22 @@
+{
+	"python.linting.enabled": true,
+	"python.linting.pylintEnabled": true,
+	"python.linting.flake8Enabled": false,
+	"python.linting.mypyEnabled": false,
+	"python.linting.pycodestyleEnabled": false,
+	"python.linting.mypyPath": "mypy",
+	"python.linting.pylintPath": "pylint",
+	"mypy.targets": [
+			"grizzly_cli/",
+			"tests/"
+		],
+	"python.testing.pytestEnabled": true,
+	"python.testing.pytestArgs": [
+		"-o testpaths=tests",
+		"--cov=.",
+		"--cov-report=xml:coverage.xml",
+		"tests/"
+	],
+	"coverage-gutters.xmlname": "coverage.xml",
+	"coverage-gutters.ignoredPathGlobs": "**/tests/**"
+}

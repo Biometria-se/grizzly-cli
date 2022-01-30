@@ -69,6 +69,7 @@ class TestMarkdownHelpAction:
     def test_print_help__format_help_markdown(self, mocker: MockerFixture) -> None:
         action = MarkdownHelpAction(['-t', '--test'])
         parser = argparse.ArgumentParser(description='test parser')
+        parser._optionals.title = 'optional arguments'
 
         formatter = MarkdownFormatter('test-prog')
 

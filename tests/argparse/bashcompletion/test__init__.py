@@ -2,7 +2,7 @@ import argparse
 import inspect
 
 from typing import Optional, Generator, cast
-from os import path, chdir, getcwd
+from os import path, chdir, getcwd, sep
 from shutil import rmtree
 
 import pytest
@@ -14,6 +14,8 @@ from _pytest.tmpdir import TempdirFactory
 from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompletionAction, hook
 from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.cli import _create_parser
+
+from ...helpers import onerror
 
 
 CWD = getcwd()
@@ -55,7 +57,8 @@ def test_file_structure(tmpdir_factory: TempdirFactory) -> Generator[str, None, 
     try:
         yield test_context_root
     finally:
-        rmtree(test_context_root)
+        chdir(CWD)
+        rmtree(test_context_root, onerror=onerror)
 
 
 class TestBashCompletionAction:
@@ -375,8 +378,8 @@ class TestBashCompleteAction:
                 'test.feature test-dir',
             ),
             (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local test-dir/',
-                'test-dir/test.feature',
+                f'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local test-dir{sep}',
+                f'test-dir{sep}test.feature',
             ),
         ]
     )

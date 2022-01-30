@@ -12,6 +12,8 @@ from pytest_mock import MockerFixture
 
 from grizzly_cli import parse_feature_file, list_images, get_default_mtu, run_command
 
+from .helpers import onerror
+
 CWD = getcwd()
 
 
@@ -36,12 +38,12 @@ def test___import__(tmpdir_factory: TempdirFactory)  -> None:
         assert grizzly_cli.PROJECT_NAME == path.basename(test_context_root)
         assert len(grizzly_cli.SCENARIOS) == 0
     finally:
-        rmtree(test_context_root)
+        chdir(CWD)
+        rmtree(test_context_root, onerror=onerror)
         try:
             del environ['GRIZZLY_MOUNT_CONTEXT']
         except:
             pass
-        chdir(CWD)
 
 
 def test_parse_feature_file(tmpdir_factory: TempdirFactory) -> None:
@@ -90,7 +92,7 @@ def test_parse_feature_file(tmpdir_factory: TempdirFactory) -> None:
 
     finally:
         chdir(CWD)
-        rmtree(test_context_root)
+        rmtree(test_context_root, onerror=onerror)
 
 
 def test_list_images(mocker: MockerFixture) -> None:

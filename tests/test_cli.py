@@ -25,6 +25,8 @@ from grizzly_cli.cli import (
     main,
 )
 
+from .helpers import onerror
+
 CWD = getcwd()
 
 
@@ -285,8 +287,8 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_f
         assert environ.get('TESTDATA_VARIABLE_key', None) == 'value'
 
     finally:
-        rmtree(test_context_root)
         chdir(CWD)
+        rmtree(test_context_root, onerror=onerror)
 
 def test__find_variable_names_in_questions(mocker: MockerFixture) -> None:
     import grizzly_cli.cli
@@ -728,11 +730,14 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     args, _ = run_distributed.call_args_list[-1]
 
     assert args[0] is arguments
+
+    # windows hack... one place uses C:\ and getcwd uses c:\
+    args[1]['GRIZZLY_CONFIGURATION_FILE'] = args[1]['GRIZZLY_CONFIGURATION_FILE'].lower()
     assert args[1] == {
         'GRIZZLY_CLI_HOST': 'localhost',
         'GRIZZLY_EXECUTION_CONTEXT': '/tmp/execution-context',
         'GRIZZLY_MOUNT_CONTEXT': '/tmp/mount-context',
-        'GRIZZLY_CONFIGURATION_FILE': path.join(getcwd(), 'configuration.yaml'),
+        'GRIZZLY_CONFIGURATION_FILE': path.join(getcwd(), 'configuration.yaml').lower(),
         'TESTDATA_VARIABLE_foo': 'bar',
         'TESTDATA_VARIABLE_bar': 'foo',
     }
@@ -769,11 +774,15 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     args, _ = run_local.call_args_list[-1]
 
     assert args[0] is arguments
+
+    # windows hack... one place uses C:\ and getcwd uses c:\
+    args[1]['GRIZZLY_CONFIGURATION_FILE'] = args[1]['GRIZZLY_CONFIGURATION_FILE'].lower()
+
     assert args[1] == {
         'GRIZZLY_CLI_HOST': 'localhost',
         'GRIZZLY_EXECUTION_CONTEXT': '/tmp/execution-context',
         'GRIZZLY_MOUNT_CONTEXT': '/tmp/mount-context',
-        'GRIZZLY_CONFIGURATION_FILE': path.join(getcwd(), 'configuration.yaml'),
+        'GRIZZLY_CONFIGURATION_FILE': path.join(getcwd(), 'configuration.yaml').lower(),
     }
     assert args[2] == {
         'master': [],
