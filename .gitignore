@@ -8,5 +8,6 @@ coverage.xml
 .coverage
 features/
 *.yaml
+!.github/**/*.yaml
 .venv/
 grizzly-example/

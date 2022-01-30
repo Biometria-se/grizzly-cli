@@ -92,7 +92,7 @@ def test_parse_feature_file(tmpdir_factory: TempdirFactory) -> None:
 
     finally:
         chdir(CWD)
-        rmtree(test_context_root)
+        rmtree(test_context_root, onerror=onerror)
 
 
 def test_list_images(mocker: MockerFixture) -> None:

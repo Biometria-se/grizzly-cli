@@ -1,16 +1,12 @@
-import argparse
-import sys
 import os
 import subprocess
-import re
 
-from typing import Any, Dict, List, Set, Optional, cast
+from typing import Any, Dict, List, Set, Optional
 from json import loads as jsonloads
-from pathlib import Path
 from argparse import Namespace as Arguments
 
 from behave.parser import parse_file as feature_file_parser
-from behave.model import Scenario, Step
+from behave.model import Scenario
 
 
 __version__ = '0.0.0'

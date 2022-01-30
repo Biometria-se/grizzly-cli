@@ -15,6 +15,8 @@ from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompleti
 from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.cli import _create_parser
 
+from ...helpers import onerror
+
 
 CWD = getcwd()
 
@@ -55,7 +57,8 @@ def test_file_structure(tmpdir_factory: TempdirFactory) -> Generator[str, None, 
     try:
         yield test_context_root
     finally:
-        rmtree(test_context_root)
+        chdir(CWD)
+        rmtree(test_context_root, onerror=onerror)
 
 
 class TestBashCompletionAction:

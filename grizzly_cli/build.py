@@ -6,12 +6,19 @@ from getpass import getuser
 
 from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT, run_command
 
-if os.name == 'nt' or not hasattr(os, 'getuid'):
-    UID = 1000
-    GID = 1000
-else:
-    UID = getattr(os, 'getuid')()
-    GID = getattr(os, 'getgid')()
+
+def getuid() -> int:
+    if os.name == 'nt' or not hasattr(os, 'getuid'):
+        return 1000
+    else:
+        return getattr(os, 'getuid')()
+
+
+def getgid() -> int:
+    if os.name == 'nt' or not hasattr(os, 'getgid'):
+        return 1000
+    else:
+        return getattr(os, 'getgid')()
 
 
 def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
@@ -21,8 +28,8 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         'build',
         '--ssh',
         'default',
-        '--build-arg', f'GRIZZLY_UID={UID}',
-        '--build-arg', f'GRIZZLY_GID={GID}',
+        '--build-arg', f'GRIZZLY_UID={getuid()}',
+        '--build-arg', f'GRIZZLY_GID={getgid()}',
         '-f', containerfile,
         '-t', tag,
         context
