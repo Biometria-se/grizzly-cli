@@ -39,10 +39,12 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
 def main(args: Arguments) -> int:
     tag = getuser()
 
+    image_name = f'{PROJECT_NAME}:{tag}'
+
     build_command = _create_build_command(
         args,
         f'{STATIC_CONTEXT}/Containerfile',
-        f'{PROJECT_NAME}:{tag}',
+        image_name,
         EXECUTION_CONTEXT,
     )
 
@@ -54,4 +56,35 @@ def main(args: Arguments) -> int:
     if args.container_system == 'docker':
         build_env['DOCKER_BUILDKIT'] = '1'
 
-    return run_command(build_command, env=build_env)
+    rc = run_command(build_command, env=build_env)
+
+    if getattr(args, 'registry', None) is None or rc != 0:
+        return rc
+
+    tag_command = [
+        f'{args.container_system}',
+        'image',
+        'tag',
+        image_name,
+        f'{args.registry}{image_name}',
+    ]
+
+    rc = run_command(tag_command, env=build_env)
+
+    if rc != 0:
+        print(f'\n!! failed to tag image {image_name} -> {args.registry}{image_name}')
+        return rc
+
+    push_command = [
+        f'{args.container_system}',
+        'image',
+        'push',
+        f'{args.registry}{image_name}',
+    ]
+
+    rc = run_command(push_command, env=build_env)
+
+    if rc != 0:
+        print(f'\n!! failed to push image {args.registry}{image_name}')
+
+    return rc
