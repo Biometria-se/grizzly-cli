@@ -154,6 +154,27 @@ def _create_parser() -> ArgumentParser:
         default=10001,
         help='set system limit "number of open files"',
     )
+    run_dist_parser.add_argument(
+        '--health-retries',
+        type=int,
+        required=False,
+        default=3,
+        help='set number of retries for health check of master container',
+    )
+    run_dist_parser.add_argument(
+        '--health-timeout',
+        type=int,
+        required=False,
+        default=3,
+        help='set timeout in seconds for health check of master container',
+    )
+    run_dist_parser.add_argument(
+        '--health-interval',
+        type=int,
+        required=False,
+        default=5,
+        help='set interval in seconds between health checks of master container',
+    )
 
     group_build = run_dist_parser.add_mutually_exclusive_group()
     group_build.add_argument(
@@ -167,6 +188,12 @@ def _create_parser() -> ArgumentParser:
         action='store_true',
         required=False,
         help='rebuild the grizzly projects container images (with cache)',
+    )
+    group_build.add_argument(
+        '--validate-config',
+        action='store_true',
+        required=False,
+        help='validate and print compose project file',
     )
 
     if run_dist_parser.prog != 'grizzly-cli run dist':
@@ -417,6 +444,9 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     os.environ['GRIZZLY_PROJECT_NAME'] = PROJECT_NAME
     os.environ['GRIZZLY_USER_TAG'] = tag
     os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
+    os.environ['GRIZZLY_HEALTH_CHECK_RETRIES'] = str(args.health_retries)
+    os.environ['GRIZZLY_HEALTH_CHECK_INTERVAL'] = str(args.health_interval)
+    os.environ['GRIZZLY_HEALTH_CHECK_TIMEOUT'] = str(args.health_timeout)
 
     if len(run_arguments.get('master', [])) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
@@ -430,14 +460,8 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     # check if we need to build image
     images = list_images(args)
 
-    if images.get(PROJECT_NAME, {}).get(tag, None) is None or args.force_build or args.build:
-        rc = build(args)
-        if rc != 0:
-            print(f'!! failed to build {PROJECT_NAME}, rc={rc}')
-            return rc
-
-    # file will be deleted when conContainertext exits
     with NamedTemporaryFile() as fd:
+        # file will be deleted when conContainertext exits
         if len(environ) > 0:
             for key, value in environ.items():
                 if key == 'GRIZZLY_CONFIGURATION_FILE':
@@ -448,6 +472,29 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
         fd.flush()
 
         os.environ['GRIZZLY_ENVIRONMENT_FILE'] = fd.name
+
+        validate_config = getattr(args, 'validate_config', False)
+
+        compose_command = [
+            f'{args.container_system}-compose',
+            *compose_args,
+            'config',
+        ]
+
+        rc = run_command(compose_command, silent=not validate_config)
+
+        if validate_config or rc != 0:
+            if rc != 0 and not validate_config:
+                print('!! something in the compose project is not valid, check with:')
+                print(f'grizzly-cli {" ".join(sys.argv[1:])} --validate-config')
+
+            return rc
+
+        if images.get(PROJECT_NAME, {}).get(tag, None) is None or args.force_build or args.build:
+            rc = build(args)
+            if rc != 0:
+                print(f'!! failed to build {PROJECT_NAME}, rc={rc}')
+                return rc
 
         compose_scale_argument = ['--scale', f'worker={args.workers}']
 
@@ -472,10 +519,10 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
         run_command(compose_command)
 
         if rc != 0:
-            print('!! something went wrong, check container logs with:')
-            print(f'{args.container_system} container logs {PROJECT_NAME}-{tag}_master_1')
+            print('\n!! something went wrong, check container logs with:')
+            print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}_master_1')
             for worker in range(1, args.workers+1):
-                print(f'{args.container_system} container logs {PROJECT_NAME}-{tag}_worker_{worker}')
+                print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}_worker_{worker}')
 
         return rc
 
@@ -528,7 +575,7 @@ def main() -> int:
         questions = len(variables)
         manual_input = False
 
-        if questions > 0:
+        if questions > 0 and not getattr(args, 'validate_config', False):
             print(f'feature file requires values for {questions} variables')
 
             for variable in variables:
@@ -553,7 +600,8 @@ def main() -> int:
             environment_file = os.path.realpath(args.environment_file)
             environ['GRIZZLY_CONFIGURATION_FILE'] = environment_file
 
-        _distribution_of_users_per_scenario(args, environ)
+        if not getattr(args, 'validate_config', False):
+            _distribution_of_users_per_scenario(args, environ)
 
         if args.mode == 'dist':
             run = _run_distributed
