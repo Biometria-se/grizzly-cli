@@ -27,7 +27,15 @@ def grizzly_cli_static_files() -> List[str]:
 
     base = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'grizzly_cli')
 
+    # everything in grizzly_cli/static/ should be included
     for path in Path(os.path.join(base, 'static')).rglob('*'):
+        if not path.is_file():
+            continue
+
+        files.append(str(path).replace(f'{base}/', ''))
+
+    # all .bash files in grizzly_cli should be included
+    for path in Path(base).rglob('*.bash'):
         if not path.is_file():
             continue
 
@@ -46,7 +54,7 @@ setup(
     author='Biometria',
     author_email='opensource@biometria.se',
     license='MIT',
-    packages=find_packages(),
+    packages=find_packages(exclude=['*tests', '*tests.*']),
     package_data={
         'grizzly_cli': grizzly_cli_static_files(),
     },
