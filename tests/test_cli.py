@@ -151,11 +151,14 @@ def test__create_parser() -> None:
     assert dist_parser._subparsers is None
     assert sorted([option_string for action in dist_parser._actions for option_string in action.option_strings]) == sorted([
         '-h', '--help',
-        '--force-build', '--build',
+        '--force-build', '--build', '--validate-config',
         '--workers',
         '--id',
         '--limit-nofile',
         '--container-system',
+        '--health-timeout',
+        '--health-retries',
+        '--health-interval',
     ])
     assert sorted([action.dest for action in dist_parser._actions if len(action.option_strings) == 0]) == ['file']
 
@@ -542,10 +545,10 @@ def test__distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Moc
 
 
 def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.cli.getuser', side_effect=['test-user'] * 2)
-    mocker.patch('grizzly_cli.cli.get_default_mtu', side_effect=[None, '1400'])
+    mocker.patch('grizzly_cli.cli.getuser', side_effect=['test-user'] * 3)
+    mocker.patch('grizzly_cli.cli.get_default_mtu', side_effect=[None, '1400', '1800'])
     mocker.patch('grizzly_cli.cli.build', side_effect=[255, 0])
-    mocker.patch('grizzly_cli.cli.list_images', side_effect=[{}, {'grizzly-cli-test-project': {'test-user': {}}}])
+    mocker.patch('grizzly_cli.cli.list_images', side_effect=[{}, {'grizzly-cli-test-project': {'test-user': {}}}, {'grizzly-cli-test-project': {'test-user': {}}}])
 
     import grizzly_cli.cli
     mocker.patch.object(grizzly_cli.cli, 'EXECUTION_CONTEXT', '/tmp/execution-context')
@@ -553,9 +556,9 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
     mocker.patch.object(grizzly_cli.cli, 'MOUNT_CONTEXT', '/tmp/mount-context')
     mocker.patch.object(grizzly_cli.cli, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
-    run_command = mocker.patch('grizzly_cli.cli.run_command', side_effect=[1, 0])
+    run_command = mocker.patch('grizzly_cli.cli.run_command', side_effect=[0, 0, 1, 0, 13])
 
-    arguments = Namespace(file='test.feature', workers=3, container_system='docker', id=None, build=True, force_build=False)
+    arguments = Namespace(file='test.feature', workers=3, container_system='docker', id=None, build=True, force_build=False, health_interval=5, health_timeout=3, health_retries=3)
 
     try:
         # this is set in the devcontainer
@@ -580,12 +583,27 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
         assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) is None
         assert environ.get('GRIZZLY_WORKER_RUN_ARGS', None) is None
         assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) is None
-        assert environ.get('GRIZZLY_ENVIRONMENT_FILE', None) is None
+        assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
+        assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '5'
+        assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '3'
+        assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '3'
 
         # this is set in the devcontainer
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):
                 del environ[key]
+
+        arguments = Namespace(
+            file='test.feature',
+            workers=3,
+            container_system='docker',
+            id=None,
+            build=True,
+            force_build=False,
+            health_interval=10,
+            health_timeout=8,
+            health_retries=30,
+        )
 
         assert _run_distributed(
             arguments,
@@ -602,15 +620,22 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
-            '!! something went wrong, check container logs with:\n'
+            '\n!! something went wrong, check container logs with:\n'
             'docker container logs grizzly-cli-test-project-test-user_master_1\n'
             'docker container logs grizzly-cli-test-project-test-user_worker_1\n'
             'docker container logs grizzly-cli-test-project-test-user_worker_2\n'
             'docker container logs grizzly-cli-test-project-test-user_worker_3\n'
         )
 
-        assert run_command.call_count == 2
-        args, _ = run_command.call_args_list[0]
+        assert run_command.call_count == 4
+        args, _ = run_command.call_args_list[-3]
+        assert args[0] == [
+            'docker-compose',
+            '-p', 'grizzly-cli-test-project-test-user',
+            '-f', '/tmp/static-context/compose.yaml',
+            'config',
+        ]
+        args, _ = run_command.call_args_list[-2]
         assert args[0] == [
             'docker-compose',
             '-p', 'grizzly-cli-test-project-test-user',
@@ -619,7 +644,7 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
             '--scale', 'worker=3',
             '--remove-orphans',
         ]
-        args, _ = run_command.call_args_list[1]
+        args, _ = run_command.call_args_list[-1]
         assert args[0] == [
             'docker-compose',
             '-p', 'grizzly-cli-test-project-test-user',
@@ -639,6 +664,69 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
         assert environ.get('GRIZZLY_WORKER_RUN_ARGS', None) == '--bar foo --worker'
         assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) == '--common true'
         assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
+        assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
+        assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
+        assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
+
+        # this is set in the devcontainer
+        for key in environ.keys():
+            if key.startswith('GRIZZLY_'):
+                del environ[key]
+
+        arguments = Namespace(
+            file='test.feature',
+            workers=1,
+            container_system='docker',
+            id='suffix',
+            build=False,
+            force_build=False,
+            validate_config=True,
+            health_interval=10,
+            health_timeout=8,
+            health_retries=30,
+        )
+
+        assert _run_distributed(
+            arguments,
+            {
+                'GRIZZLY_CONFIGURATION_FILE': '/tmp/execution-context/configuration.yaml',
+                'GRIZZLY_TEST_VAR': 'True',
+            },
+            {
+                'master': ['--foo', 'bar', '--master'],
+                'worker': ['--bar', 'foo', '--worker'],
+                'common': ['--common', 'true'],
+            },
+        ) == 13
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+
+        assert run_command.call_count == 5
+        args, _ = run_command.call_args_list[-1]
+        assert args[0] == [
+            'docker-compose',
+            '-p', 'grizzly-cli-test-project-suffix-test-user',
+            '-f', '/tmp/static-context/compose.yaml',
+            'config',
+        ]
+
+        assert environ.get('GRIZZLY_RUN_FILE', None) == 'test.feature'
+        assert environ.get('GRIZZLY_MTU', None) == '1800'
+        assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/tmp/execution-context'
+        assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
+        assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
+        assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'grizzly-cli-test-project'
+        assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
+        assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '1'
+        assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) == '--foo bar --master'
+        assert environ.get('GRIZZLY_WORKER_RUN_ARGS', None) == '--bar foo --worker'
+        assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) == '--common true'
+        assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
+        assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
+        assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
+        assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
+
     finally:
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):

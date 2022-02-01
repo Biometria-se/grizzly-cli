@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 from typing import Any, Dict, List, Set, Optional
 from json import loads as jsonloads
@@ -76,7 +77,7 @@ def get_default_mtu(args: Arguments) -> Optional[str]:
         return None
 
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None) -> int:
+def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False) -> int:
     if env is None:
         env = os.environ.copy()
 
@@ -97,7 +98,8 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None) -> int
             if not output:
                 break
 
-            print(output.decode('utf-8').strip())
+            if not silent:
+                sys.stdout.write(output.decode('utf-8'))
 
         process.terminate()
     except KeyboardInterrupt:

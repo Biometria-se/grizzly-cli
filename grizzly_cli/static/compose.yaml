@@ -17,9 +17,9 @@ services:
     env_file: "${GRIZZLY_ENVIRONMENT_FILE}"
     healthcheck:
       test: ["CMD", "lsof", "-i", ":5557", "-sTCP:LISTEN"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
+      interval: ${GRIZZLY_HEALTH_CHECK_INTERVAL}s
+      timeout: ${GRIZZLY_HEALTH_CHECK_TIMEOUT}s
+      retries: ${GRIZZLY_HEALTH_CHECK_RETRIES}
 
   worker:
     image: ${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
