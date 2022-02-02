@@ -485,7 +485,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     os.environ['GRIZZLY_HEALTH_CHECK_RETRIES'] = str(args.health_retries)
     os.environ['GRIZZLY_HEALTH_CHECK_INTERVAL'] = str(args.health_interval)
     os.environ['GRIZZLY_HEALTH_CHECK_TIMEOUT'] = str(args.health_timeout)
-    os.environ['GRIZZLY_IMAGE_REGISTRY'] = getattr(args, 'registry', '')
+    os.environ['GRIZZLY_IMAGE_REGISTRY'] = getattr(args, 'registry', None) or ''
 
     if len(run_arguments.get('master', [])) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
