@@ -63,6 +63,29 @@ def _create_parser() -> ArgumentParser:
 
     sub_parser = parser.add_subparsers(dest='category')
 
+    # grizzly-cli build ...
+    build_parser = sub_parser.add_parser('build', description=(
+        'build grizzly compose project container image. this command is only applicable if grizzly '
+        'should run distributed and is used to pre-build the container images. if worker nodes runs '
+        'on different physical computers, it is mandatory to build the images before hand and push to a registry.'
+    ))
+    build_parser.add_argument(
+        '--no-cache',
+        action='store_true',
+        required=False,
+        help='build container image with out cache (full build)',
+    )
+    build_parser.add_argument(
+        '--registry',
+        type=str,
+        default=None,
+        required=False,
+        help='push built image to this registry, if the registry has authentication you need to login first',
+    )
+
+    if build_parser.prog != 'grizzly-cli build':
+        build_parser.prog = 'grizzly-cli build'
+
     # grizzly-cli run ...
     run_parser = sub_parser.add_parser('run', description='execute load test scenarios specified in a feature file.')
     run_parser.add_argument(
@@ -120,7 +143,7 @@ def _create_parser() -> ArgumentParser:
         run_local_parser.prog = 'grizzly-cli run local'
 
     # grizzly-cli run dist ...
-    run_dist_parser = run_sub_parser.add_parser('dist', help='arguments for running grizzly distributed.')
+    run_dist_parser = run_sub_parser.add_parser('dist', description='arguments for running grizzly distributed.')
     run_dist_parser.add_argument(
         'file',
         **file_kwargs,  # type: ignore
@@ -175,6 +198,13 @@ def _create_parser() -> ArgumentParser:
         default=5,
         help='set interval in seconds between health checks of master container',
     )
+    run_dist_parser.add_argument(
+        '--registry',
+        type=str,
+        default=None,
+        required=False,
+        help='push built image to this registry, if the registry has authentication you need to login first',
+    )
 
     group_build = run_dist_parser.add_mutually_exclusive_group()
     group_build.add_argument(
@@ -212,10 +242,10 @@ def _parse_arguments() -> argparse.Namespace:
     if args.category is None:
         parser.error('no subcommand specified')
 
-    if args.mode is None:
+    if getattr(args, 'mode', None) is None and args.category == 'run':
         parser.error(f'no subcommand for {args.category} specified')
 
-    if args.mode == 'dist':
+    if args.category == 'build' or (args.category == 'run' and args.mode == 'dist'):
         args.container_system = _get_distributed_system()
 
         if args.container_system is None:
@@ -223,20 +253,28 @@ def _parse_arguments() -> argparse.Namespace:
         elif not os.path.exists(os.path.join(EXECUTION_CONTEXT, 'requirements.txt')):
             parser.error_no_help(f'there is no requirements.txt in {EXECUTION_CONTEXT}, building of container image not possible')
 
-        if args.limit_nofile < 10001 and not args.yes:
-            print('!! this will cause warning messages from locust later on')
-            _ask_yes_no('are you sure you know what you are doing?')
-    elif args.mode == 'local':
-        if which('behave') is None:
-            parser.error_no_help('"behave" not found in PATH, needed when running local mode')
+        if args.registry is not None and not args.registry.endswith('/'):
+            setattr(args, 'registry', f'{args.registry}/')
 
-    if args.testdata_variable is not None:
-        for variable in args.testdata_variable:
-            try:
-                [name, value] = variable.split('=', 1)
-                os.environ[f'TESTDATA_VARIABLE_{name}'] = value
-            except ValueError:
-                parser.error_no_help(f'-T/--testdata-variable needs to be in the format NAME=VALUE')
+    if args.category == 'run':
+        if args.mode == 'dist':
+            if args.limit_nofile < 10001 and not args.yes:
+                print('!! this will cause warning messages from locust later on')
+                _ask_yes_no('are you sure you know what you are doing?')
+        elif args.mode == 'local':
+            if which('behave') is None:
+                parser.error_no_help('"behave" not found in PATH, needed when running local mode')
+
+        if args.testdata_variable is not None:
+            for variable in args.testdata_variable:
+                try:
+                    [name, value] = variable.split('=', 1)
+                    os.environ[f'TESTDATA_VARIABLE_{name}'] = value
+                except ValueError:
+                    parser.error_no_help(f'-T/--testdata-variable needs to be in the format NAME=VALUE')
+    elif args.category == 'build':
+        setattr(args, 'force_build', args.no_cache)
+        setattr(args, 'build', not args.no_cache)
 
     return args
 
@@ -447,6 +485,7 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     os.environ['GRIZZLY_HEALTH_CHECK_RETRIES'] = str(args.health_retries)
     os.environ['GRIZZLY_HEALTH_CHECK_INTERVAL'] = str(args.health_interval)
     os.environ['GRIZZLY_HEALTH_CHECK_TIMEOUT'] = str(args.health_timeout)
+    os.environ['GRIZZLY_IMAGE_REGISTRY'] = getattr(args, 'registry', '')
 
     if len(run_arguments.get('master', [])) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
@@ -563,61 +602,66 @@ def main() -> int:
     try:
         args = _parse_arguments()
 
-        # always set hostname of host where grizzly-cli was executed, could be useful
-        environ: Dict[str, Any] = {
-            'GRIZZLY_CLI_HOST': get_hostname(),
-            'GRIZZLY_EXECUTION_CONTEXT': EXECUTION_CONTEXT,
-            'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
-        }
+        if args.category == 'run':
+            # always set hostname of host where grizzly-cli was executed, could be useful
+            environ: Dict[str, Any] = {
+                'GRIZZLY_CLI_HOST': get_hostname(),
+                'GRIZZLY_EXECUTION_CONTEXT': EXECUTION_CONTEXT,
+                'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
+            }
 
 
-        variables = _find_variable_names_in_questions(args.file)
-        questions = len(variables)
-        manual_input = False
+            variables = _find_variable_names_in_questions(args.file)
+            questions = len(variables)
+            manual_input = False
 
-        if questions > 0 and not getattr(args, 'validate_config', False):
-            print(f'feature file requires values for {questions} variables')
+            if questions > 0 and not getattr(args, 'validate_config', False):
+                print(f'feature file requires values for {questions} variables')
 
-            for variable in variables:
-                name = f'TESTDATA_VARIABLE_{variable}'
-                value = os.environ.get(name, '')
-                while len(value) < 1:
-                    value = _get_input(f'initial value for "{variable}": ')
-                    manual_input = True
+                for variable in variables:
+                    name = f'TESTDATA_VARIABLE_{variable}'
+                    value = os.environ.get(name, '')
+                    while len(value) < 1:
+                        value = _get_input(f'initial value for "{variable}": ')
+                        manual_input = True
 
-                environ[name] = value
+                    environ[name] = value
 
-            print('the following values was provided:')
-            for key, value in environ.items():
-                if not key.startswith('TESTDATA_VARIABLE_'):
-                    continue
-                print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+                print('the following values was provided:')
+                for key, value in environ.items():
+                    if not key.startswith('TESTDATA_VARIABLE_'):
+                        continue
+                    print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
 
-            if manual_input:
-                _ask_yes_no('continue?')
+                if manual_input:
+                    _ask_yes_no('continue?')
 
-        if args.environment_file is not None:
-            environment_file = os.path.realpath(args.environment_file)
-            environ['GRIZZLY_CONFIGURATION_FILE'] = environment_file
+            if args.environment_file is not None:
+                environment_file = os.path.realpath(args.environment_file)
+                environ['GRIZZLY_CONFIGURATION_FILE'] = environment_file
 
-        if not getattr(args, 'validate_config', False):
-            _distribution_of_users_per_scenario(args, environ)
+            if not getattr(args, 'validate_config', False):
+                _distribution_of_users_per_scenario(args, environ)
 
-        if args.mode == 'dist':
-            run = _run_distributed
+            if args.mode == 'dist':
+                run = _run_distributed
+            else:
+                run = _run_local
+
+            run_arguments: Dict[str, List[str]] = {
+                'master': [],
+                'worker': [],
+                'common': ['--stop'],
+            }
+
+            if args.verbose:
+                run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
+
+            return run(args, environ, run_arguments)
+        elif args.category == 'build':
+            return build(args)
         else:
-            run = _run_local
-
-        run_arguments: Dict[str, List[str]] = {
-            'master': [],
-            'worker': [],
-            'common': ['--stop'],
-        }
-
-        if args.verbose:
-            run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
-
-        return run(args, environ, run_arguments)
+            raise ValueError(f'unknown subcommand {args.category}')
     except (KeyboardInterrupt, ValueError) as e:
         print('')
         if isinstance(e, ValueError):

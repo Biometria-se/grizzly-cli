@@ -196,7 +196,7 @@ class TestBashCompleteAction:
     @pytest.mark.parametrize(
         'input,expected',
         [
-            ('grizzly-cli ', '-h --help --version run',),
+            ('grizzly-cli ', '-h --help --version build run',),
             ('grizzly-cli -', '-h --help --version'),
             ('grizzly-cli --', '--help --version'),
             ('grizzly-cli ru', 'run'),
@@ -272,15 +272,18 @@ class TestBashCompleteAction:
         [
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist',
-                '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --force-build --build --validate-config test.feature test-dir',
+                (
+                    '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
+                    '--force-build --build --validate-config test.feature test-dir'
+                )
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist -',
-                '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --force-build --build --validate-config',
+                '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --force-build --build --validate-config',
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --',
-                '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --force-build --build --validate-config',
+                '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --force-build --build --validate-config',
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers',
@@ -292,11 +295,11 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --force-build --build --validate-config',
+                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --force-build --build --validate-config',
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 --force-build',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval test.feature test-dir',
+                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry test.feature test-dir',
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 --force-build test',
@@ -308,7 +311,7 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 --force-build test.feature',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval',
+                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry',
             ),
             (
                 'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 -h --force-build',

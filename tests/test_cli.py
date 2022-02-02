@@ -125,7 +125,17 @@ def test__create_parser() -> None:
     subparser = parser._subparsers._group_actions[0]
     assert subparser is not None
     assert subparser.choices is not None
-    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 1
+    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 2
+
+    build_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('build', None)
+    assert build_parser is not None
+    assert build_parser._subparsers is None
+    assert getattr(build_parser, 'prog', None) == 'grizzly-cli build'
+    assert sorted([option_string for action in build_parser._actions for option_string in action.option_strings]) == sorted([
+        '-h', '--help',
+        '--no-cache',
+        '--registry',
+    ])
 
     run_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('run', None)
     assert run_parser is not None
@@ -159,6 +169,7 @@ def test__create_parser() -> None:
         '--health-timeout',
         '--health-retries',
         '--health-interval',
+        '--registry',
     ])
     assert sorted([action.dest for action in dist_parser._actions if len(action.option_strings) == 0]) == ['file']
 
@@ -228,7 +239,8 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_f
         import grizzly_cli.cli
         reload(grizzly_cli.cli)
         mocker.patch.object(grizzly_cli.cli, 'EXECUTION_CONTEXT', getcwd())
-        mocker.patch('grizzly_cli.cli._get_distributed_system', side_effect=['docker'])
+        mocker.patch.object(grizzly_cli.cli, '_get_distributed_system', side_effect=['docker'])
+        mocker.patch.object(grizzly_cli.cli, 'build', side_effect=[0, 4, 0])
 
         with pytest.raises(SystemExit) as se:
             _parse_arguments()
@@ -238,7 +250,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_f
         assert capture.out == ''
         assert capture.err == f'grizzly-cli: error: there is no requirements.txt in {getcwd()}, building of container image not possible\n'
 
-        sys.argv = ['grizzly-cli', 'run', 'dist', 'test.feature', '--limit-nofile', '100']
+        sys.argv = ['grizzly-cli', 'run', 'dist', 'test.feature', '--limit-nofile', '100', '--registry', 'ghcr.io/biometria-se']
         test_context.join('requirements.txt').write('grizzly-loadtester')
         mocker.patch('grizzly_cli.cli._get_distributed_system', side_effect=['docker'])
         ask_yes_no = mocker.patch('grizzly_cli.cli._ask_yes_no', autospec=True)
@@ -247,6 +259,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_f
         capture = capsys.readouterr()
         assert arguments.limit_nofile == 100
         assert not arguments.yes
+        assert arguments.registry == 'ghcr.io/biometria-se/'
         assert capture.out == '!! this will cause warning messages from locust later on\n'
         assert capture.err == ''
         assert ask_yes_no.call_count == 1
@@ -288,6 +301,24 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_f
         assert arguments.file == 'test.feature'
 
         assert environ.get('TESTDATA_VARIABLE_key', None) == 'value'
+
+        mocker.patch('grizzly_cli.cli._get_distributed_system', side_effect=['docker'] * 3)
+
+        sys.argv = ['grizzly-cli', 'build']
+        arguments = _parse_arguments()
+
+        assert not arguments.no_cache
+        assert not arguments.force_build
+        assert arguments.build
+        assert arguments.registry is None
+
+        sys.argv = ['grizzly-cli', 'build', '--no-cache', '--registry', 'gchr.io/biometria-se']
+        arguments = _parse_arguments()
+
+        assert arguments.no_cache
+        assert arguments.force_build
+        assert not arguments.build
+        assert arguments.registry == 'gchr.io/biometria-se/'
 
     finally:
         chdir(CWD)
@@ -558,7 +589,18 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
 
     run_command = mocker.patch('grizzly_cli.cli.run_command', side_effect=[0, 0, 1, 0, 13])
 
-    arguments = Namespace(file='test.feature', workers=3, container_system='docker', id=None, build=True, force_build=False, health_interval=5, health_timeout=3, health_retries=3)
+    arguments = Namespace(
+        file='test.feature',
+        workers=3,
+        container_system='docker',
+        id=None,
+        build=True,
+        force_build=False,
+        health_interval=5,
+        health_timeout=3,
+        health_retries=3,
+        registry='',
+    )
 
     try:
         # this is set in the devcontainer
@@ -583,6 +625,7 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
         assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) is None
         assert environ.get('GRIZZLY_WORKER_RUN_ARGS', None) is None
         assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) is None
+        assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == ''
         assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '5'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '3'
@@ -603,6 +646,7 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
             health_interval=10,
             health_timeout=8,
             health_retries=30,
+            registry='gchr.io/biometria-se',
         )
 
         assert _run_distributed(
@@ -667,6 +711,7 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
+        assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'gchr.io/biometria-se'
 
         # this is set in the devcontainer
         for key in environ.keys():
@@ -684,6 +729,7 @@ def test__run_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None
             health_interval=10,
             health_timeout=8,
             health_retries=30,
+            registry='',
         )
 
         assert _run_distributed(
@@ -793,7 +839,7 @@ def test__ask_yes_no(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     for args, _ in get_input.call_args_list:
         assert args[0] == 'are you sure you know what you are doing? [y/n]: '
 
-def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+def test_main_run(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     mocker.patch('grizzly_cli.cli.get_hostname', side_effect=['localhost'] * 2)
     mocker.patch('grizzly_cli.cli._find_variable_names_in_questions', side_effect=[['foo', 'bar'], []])
     mocker.patch('grizzly_cli.cli._distribution_of_users_per_scenario', autospec=True)
@@ -806,7 +852,7 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     mocker.patch.object(grizzly_cli.cli, 'EXECUTION_CONTEXT', '/tmp/execution-context')
     mocker.patch.object(grizzly_cli.cli, 'MOUNT_CONTEXT', '/tmp/mount-context')
 
-    arguments = Namespace(file='test.feature', environment_file='configuration.yaml', mode='dist', verbose=True)
+    arguments = Namespace(file='test.feature', environment_file='configuration.yaml', category='run', mode='dist', verbose=True)
     mocker.patch('grizzly_cli.cli._parse_arguments', side_effect=[arguments])
 
     assert main() == 0
@@ -850,7 +896,7 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         'bar = foo\n'
     )
 
-    arguments = Namespace(file='test.feature', environment_file='configuration.yaml', mode='local', verbose=False)
+    arguments = Namespace(file='test.feature', environment_file='configuration.yaml', category='run', mode='local', verbose=False)
     mocker.patch('grizzly_cli.cli._parse_arguments', side_effect=[arguments])
 
     assert main() == 0
@@ -904,3 +950,37 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         'test error\n'
         '\n!! aborted grizzly-cli\n'
     )
+
+
+def test_main_build(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+    import grizzly_cli.cli
+    build = mocker.patch.object(grizzly_cli.cli, 'build', side_effect=[0, 134])
+    run_distributed = mocker.patch.object(grizzly_cli.cli, '_run_distributed', autospec=True)
+    run_local = mocker.patch.object(grizzly_cli.cli, '_run_local', autospec=True)
+
+    arguments = Namespace(category='build')
+    mocker.patch('grizzly_cli.cli._parse_arguments', side_effect=[arguments] * 2)
+
+    assert main() == 0
+    capture = capsys.readouterr()
+
+    assert capture.out == ''
+    assert capture.err == ''
+
+    assert run_distributed.call_count + run_local.call_count == 0
+    assert build.call_count == 1
+    args, _ = build.call_args_list[-1]
+
+    assert args[0] is arguments
+
+    assert main() == 134
+    capture = capsys.readouterr()
+
+    assert capture.out == ''
+    assert capture.err == ''
+
+    assert run_distributed.call_count + run_local.call_count == 0
+    assert build.call_count == 2
+    args, _ = build.call_args_list[-1]
+
+    assert args[0] is arguments
