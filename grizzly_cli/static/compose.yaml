@@ -12,8 +12,10 @@ services:
       - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/grizzly
     environment:
       - PYTHONPATH=/srv/grizzly
-    entrypoint: /usr/local/bin/behave
-    command: -D master=true -D expected-workers=${GRIZZLY_EXPECTED_WORKERS} /srv/grizzly/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_MASTER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}
+      - COLUMNS=${COLUMNS}
+      - LINES=${LINES}
+    entrypoint: /bin/bash
+    command: -c "/bin/stty rows ${LINES} cols ${COLUMNS} && /usr/local/bin/behave --no-color -D master=true -D expected-workers=${GRIZZLY_EXPECTED_WORKERS} /srv/grizzly/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_MASTER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}"
     env_file: "${GRIZZLY_ENVIRONMENT_FILE}"
     healthcheck:
       test: ["CMD", "lsof", "-i", ":5557", "-sTCP:LISTEN"]
@@ -23,6 +25,7 @@ services:
 
   worker:
     image: ${GRIZZLY_IMAGE_REGISTRY}${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
+    tty: true
     ulimits:
       nofile: 10001
     extra_hosts:
@@ -31,8 +34,10 @@ services:
       - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/grizzly
     environment:
       - PYTHONPATH=/srv/grizzly
-    entrypoint: /usr/local/bin/behave
-    command: -q --no-summary --format null -D worker=true -D master-host=master /srv/grizzly/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_WORKER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}
+      - COLUMNS=${COLUMNS}
+      - LINES=${LINES}
+    entrypoint: /bin/bash
+    command: -c "/bin/stty rows ${LINES} cols ${COLUMNS} && /usr/local/bin/behave --no-color -q --no-summary --format null -D worker=true -D master-host=master /srv/grizzly/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_WORKER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}"
     env_file: "${GRIZZLY_ENVIRONMENT_FILE}"
     depends_on:
       master:

@@ -10,6 +10,7 @@ from getpass import getuser
 from platform import node as get_hostname
 from hashlib import sha1 as sha1_hash
 from operator import attrgetter
+from shutil import get_terminal_size
 
 from behave.model import Scenario
 from roundrobin import smooth
@@ -474,6 +475,8 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
         print('!! unable to determine MTU, try manually setting GRIZZLY_MTU environment variable if anything other than 1500 is needed')
         mtu = '1500'
 
+    columns, lines = get_terminal_size()
+
     # set environment variables needed by compose files, when *-compose executes
     os.environ['GRIZZLY_MTU'] = cast(str, mtu)
     os.environ['GRIZZLY_EXECUTION_CONTEXT'] = EXECUTION_CONTEXT
@@ -486,6 +489,8 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
     os.environ['GRIZZLY_HEALTH_CHECK_INTERVAL'] = str(args.health_interval)
     os.environ['GRIZZLY_HEALTH_CHECK_TIMEOUT'] = str(args.health_timeout)
     os.environ['GRIZZLY_IMAGE_REGISTRY'] = getattr(args, 'registry', None) or ''
+    os.environ['COLUMNS'] = str(columns)
+    os.environ['LINES'] = str(lines)
 
     if len(run_arguments.get('master', [])) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
@@ -507,6 +512,9 @@ def _run_distributed(args: argparse.Namespace, environ: Dict[str, Any], run_argu
                     value = value.replace(EXECUTION_CONTEXT, MOUNT_CONTEXT).replace(MOUNT_CONTEXT, '/srv/grizzly')
 
                 fd.write(f'{key}={value}\n'.encode('utf-8'))
+
+        fd.write(f'COLUMNS={columns}\n'.encode('utf-8'))
+        fd.write(f'LINES={lines}\n'.encode('utf-8'))
 
         fd.flush()
 
