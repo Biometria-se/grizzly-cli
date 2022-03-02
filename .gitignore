@@ -11,3 +11,4 @@ features/
 !.github/**/*.yaml
 .venv/
 grizzly-example/
+*.event

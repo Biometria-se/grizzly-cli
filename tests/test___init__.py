@@ -6,7 +6,7 @@ from importlib import reload
 from textwrap import dedent
 from argparse import Namespace
 
-from _pytest.tmpdir import TempdirFactory
+from _pytest.tmpdir import TempPathFactory
 from _pytest.capture import CaptureFixture
 from pytest_mock import MockerFixture
 
@@ -17,8 +17,8 @@ from .helpers import onerror
 CWD = getcwd()
 
 
-def test___import__(tmpdir_factory: TempdirFactory)  -> None:
-    test_context = tmpdir_factory.mktemp('test_context')
+def test___import__(tmp_path_factory: TempPathFactory)  -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
     test_context_root = str(test_context)
 
     chdir(test_context_root)
@@ -46,10 +46,10 @@ def test___import__(tmpdir_factory: TempdirFactory)  -> None:
             pass
 
 
-def test_parse_feature_file(tmpdir_factory: TempdirFactory) -> None:
-    test_context = tmpdir_factory.mktemp('test_context')
+def test_parse_feature_file(tmp_path_factory: TempPathFactory) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
     test_context_root = str(test_context)
-    test_context.join('test.feature').write(dedent('''
+    (test_context / 'test.feature').write_text(dedent('''
     Feature: test feature
         Background:
             Given a common test step

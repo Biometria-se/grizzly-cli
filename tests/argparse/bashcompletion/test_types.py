@@ -4,7 +4,7 @@ from argparse import ArgumentTypeError
 
 import pytest
 
-from _pytest.tmpdir import TempdirFactory
+from _pytest.tmpdir import TempPathFactory
 
 from grizzly_cli.argparse.bashcompletion.types import BashCompletionTypes
 
@@ -19,12 +19,21 @@ class TestBashCompletionTypes:
             assert BashCompletionTypes.File('*.txt', '*.json').patterns == ['*.txt', '*.json']
             assert BashCompletionTypes.File('*.txt', '*.json', '*.xml').patterns == ['*.txt', '*.json', '*.xml']
 
-        def test___call__(self, tmpdir_factory: TempdirFactory) -> None:
-            test_context = tmpdir_factory.mktemp('test_context')
-            test_context.mkdir('test-dir')
-            test_context.join('test.txt').write('test.txt file')
-            test_context.join('test.json').write('{"value": "test.json file"}')
-            test_context.join('test.xml').write('<value>test.xml file</value>')
+        def test___call__(self, tmp_path_factory: TempPathFactory) -> None:
+            test_context = tmp_path_factory.mktemp('test_context')
+            test_dir = test_context / 'test-dir'
+            test_dir.mkdir()
+            file = test_context / 'test.txt'
+            file.touch()
+            file.write_text('test.txt file')
+
+            file = test_context / 'test.json'
+            file.touch()
+            file.write_text('{"value": "test.json file"}')
+
+            file = test_context / 'test.xml'
+            file.touch()
+            file.write_text('<value>test.xml file</value>')
             test_context_root = str(test_context)
 
             chdir(test_context_root)
@@ -58,14 +67,19 @@ class TestBashCompletionTypes:
                 chdir(CWD)
                 rmtree(test_context_root, onerror=onerror)
 
-        def test_list_files(self, tmpdir_factory: TempdirFactory) -> None:
-            test_context = tmpdir_factory.mktemp('test_context')
-            test_dir = test_context.mkdir('test-dir')
-            test_dir.join('test.txt').write('sub test.txt file')
-            test_context.mkdir('.hidden').join('hidden.txt').write('hidden.txt file')
-            test_context.join('test.txt').write('test.txt file')
-            test_context.join('test.json').write('{"value": "test.json file"}')
-            test_context.join('test.xml').write('<value>test.xml file</value>')
+        def test_list_files(self, tmp_path_factory: TempPathFactory) -> None:
+            test_context = tmp_path_factory.mktemp('test_context')
+            (test_context / 'test.txt').write_text('test.txt file')
+            (test_context / 'test.json').write_text('{"value": "test.json file"}')
+            (test_context / 'test.xml').write_text('<value>test.xml file</value>')
+
+            test_dir = test_context / 'test-dir'
+            test_dir.mkdir()
+            (test_dir / 'test.txt').write_text('sub test.txt file')
+
+            hidden_dir = test_context / '.hidden'
+            hidden_dir.mkdir()
+            (hidden_dir / 'hidden.txt').write_text('hidden.txt file')
             test_context_root = str(test_context)
 
             chdir(test_context_root)

@@ -9,7 +9,7 @@ from importlib import reload
 import pytest
 
 from _pytest.capture import CaptureFixture
-from _pytest.tmpdir import TempdirFactory
+from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 from behave.model import Scenario, Step
 
@@ -183,9 +183,9 @@ def test__create_parser() -> None:
     assert sorted([action.dest for action in local_parser._actions if len(action.option_strings) == 0]) == ['file']
 
 
-def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_factory: TempdirFactory) -> None:
-    test_context = tmpdir_factory.mktemp('test_context')
-    test_context.join('test.feature').write('Feature:')
+def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
+    (test_context / 'test.feature').write_text('Feature:')
     test_context_root = str(test_context)
 
     import sys
@@ -251,7 +251,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmpdir_f
         assert capture.err == f'grizzly-cli: error: there is no requirements.txt in {getcwd()}, building of container image not possible\n'
 
         sys.argv = ['grizzly-cli', 'run', 'dist', 'test.feature', '--limit-nofile', '100', '--registry', 'ghcr.io/biometria-se']
-        test_context.join('requirements.txt').write('grizzly-loadtester')
+        (test_context / 'requirements.txt').write_text('grizzly-loadtester')
         mocker.patch('grizzly_cli.cli._get_distributed_system', side_effect=['docker'])
         ask_yes_no = mocker.patch('grizzly_cli.cli._ask_yes_no', autospec=True)
 
@@ -406,21 +406,23 @@ def test__distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Moc
     capture = capsys.readouterr()
 
     assert capture.err == ''
+    print(capture.out)
     assert capture.out == dedent('''
         feature file test.feature will execute in total 2 iterations
 
         each scenario will execute accordingly:
 
-        identifier  symbol  weight  iter    description
-        -----------|-------|-------|-------|------------|
-        02ce541f       A        1.0       1 scenario-1
-        91d624d8       B        1.0       1 scenario-2
-        -----------|-------|-------|-------|------------|
+        identifier   symbol   weight  #  description
+        -----------|--------|-------|--|-------------|
+        02ce541f       A         1.0  1  scenario-1
+        91d624d8       B         1.0  1  scenario-2
+        -----------|--------|-------|--|-------------|
 
         timeline of user scheduling will look as following:
         AB
 
     ''')
+    capsys.readouterr()
     assert ask_yes_no.call_count == 1
     args, _ = ask_yes_no.call_args_list[-1]
     assert args[0] == 'continue?'
@@ -487,21 +489,23 @@ def test__distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Moc
     capture = capsys.readouterr()
 
     assert capture.err == ''
+    print(capture.out)
     assert capture.out == dedent('''
         feature file test.feature will execute in total 11 iterations
 
         each scenario will execute accordingly:
 
-        identifier  symbol  weight  iter    description
-        -----------|-------|-------|-------|------------|
-        02ce541f       A       10.0      10 scenario-1
-        91d624d8       B        1.0       1 scenario-2
-        -----------|-------|-------|-------|------------|
+        identifier   symbol   weight   #  description
+        -----------|--------|-------|---|-------------|
+        02ce541f       A        10.0  10  scenario-1
+        91d624d8       B         1.0   1  scenario-2
+        -----------|--------|-------|---|-------------|
 
         timeline of user scheduling will look as following:
         AAAAABAAAAA
 
     ''')
+    capsys.readouterr()
     assert ask_yes_no.call_count == 2
     args, _ = ask_yes_no.call_args_list[-1]
     assert args[0] == 'continue?'
@@ -547,16 +551,17 @@ def test__distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Moc
     capture = capsys.readouterr()
 
     assert capture.err == ''
+    print(capture.out)
     assert capture.out == dedent('''
         feature file integration.feature will execute in total 1250 iterations
 
         each scenario will execute accordingly:
 
-        identifier  symbol  weight  iter    description
-        -----------|-------|-------|-------|-------------------------------------------------------------------------------------|
-        5b66789b       A       10.0     500 scenario-1 testing a lot of stuff
-        d06b7314       B        5.0     750 scenario-2 testing a lot more of many different things that scenario-1 does not test
-        -----------|-------|-------|-------|-------------------------------------------------------------------------------------|
+        identifier   symbol   weight    #  description
+        -----------|--------|-------|----|--------------------------------------------------------------------------------------|
+        5b66789b       A        10.0  500  scenario-1 testing a lot of stuff
+        d06b7314       B         5.0  750  scenario-2 testing a lot more of many different things that scenario-1 does not test
+        -----------|--------|-------|----|--------------------------------------------------------------------------------------|
 
         timeline of user scheduling will look as following:
         ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
@@ -572,6 +577,7 @@ def test__distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Moc
         ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAAB
 
     ''')
+    capsys.readouterr()
     assert ask_yes_no.call_count == 2
 
 

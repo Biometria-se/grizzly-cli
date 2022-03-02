@@ -9,7 +9,7 @@ import pytest
 
 from pytest_mock import MockerFixture
 from _pytest.capture import CaptureFixture, CaptureResult
-from _pytest.tmpdir import TempdirFactory
+from _pytest.tmpdir import TempPathFactory
 
 from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompletionAction, hook
 from grizzly_cli.argparse import ArgumentParser
@@ -40,25 +40,50 @@ def test_parser() -> ArgumentParser:
     return parser
 
 @pytest.fixture
-def test_file_structure(tmpdir_factory: TempdirFactory) -> Generator[str, None, None]:
-    test_context = tmpdir_factory.mktemp('test_context')
-    test_dir = test_context.mkdir('test-dir')
-    test_dir.join('test.yaml').write('test:')
-    test_dir.join('test.feature').write('Feature:')
-    test_context.mkdir('.hidden').join('hidden.txt').write('hidden.txt file')
-    test_context.join('test.txt').write('test.txt file')
-    test_context.join('test.json').write('{"value": "test.json file"}')
-    test_context.join('test.xml').write('<value>test.xml file</value>')
-    test_context.join('test.yaml').write('test:')
-    test_context.join('test.feature').write('Feature:')
-    test_context_root = str(test_context)
+def test_file_structure(tmp_path_factory: TempPathFactory) -> Generator[str, None, None]:
+    test_context = tmp_path_factory.mktemp('test_context')
+    file = test_context / 'test.txt'
+    file.touch()
+    file.write_text('test.txt file')
 
-    chdir(test_context_root)
+    file = test_context / 'test.json'
+    file.touch()
+    file.write_text('{"value": "test.json file"}')
+
+    file = test_context / 'test.xml'
+    file.touch()
+    file.write_text('<value>test.xml file</value>')
+
+    file = test_context / 'test.yaml'
+    file.touch()
+    file.write_text('test:')
+
+    file = test_context / 'test.feature'
+    file.touch()
+    file.write_text('Feature:')
+
+    test_dir = test_context / 'test-dir'
+    test_dir.mkdir()
+    file = test_dir / 'test.yaml'
+    file.touch()
+    file.write_text('test:')
+
+    file = test_dir / 'test.feature'
+    file.touch()
+    file.write_text('Feature:')
+
+    hidden_dir = test_context / '.hidden'
+    hidden_dir.mkdir()
+    file = hidden_dir / 'hidden.txt'
+    file.touch()
+    file.write_text('hidden.txt file')
+
+    chdir(test_context)
     try:
-        yield test_context_root
+        yield str(test_context)
     finally:
         chdir(CWD)
-        rmtree(test_context_root, onerror=onerror)
+        rmtree(test_context, onerror=onerror)
 
 
 class TestBashCompletionAction:

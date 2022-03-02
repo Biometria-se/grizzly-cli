@@ -41,6 +41,8 @@ def grizzly_cli_static_files() -> List[str]:
 
         files.append(str(path).replace(f'{base}/', ''))
 
+    files.append(f'{base}/py.typed')
+
     return files
 
 

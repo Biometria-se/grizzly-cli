@@ -398,42 +398,50 @@ def _distribution_of_users_per_scenario(args: argparse.Namespace, environ: Dict[
         for i in range(0, len(input), n):
             yield input[i:i + n]
 
-    def print_table_lines(length: int) -> None:
-        sys.stdout.write('-' * 11)
-        sys.stdout.write('|')
-        sys.stdout.write('-' * 7)
-        sys.stdout.write('|')
-        sys.stdout.write('-' * 7)
-        sys.stdout.write('|')
-        sys.stdout.write('-' * 7)
-        sys.stdout.write('|')
-        sys.stdout.write('-' * (length + 1))
-        sys.stdout.write('|\n')
+    def print_table_lines(max_length_iterations: int, max_length_description: int) -> None:
+        sys.stdout.write('-' * 10)
+        sys.stdout.write('-|-')
+        sys.stdout.write('-' * 6)
+        sys.stdout.write('-|-')
+        sys.stdout.write('-' * 6)
+        sys.stdout.write('|-')
+        sys.stdout.write('-' * max_length_iterations)
+        sys.stdout.write('|-')
+        sys.stdout.write('-' * max_length_description)
+        sys.stdout.write('-|\n')
 
     rows: List[str] = []
-    max_length = len('description')
+    max_length_description = len('description')
+    max_length_iterations = len('#')
 
     print(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
 
     for scenario in distribution.values():
-        row = '{:11} {:^7} {:>7.1f} {:>7} {}'.format(
+        description_length = len(scenario.name)
+        if description_length > max_length_description:
+            max_length_description = description_length
+
+        iterations_length = len(str(scenario.iterations))
+        if iterations_length > max_length_iterations:
+            max_length_iterations = iterations_length
+
+    for scenario in distribution.values():
+        row = '{:10}   {:^6}   {:>6.1f}  {:>{}}  {}'.format(
             scenario.identifier,
             scenario.symbol,
             scenario.weight,
             scenario.iterations,
+            max_length_iterations,
             scenario.name,
         )
-        description_length = len(scenario.name)
-        if description_length > max_length:
-            max_length = description_length
         rows.append(row)
 
     print('each scenario will execute accordingly:\n')
-    print('{:11} {:7} {:7} {:7} {}'.format('identifier', 'symbol', 'weight', 'iter', 'description'))
-    print_table_lines(max_length)
+    print('{:10}   {:6}   {:>6}  {:>{}}  {}'.format('identifier', 'symbol', 'weight', '#', max_length_iterations, 'description'))
+    print_table_lines(max_length_iterations, max_length_description)
     for row in rows:
         print(row)
-    print_table_lines(max_length)
+    print_table_lines(max_length_iterations, max_length_description)
 
     print('')
 
