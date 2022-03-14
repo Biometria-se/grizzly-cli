@@ -64,7 +64,7 @@ setup(
     install_requires=install_requires(),
     entry_points={
         'console_scripts': [
-            'grizzly-cli=grizzly_cli.cli:main',
+            'grizzly-cli=grizzly_cli.__main__:main',
         ],
     },
 )

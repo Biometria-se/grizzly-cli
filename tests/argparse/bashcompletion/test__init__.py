@@ -13,7 +13,7 @@ from _pytest.tmpdir import TempPathFactory
 
 from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompletionAction, hook
 from grizzly_cli.argparse import ArgumentParser
-from grizzly_cli.cli import _create_parser
+from grizzly_cli.__main__ import _create_parser
 
 from ...helpers import onerror
 

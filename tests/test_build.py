@@ -1,31 +1,26 @@
 from os import environ, path, getcwd, chdir
 from inspect import getfile
-from importlib import reload
 
 from _pytest.capture import CaptureFixture
 from pytest_mock import MockerFixture
 
 from argparse import Namespace
 
-from grizzly_cli.build import _create_build_command, main
+from grizzly_cli.build import _create_build_command, build, getgid, getuid
 
 
 CWD = getcwd()
 
 def test_getuid_getgid_nt(mocker: MockerFixture) -> None:
-    from grizzly_cli import build
-    import os
-    mocker.patch.object(os, 'name', 'nt')
-    reload(build)
+    mocker.patch('grizzly_cli.build.os.name', 'nt')
 
-    assert build.getuid() == 1000
-    assert build.getgid() == 1000
+    assert getuid() == 1000
+    assert getgid() == 1000
 
-    mocker.patch.object(os, 'name', 'posix')
-    reload(build)
+    mocker.patch('grizzly_cli.build.os.name', 'posix')
 
-    assert build.getuid() >= 0
-    assert build.getgid() >= 0
+    assert getuid() >= 0
+    assert getgid() >= 0
 
 
 def test__create_build_command(mocker: MockerFixture) -> None:
@@ -47,12 +42,9 @@ def test__create_build_command(mocker: MockerFixture) -> None:
     ]
 
 
-def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
-    from grizzly_cli import build
-    reload(build)
-
-    mocker.patch.object(build, 'EXECUTION_CONTEXT', CWD)
-    mocker.patch.object(build, 'PROJECT_NAME', path.basename(CWD))
+def test_build(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+    mocker.patch('grizzly_cli.build.EXECUTION_CONTEXT', CWD)
+    mocker.patch('grizzly_cli.build.PROJECT_NAME', path.basename(CWD))
     mocker.patch('grizzly_cli.build.getuser', side_effect=['test-user'] * 5)
     mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 5)
     mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 5)
@@ -63,7 +55,7 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
 
     chdir(CWD)
 
-    assert main(test_args) == 254
+    assert build(test_args) == 254
     assert run_command.call_count == 1
     args, kwargs = run_command.call_args_list[-1]
 
@@ -86,7 +78,7 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
 
     test_args = Namespace(container_system='docker', force_build=True)
 
-    assert main(test_args) == 133
+    assert build(test_args) == 133
     assert run_command.call_count == 2
     args, kwargs = run_command.call_args_list[-1]
 
@@ -111,7 +103,7 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     image_name = f'{path.basename(CWD)}:test-user'
     test_args = Namespace(container_system='docker', force_build=False, registry='ghcr.io/biometria-se/')
 
-    assert main(test_args) == 1
+    assert build(test_args) == 1
 
     capture = capsys.readouterr()
     assert capture.err == ''
@@ -133,7 +125,7 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
 
     test_args = Namespace(container_system='docker', force_build=True, no_cache=True, build=True, registry='ghcr.io/biometria-se/')
 
-    assert main(test_args) == 2
+    assert build(test_args) == 2
 
     capture = capsys.readouterr()
     assert capture.err == ''
@@ -152,8 +144,10 @@ def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     actual_env = kwargs.get('env', None)
     assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
 
-    assert main(test_args) == 0
+    assert build(test_args) == 0
 
     capture = capsys.readouterr()
     assert capture.err == ''
     assert capture.out == ''
+
+
