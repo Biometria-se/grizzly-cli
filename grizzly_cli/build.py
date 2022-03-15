@@ -4,7 +4,7 @@ from typing import List, cast
 from argparse import Namespace as Arguments
 from getpass import getuser
 
-from .utils import requirements_needed, run_command
+from .utils import requirements, run_command
 from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
 
 
@@ -37,7 +37,7 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
     ]
 
 
-@requirements_needed
+@requirements(EXECUTION_CONTEXT)
 def build(args: Arguments) -> int:
     tag = getuser()
 

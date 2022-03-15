@@ -274,14 +274,16 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
         local_mock = mocker.patch('grizzly_cli.run.local', side_effect=[0])
         get_input_mock = mocker.patch('grizzly_cli.run.get_input', side_effect=['bar', 'foo'])
 
+        setattr(getattr(run, '__wrapped__'), '__value__', str(execution_context))
+
 
         arguments = Namespace(file='test.feature', environment_file='configuration.yaml', category='run', mode='dist', verbose=True)
-
-        #from grizzly_cli.run import run
 
         assert run(arguments) == 0
 
         capture = capsys.readouterr()
+        #assert capture.out == 'asdfsfd'
+        assert capture.err == ''
 
         assert local_mock.call_count == 0
         assert distributed_mock.call_count == 1
@@ -314,6 +316,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
 
         assert capture.err == ''
         assert capture.out == (
+            '!! created a default requirements.txt with one dependency:\n'
+            'grizzly-loadtester\n\n'
             'feature file requires values for 2 variables\n'
             'the following values was provided:\n'
             'foo = bar\n'

@@ -35,7 +35,17 @@ def test__create_parser() -> None:
     subparser = parser._subparsers._group_actions[0]
     assert subparser is not None
     assert subparser.choices is not None
-    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 2
+    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 3
+
+    init_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('init', None)
+    assert init_parser is not None
+    assert init_parser._subparsers is None
+    assert getattr(init_parser, 'prog', None) == 'grizzly-cli init'
+    assert sorted([option_string for action in init_parser._actions for option_string in action.option_strings]) == sorted([
+        '-h', '--help',
+        '--with-mq',
+        '--grizzly-version',
+    ])
 
     build_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('build', None)
     assert build_parser is not None
@@ -228,9 +238,11 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 def test_main(mocker: MockerFixture, capsys: CaptureFixture) -> None:
     run_mock = mocker.patch('grizzly_cli.__main__.run', side_effect=[0])
     build_mock = mocker.patch('grizzly_cli.__main__.build', side_effect=[1337])
+    init_mock = mocker.patch('grizzly_cli.__main__.init', side_effect=[7331])
     mocker.patch('grizzly_cli.__main__._parse_arguments', side_effect=[
         Namespace(category='run'),
         Namespace(category='build'),
+        Namespace(category='init'),
         Namespace(category='foobar'),
         KeyboardInterrupt,
         ValueError('hello there'),
@@ -239,10 +251,17 @@ def test_main(mocker: MockerFixture, capsys: CaptureFixture) -> None:
     assert main() == 0
     assert run_mock.call_count == 1
     assert build_mock.call_count == 0
+    assert init_mock.call_count == 0
 
     assert main() == 1337
     assert run_mock.call_count == 1
     assert build_mock.call_count == 1
+    assert init_mock.call_count == 0
+
+    assert main() == 7331
+    assert run_mock.call_count == 1
+    assert build_mock.call_count == 1
+    assert init_mock.call_count == 1
 
     assert main() == 1
 

@@ -10,6 +10,7 @@ from argparse import Namespace as Arguments
 from operator import attrgetter
 from hashlib import sha1 as sha1_hash
 from json import loads as jsonloads
+from functools import wraps
 
 from behave.model import Scenario
 from roundrobin import smooth
@@ -102,16 +103,27 @@ def get_default_mtu(args: Arguments) -> Optional[str]:
         return None
 
 
-def requirements_needed(func: Callable[[Arguments], int]) -> Callable[[Arguments], int]:
-    requirements_file = path.join(grizzly_cli.EXECUTION_CONTEXT, 'requirements.txt')
-    if not path.exists(requirements_file):
-        with open(requirements_file, 'w+') as fd:
-            fd.write('grizzly-loadtester\n')
+def requirements(execution_context: str) -> Callable[[Callable[[Arguments], int]], Callable[[Arguments], int]]:
+    def wrapper(func: Callable[[Arguments], int]) -> Callable[[Arguments], int]:
+        @wraps(func)
+        def _wrapper(arguments: Arguments) -> int:
+            requirements_file = path.join(getattr(func, '__value__'), 'requirements.txt')
+            if not path.exists(requirements_file):
+                with open(requirements_file, 'w+') as fd:
+                    fd.write('grizzly-loadtester\n')
 
-        print('!! created a default requirements.txt with one dependency:')
-        print('grizzly-loadtester\n')
+                print('!! created a default requirements.txt with one dependency:')
+                print('grizzly-loadtester\n')
 
-    return func
+            return func(arguments)
+
+        # a bit ugly, but needed for testability
+        setattr(func, '__value__', execution_context)
+        setattr(_wrapper, '__wrapped__', func)
+
+        return _wrapper
+
+    return wrapper
 
 
 def get_distributed_system() -> Optional[str]:

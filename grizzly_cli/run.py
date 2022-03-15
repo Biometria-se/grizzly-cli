@@ -9,7 +9,15 @@ from argparse import Namespace as Arguments
 from platform import node as get_hostname
 
 from . import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, __version__
-from .utils import find_variable_names_in_questions, ask_yes_no, get_input, distribution_of_users_per_scenario, requirements_needed, run_command, get_default_mtu, list_images
+from .utils import (
+    find_variable_names_in_questions,
+    ask_yes_no, get_input,
+    distribution_of_users_per_scenario,
+    requirements,
+    run_command,
+    get_default_mtu,
+    list_images,
+)
 from .build import build
 
 
@@ -149,7 +157,7 @@ def local(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[str, Lis
     return run_command(command)
 
 
-@requirements_needed
+@requirements(EXECUTION_CONTEXT)
 def run(args: Arguments) -> int:
     # always set hostname of host where grizzly-cli was executed, could be useful
     environ: Dict[str, Any] = {

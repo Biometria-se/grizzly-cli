@@ -9,6 +9,7 @@ from .argparse.bashcompletion import BashCompletionTypes
 from .utils import ask_yes_no, get_distributed_system
 from .run import run
 from .build import build
+from .init import init
 from . import __version__
 
 
@@ -37,19 +38,35 @@ def _create_parser() -> ArgumentParser:
     sub_parser = parser.add_subparsers(dest='category')
 
     # grizzly-cli init
-    #init_parser = sub_parser.add_parser('init', description=(
-    #    'create a skeleton project with required structure and files.'
-    #))
-    #
-    #init_parser.add_argument(
-    #    nargs=1,
-    #    type=str,
-    #    required=True,
-    #    help='project name',
-    #)
-    #
-    #if init_parser.prog != 'grizzly-cli init':
-    #    init_parser.prog = 'grizzly-cli init'
+    init_parser = sub_parser.add_parser('init', description=(
+        'create a skeleton project with required structure and files.'
+    ))
+
+    init_parser.add_argument(
+        'project',
+        nargs=None,  # type: ignore
+        type=str,
+        help='project name, a directory will be created with this name',
+    )
+
+    init_parser.add_argument(
+        '--grizzly-version',
+        type=str,
+        required=False,
+        default=None,
+        help='specify which grizzly version to use for project, default is latest'
+    )
+
+    init_parser.add_argument(
+        '--with-mq',
+        action='store_true',
+        default=False,
+        required=False,
+        help='if grizzly should be installed with IBM MQ support (external dependencies excluded)',
+    )
+
+    if init_parser.prog != 'grizzly-cli init':
+        init_parser.prog = 'grizzly-cli init'
 
     # grizzly-cli build ...
     build_parser = sub_parser.add_parser('build', description=(
@@ -274,6 +291,8 @@ def main() -> int:
             return run(args)
         elif args.category == 'build':
             return build(args)
+        elif args.category == 'init':
+            return init(args)
         else:
             raise ValueError(f'unknown subcommand {args.category}')
     except (KeyboardInterrupt, ValueError) as e:
