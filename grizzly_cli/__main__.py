@@ -275,7 +275,7 @@ def _parse_arguments() -> argparse.Namespace:
                     [name, value] = variable.split('=', 1)
                     os.environ[f'TESTDATA_VARIABLE_{name}'] = value
                 except ValueError:
-                    parser.error_no_help(f'-T/--testdata-variable needs to be in the format NAME=VALUE')
+                    parser.error_no_help('-T/--testdata-variable needs to be in the format NAME=VALUE')
     elif args.category == 'build':
         setattr(args, 'force_build', args.no_cache)
         setattr(args, 'build', not args.no_cache)

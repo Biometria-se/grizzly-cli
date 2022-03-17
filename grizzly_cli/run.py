@@ -8,7 +8,7 @@ from shutil import get_terminal_size
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 
-from . import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, __version__
+from . import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
 from .utils import (
     find_variable_names_in_questions,
     ask_yes_no, get_input,
@@ -133,7 +133,7 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
         if rc != 0:
             print('\n!! something went wrong, check container logs with:')
             print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}_master_1')
-            for worker in range(1, args.workers+1):
+            for worker in range(1, args.workers + 1):
                 print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}_worker_{worker}')
 
         return rc
@@ -165,7 +165,6 @@ def run(args: Arguments) -> int:
         'GRIZZLY_EXECUTION_CONTEXT': EXECUTION_CONTEXT,
         'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
     }
-
 
     variables = find_variable_names_in_questions(args.file)
     questions = len(variables)

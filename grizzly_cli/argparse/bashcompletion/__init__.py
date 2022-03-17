@@ -53,6 +53,7 @@ class BashCompletionAction(Action):
 
         parser.exit()
 
+
 class BashCompleteAction(Action):
     def __init__(
         self,
@@ -125,26 +126,26 @@ class BashCompleteAction(Action):
             option = option.strip()
             add_next = False
             remove_suggestion = False
-            #print(option, skip)
+
             if len(option) < 1 or skip:
                 skip = False
                 continue
 
             suggestion = suggestions.get(option, None)
-            #print(option, index, suggestion)
+
             if suggestion is not None:
                 if isinstance(suggestion, _AppendAction):
                     # skip next supplied value, since it is part of the option
                     # also, _AppendAction can be specified more than once
-                    if len(provided_options) > index + 1 and not provided_options[index+1].strip().startswith('-'):
+                    if len(provided_options) > index + 1 and not provided_options[index + 1].strip().startswith('-'):
                         skip = True
                         continue
                 elif isinstance(suggestion, _StoreAction):
                     if index == len(provided_options) - 1:
                         pass
-                    elif index == len(provided_options) - 2: # beginning of value should also be added
+                    elif index == len(provided_options) - 2:  # beginning of value should also be added
                         add_next = True
-                    else: # completed, do not add
+                    else:  # completed, do not add
                         remove_suggestion = True
                 else:
                     remove_suggestion = True
@@ -177,7 +178,7 @@ class BashCompleteAction(Action):
 
             filtered_options.append(option)
             if add_next:
-                filtered_options.append(provided_options[index+1])
+                filtered_options.append(provided_options[index + 1])
                 skip = True
 
         return filtered_options
@@ -190,10 +191,10 @@ class BashCompleteAction(Action):
         for option in provided_options:
             for option_suggestion, suggestion in suggestions.items():
                 if option_suggestion.startswith(option) or (
-                    not option.startswith('-') and
-                    isinstance(suggestion, Action) and
-                    len(suggestion.option_strings) == 0 and
-                    not isinstance(suggestion, _SubParsersAction)
+                    not option.startswith('-')
+                    and isinstance(suggestion, Action)
+                    and len(suggestion.option_strings) == 0
+                    and not isinstance(suggestion, _SubParsersAction)
                 ):
                     filtered_suggestions.update({option_suggestion: suggestion})
 
@@ -208,7 +209,6 @@ class BashCompleteAction(Action):
     ) -> None:
         all_suggestions: Dict[str, Union[str, Action]] = {}
         provided_options = self.get_provided_options(parser.prog, values)
-        #print(f'provided_options={provided_options}')
         suggestions = self.get_suggestions(parser)
 
         if '-h' in provided_options or '--help' in provided_options:
@@ -221,21 +221,14 @@ class BashCompleteAction(Action):
         # check for positional arguments (e.g. no option string)
 
         # remove any completed values, or exclusive suggestions
-        #print(f'provided_options={provided_options}')
         provided_options = self.remove_completed(provided_options, suggestions, exclusive_suggestions)
-        #print(f'suggestions={suggestions.keys()}')
-        #print(f'provided_options={provided_options}')
 
         # all, remaining, suggestions -- completed has been removed
         all_suggestions = suggestions.copy()
 
-        #print(f'suggestions={suggestions.keys()}')
-
-        #print(f'provided_options={provided_options}')
         # only return suggestions that matches supplied value
         suggestions = self.filter_suggestions(provided_options, suggestions)
-        #print(f'suggestions={suggestions.keys()}')
-        #print(f'provided_options={provided_options}')
+
         if len(provided_options) > 0:
             suggestion = suggestions.get(provided_options[0], None)
 
@@ -259,8 +252,6 @@ class BashCompleteAction(Action):
                 value = provided_options[-1] if len(provided_options) > 1 else None
                 if isinstance(suggestion.type, BashCompletionTypes.File):
                     file_suggestions = cast(BashCompletionTypes.File, suggestion.type).list_files(value)  # type: ignore
-                    #print(f'value={value}')
-                    #print(f'file_suggestions={file_suggestions.keys()}')
 
                     if not (len(file_suggestions) == 1 and provided_options[-1] in file_suggestions):
                         suggestions = file_suggestions
@@ -273,16 +264,11 @@ class BashCompleteAction(Action):
                         suggestions = {}
                     elif suggestion.type == int and (value is None or not value.isnumeric()):
                         suggestions = {}
-                #else:
-                #    print(action.type)
 
                 if value is not None and isinstance(suggestion, _StoreAction):
                     for option in suggestion.option_strings:
                         if option in suggestions:
                             del suggestions[option]
-
-        #print(f'suggestions={suggestions.keys()}')
-        #print(f'provided_options={provided_options}')
 
         # check for positionals
         original_suggestions = suggestions.copy()
@@ -290,22 +276,14 @@ class BashCompleteAction(Action):
             if (option.startswith('-') and isinstance(suggestion, Action)) or (not option.startswith('-') and isinstance(suggestion, (_SubParsersAction, str,))):
                 continue
 
-            # @TODO: replace add suggestions matching positional option
-
-            #print(f'removing {option}')
-
             del suggestions[option]
 
             if isinstance(suggestion, Action) and suggestion.type is not None:
                 if isinstance(suggestion.type, BashCompletionTypes.File):
                     value = provided_options[-1] if len(provided_options) == 1 and not provided_options[-1].startswith('-') else None  # type: ignore
-                    #print(f'value={value}, provided_options={provided_options}')
 
                     if (value is None and len(provided_options) == 0) or (value is not None and len(provided_options) == 1):
                         file_suggestions = cast(BashCompletionTypes.File, suggestion.type).list_files(value)
-                        #print(f'value={value}, file_suggestions={file_suggestions}')
-
-                        #print(file_suggestions)
 
                         if not (len(file_suggestions) == 1 and value in file_suggestions):
                             suggestions.update(file_suggestions)
@@ -322,7 +300,7 @@ def hook(parser: ArgumentParser) -> None:
         parser.add_argument('--bash-complete', action=BashCompleteAction)
     except ArgumentError as e:
         # we've already "hooked" the parser
-        if not 'conflicting option string: --bash-complete' in e.message:
+        if 'conflicting option string: --bash-complete' not in e.message:
             raise e
     except Exception:
         raise

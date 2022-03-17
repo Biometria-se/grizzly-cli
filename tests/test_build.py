@@ -15,6 +15,7 @@ from .helpers import onerror
 
 CWD = getcwd()
 
+
 def test_getuid_getgid_nt(mocker: MockerFixture) -> None:
     mocker.patch('grizzly_cli.build.os.name', 'nt')
 
@@ -88,7 +89,6 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             '-t', 'grizzly-scenarios:test-user',
             str(test_context),
         ]
-
 
         actual_env = kwargs.get('env', None)
         assert actual_env is not None

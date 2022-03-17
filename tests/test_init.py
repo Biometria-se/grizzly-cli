@@ -1,4 +1,3 @@
-from re import template
 from shutil import rmtree
 from argparse import Namespace
 
@@ -204,4 +203,3 @@ do you want to create grizzly project "foobar"?'''
 
     finally:
         rmtree(test_context, onerror=onerror)
-

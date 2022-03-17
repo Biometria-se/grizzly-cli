@@ -12,6 +12,7 @@ from ...helpers import onerror
 
 CWD = getcwd()
 
+
 class TestBashCompletionTypes:
     class TestFile:
         def test___init__(self) -> None:

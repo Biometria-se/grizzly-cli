@@ -9,6 +9,7 @@ __all__ = [
     'BashCompletionTypes',
 ]
 
+
 class BashCompletionTypes:
     class File:
         def __init__(self, *args: str) -> None:

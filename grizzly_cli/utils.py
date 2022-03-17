@@ -133,7 +133,7 @@ def get_distributed_system() -> Optional[str]:
     elif which('docker') is not None:
         container_system = 'docker'
     else:
-        print(f'neither "podman" nor "docker" found in PATH')
+        print('neither "podman" nor "docker" found in PATH')
         return None
 
     if which(f'{container_system}-compose') is None:
@@ -223,7 +223,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             self,
             name: str,
             symbol: str,
-            weight: Optional[float]= None,
+            weight: Optional[float] = None,
             user: Optional[str] = None,
             iterations: Optional[int] = None,
         ) -> None:

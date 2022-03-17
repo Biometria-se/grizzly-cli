@@ -91,6 +91,7 @@ class TestMarkdownHelpAction:
         assert end_section.call_count == 2
         assert add_arguments.call_count == 2
 
+
 class TestMarkdownFormatter:
     def test___init__(self) -> None:
         formatter = MarkdownFormatter('test')
@@ -119,7 +120,6 @@ test
         assert usage == '''a prefix test file
 
 '''
-
 
         usage = formatter._format_usage(parser.usage, parser._get_positional_actions(), parser._mutually_exclusive_groups, 'a prefix ')
         assert usage == '''
@@ -235,7 +235,6 @@ You cannot belive it, it's another sentence.
 
 
 '''
-            #MarkdownFormatter.level = 1
             formatter = MarkdownFormatter('test-prog')
             formatter.level = 1
 

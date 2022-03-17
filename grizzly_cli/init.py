@@ -7,29 +7,29 @@ from .utils import ask_yes_no
 from . import EXECUTION_CONTEXT
 
 # prefix components:
-space =  '    '
+space = '    '
 branch = '│   '
 # pointers:
-tee =    '├── '
-last =   '└── '
+tee = '├── '
+last = '└── '
 
 
-def tree(dir_path: Path, prefix: str='') -> Generator[str, None, None]:
-    """A recursive generator, given a directory Path object
+def tree(dir_path: Path, prefix: str = '') -> Generator[str, None, None]:
+    '''A recursive generator, given a directory Path object
     will yield a visual tree structure line by line
     with each line prefixed by the same characters
 
-    credits: https://stackoverflow.com/a/59109706
-    """
+    credit: https://stackoverflow.com/a/59109706
+    '''
     contents = list(dir_path.iterdir())
     # contents each get pointers that are ├── with a final └── :
     pointers = [tee] * (len(contents) - 1) + [last]
-    for pointer, path in zip(pointers, contents):
-        yield prefix + pointer + path.name
-        if path.is_dir(): # extend the prefix and recurse:
+    for pointer, sub_path in zip(pointers, contents):
+        yield prefix + pointer + sub_path.name
+        if sub_path.is_dir():  # extend the prefix and recurse:
             extension = branch if pointer == tee else space
             # i.e. space because last, └── , above so no more |
-            yield from tree(path, prefix=prefix+extension)
+            yield from tree(sub_path, prefix=prefix + extension)
 
 
 def init(args: Arguments) -> int:
@@ -38,7 +38,7 @@ def init(args: Arguments) -> int:
         return 1
 
     if all([path.exists(path.join(EXECUTION_CONTEXT, p)) for p in ['environments', 'features', 'requirements.txt']]):
-        print(f'oops, looks like you are already in a grizzly project directory', end='\n\n')
+        print('oops, looks like you are already in a grizzly project directory', end='\n\n')
         print(EXECUTION_CONTEXT)
         for line in tree(Path(EXECUTION_CONTEXT)):
             print(line)
@@ -112,6 +112,5 @@ def init(args: Arguments) -> int:
         print(f'{" " * 2}\u2022 pinned to grizzly version {args.grizzly_version}')
     else:
         print(f'{" " * 2}\u2022 latest grizzly version')
-
 
     return 0

@@ -193,8 +193,6 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
 
         setattr(args[0], 'stdout', Stdout())
 
-
-
     mocker.patch('grizzly_cli.utils.subprocess.Popen.terminate', side_effect=[KeyboardInterrupt])
     mocker.patch('grizzly_cli.utils.subprocess.Popen.__init__', popen___init__)
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 3)
@@ -211,7 +209,6 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     assert wait.call_count == 2
     assert poll_mock.call_count == 3
     assert kill_mock.call_count == 2
-
 
 
 def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -> None:
@@ -231,7 +228,7 @@ def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -
     ])
 
     # test 1
-    assert get_distributed_system() is None # neither
+    assert get_distributed_system() is None  # neither
     capture = capsys.readouterr()
     assert capture.out == 'neither "podman" nor "docker" found in PATH\n'
     assert which.call_count == 2
@@ -347,7 +344,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         )
     ])
 
-    distribution_of_users_per_scenario(arguments, { })
+    distribution_of_users_per_scenario(arguments, {})
     capture = capsys.readouterr()
 
     assert capture.err == ''

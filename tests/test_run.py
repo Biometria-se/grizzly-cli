@@ -276,14 +276,20 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
 
         setattr(getattr(run, '__wrapped__'), '__value__', str(execution_context))
 
-
         arguments = Namespace(file='test.feature', environment_file='configuration.yaml', category='run', mode='dist', verbose=True)
 
         assert run(arguments) == 0
 
         capture = capsys.readouterr()
-        #assert capture.out == 'asdfsfd'
         assert capture.err == ''
+        assert capture.out == '''!! created a default requirements.txt with one dependency:
+grizzly-loadtester
+
+feature file requires values for 2 variables
+the following values was provided:
+foo = bar
+bar = foo
+'''
 
         assert local_mock.call_count == 0
         assert distributed_mock.call_count == 1
@@ -309,9 +315,9 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
 
         assert ask_yes_no_mock.call_count == 1
         assert get_input_mock.call_count == 2
-        args,  _ = get_input_mock.call_args_list[0]
+        args, _ = get_input_mock.call_args_list[0]
         assert args[0] == 'initial value for "foo": '
-        args,  _ = get_input_mock.call_args_list[1]
+        args, _ = get_input_mock.call_args_list[1]
         assert args[0] == 'initial value for "bar": '
 
         assert capture.err == ''

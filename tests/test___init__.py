@@ -10,7 +10,7 @@ from .helpers import onerror
 CWD = getcwd()
 
 
-def test___import__(tmp_path_factory: TempPathFactory)  -> None:
+def test___import__(tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
     test_context_root = str(test_context)
 

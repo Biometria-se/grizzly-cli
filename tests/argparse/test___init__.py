@@ -7,6 +7,7 @@ from _pytest.capture import CaptureFixture
 from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.argparse.markdown import MarkdownFormatter
 
+
 @pytest.fixture
 def parsers() -> Tuple[CoreArgumentParser, ...]:
     parser = ArgumentParser(prog='test-prog', description='test parser', markdown_help=True, bash_completion=True)
@@ -260,4 +261,3 @@ test-prog b [-h] [--b-parser B_PARSER]
 | -------- | ------- | ---- |
 | `--b-parser` |  | b parser argument |
 '''
-

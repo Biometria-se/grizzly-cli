@@ -20,6 +20,7 @@ from ...helpers import onerror
 
 CWD = getcwd()
 
+
 @pytest.fixture
 def test_parser() -> ArgumentParser:
     parser = ArgumentParser(prog='test-prog')
@@ -38,6 +39,7 @@ def test_parser() -> ArgumentParser:
     group.add_argument('--bar', action='store_true')
 
     return parser
+
 
 @pytest.fixture
 def test_file_structure(tmp_path_factory: TempPathFactory) -> Generator[str, None, None]:
@@ -216,7 +218,6 @@ class TestBashCompleteAction:
         assert sorted(list(action.filter_suggestions(['--'], suggestions).keys())) == sorted(['--help', '--test', '--foo', '--bar', '--value', '--verbose', '--file'])
         assert sorted(list(action.filter_suggestions(['--v'], suggestions).keys())) == sorted(['--verbose', '--value'])
         assert sorted(list(action.filter_suggestions(['--f'], suggestions).keys())) == sorted(['--file', '--foo'])
-
 
     @pytest.mark.parametrize(
         'input,expected',

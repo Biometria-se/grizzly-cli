@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        python-version: [3.6]
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
 
     env:
       PYTHONPATH: .
@@ -70,3 +70,8 @@ jobs:
       id: mypy
       run: |
         mypy grizzly_cli/ tests/
+
+    - name: run flake8
+      id: flake8
+      run: |
+        flake8
