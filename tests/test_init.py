@@ -28,10 +28,10 @@ def test_tree(tmp_path_factory: TempPathFactory) -> None:
     try:
         assert '\n'.join([line for line in tree(test_context)]) == '''├── a
 │   ├── b
-│   │   ├── file-b1.txt
-│   │   └── c
-│   │       ├── file-c2.txt
-│   │       └── file-c1.txt
+│   │   ├── c
+│   │   │   ├── file-c1.txt
+│   │   │   └── file-c2.txt
+│   │   └── file-b1.txt
 │   ├── file-a1.txt
 │   └── file-a2.txt
 └── root.yaml'''
@@ -69,8 +69,8 @@ def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker:
         assert capture.out == f'''oops, looks like you are already in a grizzly project directory
 
 {test_existing}
-├── features
 ├── environments
+├── features
 └── requirements.txt
 '''
 
@@ -86,14 +86,14 @@ def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker:
         assert args[0] == '''the following structure will be created:
 
     foobar
+    ├── environments
+    │   └── foobar.yaml
     ├── features
     │   ├── environment.py
     │   ├── steps
     │   │   └── steps.py
     │   ├── foobar.feature
     │   └── requests
-    ├── environments
-    │   └── foobar.yaml
     └── requirements.txt
 
 do you want to create grizzly project "foobar"?'''
@@ -140,14 +140,15 @@ do you want to create grizzly project "foobar"?'''
         assert requirements_file.read_text() == 'grizzly-loadtester\n'
 
         created_structure = '\n'.join([line for line in tree(template_root)])
-        assert created_structure == '''├── features
-│   ├── environment.py
-│   ├── steps
-│   │   └── steps.py
-│   ├── foobar.feature
-│   └── requests
-├── environments
+        print(created_structure)
+        assert created_structure == '''├── environments
 │   └── foobar.yaml
+├── features
+│   ├── environment.py
+│   ├── foobar.feature
+│   ├── requests
+│   └── steps
+│       └── steps.py
 └── requirements.txt'''
 
         rmtree(template_root, onerror=onerror)

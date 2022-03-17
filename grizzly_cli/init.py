@@ -21,7 +21,7 @@ def tree(dir_path: Path, prefix: str = '') -> Generator[str, None, None]:
 
     credit: https://stackoverflow.com/a/59109706
     '''
-    contents = list(dir_path.iterdir())
+    contents = sorted(list(dir_path.iterdir()))
     # contents each get pointers that are ├── with a final └── :
     pointers = [tee] * (len(contents) - 1) + [last]
     for pointer, sub_path in zip(pointers, contents):
@@ -46,14 +46,14 @@ def init(args: Arguments) -> int:
 
     layout = f'''
     {args.project}
+    ├── environments
+    │   └── foobar.yaml
     ├── features
     │   ├── environment.py
     │   ├── steps
     │   │   └── steps.py
     │   ├── {args.project}.feature
     │   └── requests
-    ├── environments
-    │   └── {args.project}.yaml
     └── requirements.txt
 '''
     ask_yes_no(f'the following structure will be created:\n{layout}\ndo you want to create grizzly project "{args.project}"?')
