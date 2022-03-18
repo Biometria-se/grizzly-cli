@@ -1,8 +1,8 @@
 import sys
 import re
 
-from typing import Any, Dict, Tuple, Optional, IO, Sequence, overload
-from argparse import ArgumentParser as CoreArgumentParser, Namespace, SUPPRESS
+from typing import Any, Optional, IO, Sequence
+from argparse import ArgumentParser as CoreArgumentParser, Namespace
 
 from .markdown import MarkdownFormatter, MarkdownHelpAction
 from .bashcompletion import BashCompletionAction, hook as bashcompletion_hook

@@ -41,6 +41,8 @@ def grizzly_cli_static_files() -> List[str]:
 
         files.append(str(path).replace(f'{base}/', ''))
 
+    files.append(f'{base}/py.typed')
+
     return files
 
 
@@ -62,7 +64,7 @@ setup(
     install_requires=install_requires(),
     entry_points={
         'console_scripts': [
-            'grizzly-cli=grizzly_cli.cli:main',
+            'grizzly-cli=grizzly_cli.__main__:main',
         ],
     },
 )

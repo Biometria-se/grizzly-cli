@@ -1,31 +1,31 @@
 from os import environ, path, getcwd, chdir
 from inspect import getfile
-from importlib import reload
+from shutil import rmtree
 
 from _pytest.capture import CaptureFixture
+from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
 from argparse import Namespace
 
-from grizzly_cli.build import _create_build_command, main
+from grizzly_cli.build import _create_build_command, getgid, getuid, build
+
+from .helpers import onerror
 
 
 CWD = getcwd()
 
+
 def test_getuid_getgid_nt(mocker: MockerFixture) -> None:
-    from grizzly_cli import build
-    import os
-    mocker.patch.object(os, 'name', 'nt')
-    reload(build)
+    mocker.patch('grizzly_cli.build.os.name', 'nt')
 
-    assert build.getuid() == 1000
-    assert build.getgid() == 1000
+    assert getuid() == 1000
+    assert getgid() == 1000
 
-    mocker.patch.object(os, 'name', 'posix')
-    reload(build)
+    mocker.patch('grizzly_cli.build.os.name', 'posix')
 
-    assert build.getuid() >= 0
-    assert build.getgid() >= 0
+    assert getuid() >= 0
+    assert getgid() >= 0
 
 
 def test__create_build_command(mocker: MockerFixture) -> None:
@@ -47,113 +47,128 @@ def test__create_build_command(mocker: MockerFixture) -> None:
     ]
 
 
-def test_main(capsys: CaptureFixture, mocker: MockerFixture) -> None:
-    from grizzly_cli import build
-    reload(build)
+def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
 
-    mocker.patch.object(build, 'EXECUTION_CONTEXT', CWD)
-    mocker.patch.object(build, 'PROJECT_NAME', path.basename(CWD))
-    mocker.patch('grizzly_cli.build.getuser', side_effect=['test-user'] * 5)
-    mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 5)
-    mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 5)
-    run_command = mocker.patch('grizzly_cli.build.run_command', side_effect=[254, 133, 0, 1, 0, 0, 2, 0, 0, 0])
-    test_args = Namespace(container_system='test', force_build=False)
+#    (test_context / 'requirements.txt').write_text('\n')
 
-    static_context = path.join(path.dirname(getfile(_create_build_command)), 'static')
+    try:
+        chdir(test_context)
+        mocker.patch('grizzly_cli.build.EXECUTION_CONTEXT', str(test_context))
+        mocker.patch('grizzly_cli.build.PROJECT_NAME', 'grizzly-scenarios')
+        mocker.patch('grizzly_cli.build.getuser', side_effect=['test-user'] * 5)
+        mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 5)
+        mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 5)
+        run_command = mocker.patch('grizzly_cli.build.run_command', side_effect=[254, 133, 0, 1, 0, 0, 2, 0, 0, 0])
+        setattr(getattr(build, '__wrapped__'), '__value__', str(test_context))
 
-    chdir(CWD)
+        test_args = Namespace(container_system='test', force_build=False)
 
-    assert main(test_args) == 254
-    assert run_command.call_count == 1
-    args, kwargs = run_command.call_args_list[-1]
+        static_context = path.join(path.dirname(getfile(_create_build_command)), 'static')
 
-    assert args[0] == [
-        'test',
-        'image',
-        'build',
-        '--ssh',
-        'default',
-        '--build-arg', 'GRIZZLY_UID=1337',
-        '--build-arg', 'GRIZZLY_GID=2147483647',
-        '-f', f'{static_context}/Containerfile',
-        '-t', f'{path.basename(CWD)}:test-user',
-        getcwd(),
-    ]
+        assert build(test_args) == 254
 
-    actual_env = kwargs.get('env', None)
-    assert actual_env is not None
-    assert actual_env.get('DOCKER_BUILDKIT', None) == environ.get('DOCKER_BUILDKIT', None)
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            '!! created a default requirements.txt with one dependency:\n'
+            'grizzly-loadtester\n\n'
+        )
+        assert run_command.call_count == 1
+        args, kwargs = run_command.call_args_list[-1]
 
-    test_args = Namespace(container_system='docker', force_build=True)
+        assert args[0] == [
+            'test',
+            'image',
+            'build',
+            '--ssh',
+            'default',
+            '--build-arg', 'GRIZZLY_UID=1337',
+            '--build-arg', 'GRIZZLY_GID=2147483647',
+            '-f', f'{static_context}/Containerfile',
+            '-t', 'grizzly-scenarios:test-user',
+            str(test_context),
+        ]
 
-    assert main(test_args) == 133
-    assert run_command.call_count == 2
-    args, kwargs = run_command.call_args_list[-1]
+        actual_env = kwargs.get('env', None)
+        assert actual_env is not None
+        assert actual_env.get('DOCKER_BUILDKIT', None) == environ.get('DOCKER_BUILDKIT', None)
 
-    assert args[0] == [
-        'docker',
-        'image',
-        'build',
-        '--ssh',
-        'default',
-        '--build-arg', 'GRIZZLY_UID=1337',
-        '--build-arg', 'GRIZZLY_GID=2147483647',
-        '-f', f'{static_context}/Containerfile',
-        '-t', f'{path.basename(CWD)}:test-user',
-        getcwd(),
-        '--no-cache'
-    ]
+        test_args = Namespace(container_system='docker', force_build=True)
 
-    actual_env = kwargs.get('env', None)
-    assert actual_env is not None
-    assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
+        assert build(test_args) == 133
+        assert run_command.call_count == 2
+        args, kwargs = run_command.call_args_list[-1]
 
-    image_name = f'{path.basename(CWD)}:test-user'
-    test_args = Namespace(container_system='docker', force_build=False, registry='ghcr.io/biometria-se/')
+        assert args[0] == [
+            'docker',
+            'image',
+            'build',
+            '--ssh',
+            'default',
+            '--build-arg', 'GRIZZLY_UID=1337',
+            '--build-arg', 'GRIZZLY_GID=2147483647',
+            '-f', f'{static_context}/Containerfile',
+            '-t', 'grizzly-scenarios:test-user',
+            str(test_context),
+            '--no-cache'
+        ]
 
-    assert main(test_args) == 1
+        actual_env = kwargs.get('env', None)
+        assert actual_env is not None
+        assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
 
-    capture = capsys.readouterr()
-    assert capture.err == ''
-    assert capture.out == f'\n!! failed to tag image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
+        image_name = 'grizzly-scenarios:test-user'
+        test_args = Namespace(container_system='docker', force_build=False, registry='ghcr.io/biometria-se/')
 
-    assert run_command.call_count == 4
+        assert build(test_args) == 1
 
-    args, kwargs = run_command.call_args_list[-1]
-    assert args[0] == [
-        'docker',
-        'image',
-        'tag',
-        image_name,
-        f'ghcr.io/biometria-se/{image_name}',
-    ]
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            f'\n!! failed to tag image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
+        )
 
-    actual_env = kwargs.get('env', None)
-    assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
+        assert run_command.call_count == 4
 
-    test_args = Namespace(container_system='docker', force_build=True, no_cache=True, build=True, registry='ghcr.io/biometria-se/')
+        args, kwargs = run_command.call_args_list[-1]
+        assert args[0] == [
+            'docker',
+            'image',
+            'tag',
+            image_name,
+            f'ghcr.io/biometria-se/{image_name}',
+        ]
 
-    assert main(test_args) == 2
+        actual_env = kwargs.get('env', None)
+        assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
 
-    capture = capsys.readouterr()
-    assert capture.err == ''
-    assert capture.out == f'\n!! failed to push image ghcr.io/biometria-se/{image_name}\n'
+        test_args = Namespace(container_system='docker', force_build=True, no_cache=True, build=True, registry='ghcr.io/biometria-se/')
 
-    assert run_command.call_count == 7
+        assert build(test_args) == 2
 
-    args, kwargs = run_command.call_args_list[-1]
-    assert args[0] == [
-        'docker',
-        'image',
-        'push',
-        f'ghcr.io/biometria-se/{image_name}',
-    ]
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == f'\n!! failed to push image ghcr.io/biometria-se/{image_name}\n'
 
-    actual_env = kwargs.get('env', None)
-    assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
+        assert run_command.call_count == 7
 
-    assert main(test_args) == 0
+        args, kwargs = run_command.call_args_list[-1]
+        assert args[0] == [
+            'docker',
+            'image',
+            'push',
+            f'ghcr.io/biometria-se/{image_name}',
+        ]
 
-    capture = capsys.readouterr()
-    assert capture.err == ''
-    assert capture.out == ''
+        actual_env = kwargs.get('env', None)
+        assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
+
+        assert build(test_args) == 0
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+    finally:
+        chdir(CWD)
+        rmtree(test_context, onerror=onerror)

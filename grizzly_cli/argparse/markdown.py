@@ -9,6 +9,7 @@ __all__ = [
     'MarkdownFormatter',
 ]
 
+
 class MarkdownHelpAction(Action):
     def __init__(
         self,
@@ -66,7 +67,6 @@ class MarkdownHelpAction(Action):
             # determine help from format above
             return formatter.format_help()
 
-
         # <!-- monkey patch our parser
         # switch format_help, so that stuff comes in an order that makes more sense in markdown
         setattr(parser, 'format_help', MethodType(format_help_markdown, parser))
@@ -84,7 +84,8 @@ class MarkdownHelpAction(Action):
         if _subparsers is not None:
             for subparsers in _subparsers._group_actions:
                 for subparser in subparsers.choices.values():
-                    self.print_help(subparser, level=level+1)
+                    self.print_help(subparser, level=level + 1)
+
 
 class MarkdownFormatter(HelpFormatter):
     level: int = 0

@@ -4,7 +4,8 @@ from typing import List, cast
 from argparse import Namespace as Arguments
 from getpass import getuser
 
-from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT, run_command
+from .utils import requirements, run_command
+from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
 
 
 def getuid() -> int:
@@ -36,7 +37,8 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
     ]
 
 
-def main(args: Arguments) -> int:
+@requirements(EXECUTION_CONTEXT)
+def build(args: Arguments) -> int:
     tag = getuser()
 
     image_name = f'{PROJECT_NAME}:{tag}'

@@ -1,8 +1,10 @@
 import os
 import stat
 
-from typing import Callable
+from typing import Callable, List
 from types import TracebackType
+
+from behave.model import Scenario, Step
 
 
 def onerror(func: Callable, path: str, exc_info: TracebackType) -> None:
@@ -22,3 +24,21 @@ def onerror(func: Callable, path: str, exc_info: TracebackType) -> None:
         func(path)
     else:
         raise  # pylint: disable=misplaced-bare-raise
+
+
+def create_scenario(name: str, background_steps: List[str], steps: List[str]) -> Scenario:
+    scenario = Scenario('', '', '', name)
+
+    for background_step in background_steps:
+        [keyword, name] = background_step.split(' ', 1)
+        step = Step('', '', keyword.strip(), keyword.strip(), name.strip())
+        if scenario._background_steps is None:
+            scenario._background_steps = []
+        scenario._background_steps.append(step)
+
+    for step in steps:
+        [keyword, name] = step.split(' ', 1)
+        step = Step('', '', keyword.strip(), keyword.strip(), name.strip())
+        scenario.steps.append(step)
+
+    return scenario
