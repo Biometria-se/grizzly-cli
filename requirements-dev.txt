@@ -5,3 +5,4 @@ pytest-cov>=3.0.0
 pytest-mock==3.6.1
 pytest-timeout>=2.1.0
 flake8>=4.0.0
+types-requests==2.27.13

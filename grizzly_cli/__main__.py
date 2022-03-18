@@ -1,4 +1,3 @@
-import sys
 import argparse
 import os
 
@@ -6,7 +5,7 @@ from shutil import which
 
 from .argparse import ArgumentParser
 from .argparse.bashcompletion import BashCompletionTypes
-from .utils import ask_yes_no, get_distributed_system
+from .utils import ask_yes_no, get_distributed_system, get_dependency_versions
 from .run import run
 from .build import build
 from .init import init
@@ -242,7 +241,10 @@ def _parse_arguments() -> argparse.Namespace:
     args = parser.parse_args()
 
     if args.version:
-        print(__version__)
+        grizzly_version, locust_version = get_dependency_versions()
+        print(f'grizzly-cli {__version__}')
+        print(f'grizzly {grizzly_version}')
+        print(f'locust {locust_version}')
         raise SystemExit(0)
 
     if args.category is None:
@@ -302,7 +304,3 @@ def main() -> int:
 
         print('\n!! aborted grizzly-cli')
         return 1
-
-
-if __name__ == '__main__':
-    sys.exit(main())

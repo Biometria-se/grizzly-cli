@@ -4,13 +4,17 @@ import subprocess
 
 from typing import Optional, List, Set, Union, Dict, Any, Tuple, Generator, Callable
 from os import path, environ
-from shutil import which
+from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
 from argparse import Namespace as Arguments
 from operator import attrgetter
 from hashlib import sha1 as sha1_hash
 from json import loads as jsonloads
 from functools import wraps
+from packaging import version as versioning
+from tempfile import mkdtemp
+
+import requests
 
 from behave.model import Scenario
 from roundrobin import smooth
@@ -55,6 +59,131 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
     process.wait()
 
     return process.returncode
+
+
+def get_dependency_versions() -> Tuple[str, str]:
+    grizzly_requirement: Optional[str] = None
+    locust_version: str
+    grizzly_version: str
+
+    with open(path.join(grizzly_cli.EXECUTION_CONTEXT, 'requirements.txt'), encoding='utf-8') as fd:
+        for line in fd.readlines():
+            if any([pkg in line for pkg in ['grizzly-loadtester', 'grizzly.git'] if not re.match(r'^([\s]+)?#', line)]):
+                grizzly_requirement = line.strip()
+                break
+
+    assert grizzly_requirement is not None
+
+    print(f'grizzly_requirements={grizzly_requirement}')
+
+    # check if it's a repo or not
+    if grizzly_requirement.startswith('git+'):
+        # git+https://git@github.com/mgor/grizzly.git@feature/dependency_update_round_2#egg=grizzly-loadtester
+        # Running command git clone --filter=blob:none -q 'https://****@github.com/mgor/grizzly.git' /tmp/pip-download-xv37p0tn/grizzly-loadtester_1ae112f4280348fdaa907fee67488f71
+        # Running command git checkout -b feature/dependency_update_round_2 --track origin/feature/dependency_update_round_2
+        url, _ = grizzly_requirement.rsplit('#', 1)
+        url, branch = url.rsplit('@', 1)
+        url = url[4:]  # remove git+
+
+        print(f'url={url}')
+        print(f'branch={branch}')
+
+        tmp_workspace = mkdtemp()
+        print(tmp_workspace)
+        try:
+            rc = subprocess.check_call([
+                'git',
+                'clone',
+                '--filter=blob:none',
+                '-q',
+                url,
+                tmp_workspace,
+            ], shell=False)
+
+            assert rc == 0
+
+            rc = subprocess.check_call([
+                'git',
+                'checkout',
+                '-b', branch,
+                '--track', f'origin/{branch}',
+            ], shell=True, cwd=tmp_workspace)
+
+            assert rc == 0
+        except:
+            input('waiting to continue...')
+        finally:
+            rmtree(tmp_workspace)
+        return '', ''
+    else:
+        response = requests.get(
+            'https://pypi.org/pypi/grizzly-loadtester/json'
+        )
+
+        if response.status_code != 200:
+            response.raise_for_status()
+
+        pypi = jsonloads(response.text)
+
+        # get grizzly version used in rquirements.txt
+        if re.match(r'^grizzly-loadtester(\[[^\]]\])?$', grizzly_requirement):  # latest
+            grizzly_version = pypi.get('info', {}).get('version', None)
+        else:
+            available_versions = [versioning.parse(available_version) for available_version in pypi.get('releases', {}).keys()]
+            conditions: List[Callable[[versioning.Version], bool]] = []
+
+            for condition in grizzly_requirement.replace('grizzly-loadtester', '').split(',', 1):
+                condition_version = versioning.parse(re.sub(r'[^0-9\.]', '', condition))
+
+                if not isinstance(condition_version, versioning.Version):
+                    raise ValueError(f'{str(condition_version)} is a {condition_version.__class__.__name__}, expected Version')
+
+                if '>' in condition:
+                    compare = condition_version.__le__ if '=' in condition else condition_version.__lt__
+                elif '<' in condition:
+                    compare = condition_version.__ge__ if '=' in condition else condition_version.__gt__
+                else:
+                    compare = condition_version.__eq__
+
+                conditions.append(compare)
+
+            matched_version = None
+
+            for available_version in available_versions:
+                if not isinstance(available_version, versioning.Version):
+                    raise ValueError(f'{str(condition_version)} is a {condition_version.__class__.__name__}, expected Version')
+
+                if all([compare(available_version) for compare in conditions]):
+                    matched_version = available_version
+
+            assert matched_version is not None
+
+            grizzly_version = str(matched_version)
+
+        # get version from pypi, to be able to get locust version
+        response = requests.get(
+            f'https://pypi.org/pypi/grizzly-loadtester/{grizzly_version}/json'
+        )
+
+        if response.status_code != 200:
+            response.raise_for_status()
+
+        release_info = jsonloads(response.text)
+
+        for required_dist in release_info['info']['requires_dist']:
+            if not required_dist.startswith('locust'):
+                continue
+
+            match = re.match(r'^locust \([^0-9]{2}(.+)\)$', required_dist.strip())
+
+            assert match
+
+            locust_version = match.group(1)
+            break
+
+        assert locust_version is not None
+
+    return grizzly_version, locust_version
 
 
 def list_images(args: Arguments) -> Dict[str, Any]:
