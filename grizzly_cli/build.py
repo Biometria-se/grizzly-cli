@@ -4,7 +4,7 @@ from typing import List, cast
 from argparse import Namespace as Arguments
 from getpass import getuser
 
-from .utils import requirements, run_command
+from .utils import get_dependency_versions, requirements, run_command
 from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
 
 
@@ -23,12 +23,18 @@ def getgid() -> int:
 
 
 def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
+    _, locust_version = get_dependency_versions()
+
+    if locust_version == '(unknown)':
+        locust_version = 'latest'
+
     return [
         f'{args.container_system}',
         'image',
         'build',
         '--ssh',
         'default',
+        '--build-arg', f'LOCUST_VERSION={locust_version}',
         '--build-arg', f'GRIZZLY_UID={getuid()}',
         '--build-arg', f'GRIZZLY_GID={getgid()}',
         '-f', containerfile,

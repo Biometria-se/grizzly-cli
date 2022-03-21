@@ -1,3 +1,5 @@
+ARG LOCUST_VERSION
+
 FROM alpine:latest as dependencies
 
 USER root
@@ -6,7 +8,7 @@ RUN mkdir /root/ibm && cd /root/ibm && \
     wget https://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqdev/redist/9.2.2.0-IBM-MQC-Redist-LinuxX64.tar.gz -O - | tar xzf -
 
 
-FROM locustio/locust:2.7.3
+FROM locustio/locust:${LOCUST_VERSION}
 
 USER root
 
