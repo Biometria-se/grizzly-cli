@@ -4,22 +4,27 @@ from textwrap import dedent
 from importlib import reload
 from shutil import rmtree
 from argparse import Namespace
+from tempfile import gettempdir
 
 import pytest
 
 from _pytest.tmpdir import TempPathFactory
 from _pytest.capture import CaptureFixture
 from pytest_mock import MockerFixture
+from unittest.mock import mock_open, patch as unittest_patch
+from requests_mock import Mocker as RequestsMocker
 
 from grizzly_cli.utils import (
     parse_feature_file,
     list_images,
     get_default_mtu,
+    requirements,
     run_command,
     get_distributed_system,
     find_variable_names_in_questions,
     distribution_of_users_per_scenario,
     ask_yes_no,
+    get_dependency_versions,
 )
 
 from .helpers import onerror, create_scenario
@@ -547,3 +552,214 @@ def test_ask_yes_no(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     assert get_input.call_count == 1
     for args, _ in get_input.call_args_list:
         assert args[0] == 'are you sure you know what you are doing? [y/n]: '
+
+
+def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: TempPathFactory, capsys: CaptureFixture) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
+    requirements_file = test_context / 'requirements.txt'
+
+    mocker.patch('grizzly_cli.EXECUTION_CONTEXT', str(test_context))
+
+    try:
+        with pytest.raises(FileNotFoundError) as fne:
+            get_dependency_versions()
+        capsys.readouterr()
+
+        assert fne.value.errno == 2
+        assert fne.value.strerror == 'No such file or directory'
+
+        requirements_file.touch()
+
+        assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == f'!! unable to find grizzly dependency in {requirements_file.absolute()}\n'
+        assert capture.out == ''
+
+        requirements_file.write_text('git+https://github.com/Biometria-se/grizzly.git@v1.5.3#egg=grizzly-loadtester')
+        import subprocess
+        with mocker.patch.context_manager(subprocess, 'check_call', return_value=1):
+            assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+            capture = capsys.readouterr()
+            assert capture.err == '!! unable to get git repo https://github.com/Biometria-se/grizzly.git and branch v1.5.3\n'
+            assert capture.out == ''
+
+            assert subprocess.check_call.call_count == 2  # type: ignore  # pylint: disable=no-member
+
+            # git clone...
+            args, kwargs = subprocess.check_call.call_args_list[0]  # type: ignore  # pylint: disable=no-member
+            assert len(args) == 1
+            args = args[0]
+            assert args[:-1] == ['git', 'clone', '--filter=blob:none', '-q', 'https://github.com/Biometria-se/grizzly.git']
+            assert args[-1].startswith(gettempdir())
+            assert args[-1].endswith('grizzly-loadtester_3f210f1809f6ca85ef414b2b4d450bf54353b5e0')
+            assert not kwargs.get('shell', True)
+            assert kwargs.get('stdout', None) == subprocess.DEVNULL
+            assert kwargs.get('stderr', None) == subprocess.DEVNULL
+
+            # git checkout...
+            args, kwargs = subprocess.check_call.call_args_list[1]  # type: ignore  # pylint: disable=no-member
+            assert len(args) == 1
+            args = args[0]
+            assert args == ['git', 'checkout', '-b', 'v1.5.3', '--track', 'origin/v1.5.3']
+            assert kwargs.get('cwd', '').startswith(gettempdir())
+            assert kwargs.get('cwd', '').endswith('grizzly-loadtester_3f210f1809f6ca85ef414b2b4d450bf54353b5e0')
+            assert not kwargs.get('shell', True)
+            assert kwargs.get('stdout', None) == subprocess.DEVNULL
+            assert kwargs.get('stderr', None) == subprocess.DEVNULL
+
+        with mocker.patch.context_manager(subprocess, 'check_call', return_value=0):
+            with pytest.raises(FileNotFoundError) as fne:
+                get_dependency_versions()
+            assert fne.value.errno == 2
+            assert fne.value.strerror == 'No such file or directory'
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='git+https://github.com/Biometria-se/grizzly.git@v1.5.3#egg=grizzly-loadtester\n').return_value,
+                mock_open(read_data='').return_value,
+            ]) as open_mock:
+                assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == '!! unable to find "__version__" declaration in grizzly/__init__.py from https://github.com/Biometria-se/grizzly.git\n'
+                assert capture.out == ''
+                assert open_mock.call_count == 2
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='git+https://github.com/Biometria-se/grizzly.git@v1.5.3#egg=grizzly-loadtester\n').return_value,
+                mock_open(read_data="__version__ = '0.0.0'").return_value,
+                mock_open(read_data='').return_value,
+            ]) as open_mock:
+                assert ('(development)', '(unknown)',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == '!! unable to find "locust" dependency in requirements.txt from https://github.com/Biometria-se/grizzly.git\n'
+                assert capture.out == ''
+
+                assert open_mock.call_count == 3
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='git+https://github.com/Biometria-se/grizzly.git@v1.5.3#egg=grizzly-loadtester\n').return_value,
+                mock_open(read_data="__version__ = '1.5.3'").return_value,
+                mock_open(read_data='locust').return_value,
+            ]) as open_mock:
+                assert ('1.5.3', '(unknown)',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == '!! unable to find locust version in "locust" specified in requirements.txt from https://github.com/Biometria-se/grizzly.git\n'
+                assert capture.out == ''
+
+                assert open_mock.call_count == 3
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='git+https://github.com/Biometria-se/grizzly.git@v1.5.3#egg=grizzly-loadtester\n').return_value,
+                mock_open(read_data="__version__ = '1.5.3'").return_value,
+                mock_open(read_data='locust==2.2.1 \\ ').return_value,
+            ]) as open_mock:
+                assert ('1.5.3', '2.2.1',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == ''
+                assert capture.out == ''
+
+                assert open_mock.call_count == 3
+    finally:
+        rmtree(test_context, onerror=onerror)
+
+
+def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: TempPathFactory, capsys: CaptureFixture, requests_mock: RequestsMocker) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
+    requirements_file = test_context / 'requirements.txt'
+
+    mocker.patch('grizzly_cli.EXECUTION_CONTEXT', str(test_context))
+
+    try:
+        with pytest.raises(FileNotFoundError) as fne:
+            get_dependency_versions()
+        capsys.readouterr()
+
+        assert fne.value.errno == 2
+        assert fne.value.strerror == 'No such file or directory'
+
+        requirements_file.touch()
+
+        assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == f'!! unable to find grizzly dependency in {requirements_file.absolute()}\n'
+        assert capture.out == ''
+
+        requirements_file.write_text('grizzly-loadtester')
+
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/json', status_code=404)
+
+        assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == '!! unable to get grizzly package information from https://pypi.org/pypi/grizzly-loadtester/json (404)\n'
+        assert capture.out == ''
+
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/json', status_code=200, text='{"info": {"version": "1.1.1"}}')
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/1.1.1/json', status_code=400)
+
+        assert ('1.1.1', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == '!! unable to get grizzly 1.1.1 package information from https://pypi.org/pypi/grizzly-loadtester/1.1.1/json (400)\n'
+        assert capture.out == ''
+
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/1.1.1/json', status_code=200, text='{"info": {"requires_dist": []}}')
+
+        assert ('1.1.1', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == '!! could not find "locust" in requires_dist information for grizzly-loadtester 1.1.1\n'
+        assert capture.out == ''
+
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/1.1.1/json', status_code=200, text='{"info": {"requires_dist": ["requests", "locust"]}}')
+
+        assert ('1.1.1', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == '!! unable to find locust version in "locust" specified in pypi for grizzly-loadtester 1.1.1\n'
+        assert capture.out == ''
+
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/1.1.1/json', status_code=200, text='{"info": {"requires_dist": ["locust (==2.8.5)"]}}')
+
+        assert ('1.1.1', '2.8.5',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+
+    finally:
+        rmtree(test_context, onerror=onerror)
+
+
+def test_requirements(mocker: MockerFixture, capsys: CaptureFixture, tmp_path_factory: TempPathFactory) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
+    requirements_file = test_context / 'requirements.txt'
+
+    def wrapped_test(args: Namespace) -> int:
+        return 1337
+
+    try:
+        assert not requirements_file.exists()
+
+        wrapped = requirements(str(test_context))(wrapped_test)
+        assert getattr(wrapped, '__wrapped__', None) is wrapped_test
+        assert getattr(getattr(wrapped, '__wrapped__'), '__value__') == str(test_context)
+
+        assert wrapped(Namespace()) == 1337
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            '!! created a default requirements.txt with one dependency:\n'
+            'grizzly-loadtester\n\n'
+        )
+        assert requirements_file.exists()
+
+    finally:
+        rmtree(test_context, onerror=onerror)

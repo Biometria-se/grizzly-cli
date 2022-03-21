@@ -2,5 +2,3 @@ behave>=1.2.6
 roundrobin==0.0.2
 Jinja2==3.0.3
 requests==2.27.1
-#grizzly-loadtester>=1.4.0,<1.5.0
-git+https://git@github.com/mgor/grizzly.git@feature/dependency_update_round_2#egg=grizzly-loadtester
