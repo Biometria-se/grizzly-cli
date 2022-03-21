@@ -4,13 +4,18 @@ import subprocess
 
 from typing import Optional, List, Set, Union, Dict, Any, Tuple, Generator, Callable
 from os import path, environ
-from shutil import which
+from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
 from argparse import Namespace as Arguments
 from operator import attrgetter
 from hashlib import sha1 as sha1_hash
 from json import loads as jsonloads
 from functools import wraps
+from packaging import version as versioning
+from tempfile import mkdtemp
+from hashlib import sha1
+
+import requests
 
 from behave.model import Scenario
 from roundrobin import smooth
@@ -55,6 +60,180 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
     process.wait()
 
     return process.returncode
+
+
+def get_dependency_versions() -> Tuple[str, str]:
+    grizzly_requirement: Optional[str] = None
+    locust_version: Optional[str] = None
+    grizzly_version: Optional[str] = None
+
+    project_requirements = path.join(grizzly_cli.EXECUTION_CONTEXT, 'requirements.txt')
+
+    with open(project_requirements, encoding='utf-8') as fd:
+        for line in fd.readlines():
+            if any([pkg in line for pkg in ['grizzly-loadtester', 'grizzly.git'] if not re.match(r'^([\s]+)?#', line)]):
+                grizzly_requirement = line.strip()
+                break
+
+    if grizzly_requirement is None:
+        print(f'!! unable to find grizzly dependency in {project_requirements}', file=sys.stderr)
+        return '(unknown)', '(unknown)'
+
+    # check if it's a repo or not
+    if grizzly_requirement.startswith('git+'):
+        suffix = sha1(grizzly_requirement.encode('utf-8')).hexdigest()
+        url, egg_part = grizzly_requirement.rsplit('#', 1)
+        url, branch = url.rsplit('@', 1)
+        url = url[4:]  # remove git+
+        _, egg = egg_part.split('=', 1)
+
+        # extras_requirement normalization
+        egg = egg.replace('[', '__').replace(']', '__')
+
+        tmp_workspace = mkdtemp(prefix='grizzly-cli-')
+        repo_destination = path.join(tmp_workspace, f'{egg}_{suffix}')
+
+        try:
+            rc: int = 0
+
+            rc += subprocess.check_call(
+                [
+                    'git', 'clone', '--filter=blob:none', '-q',
+                    url,
+                    repo_destination
+                ],
+                shell=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            rc += subprocess.check_call(
+                [
+                    'git', 'checkout',
+                    '-b', branch,
+                    '--track', f'origin/{branch}',
+                ],
+                cwd=repo_destination,
+                shell=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            if rc != 0:
+                print(f'!! unable to get git repo {url} and branch {branch}', file=sys.stderr)
+                raise RuntimeError()  # abort
+
+            with open(path.join(repo_destination, 'grizzly', '__init__.py'), encoding='utf-8') as fd:
+                version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('__version__ =')]
+
+            if len(version_raw) != 1:
+                print(f'!! unable to find "__version__" declaration in grizzly/__init__.py from {url}', file=sys.stderr)
+                raise RuntimeError()  # abort
+
+            _, grizzly_version, _ = version_raw[-1].split("'")
+
+            if grizzly_version == '0.0.0':
+                grizzly_version = '(development)'
+
+            with open(path.join(repo_destination, 'requirements.txt'), encoding='utf-8') as fd:
+                version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('locust')]
+
+            if len(version_raw) != 1:
+                print(f'!! unable to find "locust" dependency in requirements.txt from {url}', file=sys.stderr)
+                raise RuntimeError()  # abort
+
+            match = re.match(r'^locust.{2}([^\s]+)\s+', version_raw[-1])
+
+            if not match:
+                print(f'!! unable to find locust version in "{version_raw[-1].strip()}" specified in requirements.txt from {url}', file=sys.stderr)
+            else:
+                locust_version = match.group(1)
+        except RuntimeError:
+            pass
+        finally:
+            rmtree(tmp_workspace)
+    else:
+        response = requests.get(
+            'https://pypi.org/pypi/grizzly-loadtester/json'
+        )
+
+        if response.status_code != 200:
+            print(f'!! unable to get grizzly package information from {response.url} ({response.status_code})', file=sys.stderr)
+        else:
+            pypi = jsonloads(response.text)
+
+            # get grizzly version used in requirements.txt
+            if re.match(r'^grizzly-loadtester(\[[^\]]\])?$', grizzly_requirement):  # latest
+                grizzly_version = pypi.get('info', {}).get('version', None)
+            else:
+                available_versions = [versioning.parse(available_version) for available_version in pypi.get('releases', {}).keys()]
+                conditions: List[Callable[[versioning.Version], bool]] = []
+
+                for condition in grizzly_requirement.replace('grizzly-loadtester', '').split(',', 1):
+                    condition_version = versioning.parse(re.sub(r'[^0-9\.]', '', condition))
+
+                    if not isinstance(condition_version, versioning.Version):
+                        print(f'!! {str(condition_version)} is a {condition_version.__class__.__name__}, expected Version', file=sys.stderr)
+                        break
+
+                    if '>' in condition:
+                        compare = condition_version.__le__ if '=' in condition else condition_version.__lt__
+                    elif '<' in condition:
+                        compare = condition_version.__ge__ if '=' in condition else condition_version.__gt__
+                    else:
+                        compare = condition_version.__eq__
+
+                    conditions.append(compare)
+
+                matched_version = None
+
+                for available_version in available_versions:
+                    if not isinstance(available_version, versioning.Version):
+                        print(f'{str(condition_version)} is a {condition_version.__class__.__name__}, expected Version', file=sys.stderr)
+                        break
+
+                    if all([compare(available_version) for compare in conditions]):
+                        matched_version = available_version
+
+                if matched_version is None:
+                    print(f'!! could not resolve {grizzly_requirement} to one specific version available at pypi', file=sys.stderr)
+                else:
+                    grizzly_version = str(matched_version)
+
+            # get version from pypi, to be able to get locust version
+            response = requests.get(
+                f'https://pypi.org/pypi/grizzly-loadtester/{grizzly_version}/json'
+            )
+
+            if response.status_code != 200:
+                print(f'!! unable to get grizzly {grizzly_version} package information from {response.url} ({response.status_code})', file=sys.stderr)
+            else:
+                release_info = jsonloads(response.text)
+
+                for requires_dist in release_info.get('info', {}).get('requires_dist', []):
+                    if not requires_dist.startswith('locust'):
+                        continue
+
+                    match = re.match(r'^locust \([^0-9]{2}(.+)\)$', requires_dist.strip())
+
+                    if not match:
+                        print(f'!! unable to find locust version in "{requires_dist.strip()}" specified in pypi for grizzly-loadtester {grizzly_version}', file=sys.stderr)
+                        locust_version = '(unknown)'
+                        break
+
+                    locust_version = match.group(1)
+                    break
+
+                if locust_version is None:
+                    print(f'!! could not find "locust" in requires_dist information for grizzly-loadtester {grizzly_version}', file=sys.stderr)
+
+    if grizzly_version is None:
+        grizzly_version = '(unknown)'
+
+    if locust_version is None:
+        locust_version = '(unknown)'
+
+    return grizzly_version, locust_version
 
 
 def list_images(args: Arguments) -> Dict[str, Any]:
@@ -143,7 +322,7 @@ def get_distributed_system() -> Optional[str]:
     return container_system
 
 
-def get_input(text: str) -> str:
+def get_input(text: str) -> str:  # pragma: no cover
     return input(text).strip()
 
 

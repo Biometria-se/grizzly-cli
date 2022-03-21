@@ -15,10 +15,10 @@ CWD = getcwd()
 
 
 def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.run.getuser', side_effect=['test-user'] * 3)
-    mocker.patch('grizzly_cli.run.get_default_mtu', side_effect=[None, '1400', '1800'])
+    mocker.patch('grizzly_cli.run.getuser', side_effect=['test-user'] * 4)
+    mocker.patch('grizzly_cli.run.get_default_mtu', side_effect=['1500', None, '1400', '1800'])
     mocker.patch('grizzly_cli.run.build', side_effect=[255, 0])
-    mocker.patch('grizzly_cli.run.list_images', side_effect=[{}, {'grizzly-cli-test-project': {'test-user': {}}}, {'grizzly-cli-test-project': {'test-user': {}}}])
+    mocker.patch('grizzly_cli.run.list_images', side_effect=[{}, {}, {'grizzly-cli-test-project': {'test-user': {}}}, {'grizzly-cli-test-project': {'test-user': {}}}])
 
     import grizzly_cli.run
     mocker.patch.object(grizzly_cli.run, 'EXECUTION_CONTEXT', '/tmp/execution-context')
@@ -26,7 +26,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     mocker.patch.object(grizzly_cli.run, 'MOUNT_CONTEXT', '/tmp/mount-context')
     mocker.patch.object(grizzly_cli.run, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
-    run_command = mocker.patch('grizzly_cli.run.run_command', side_effect=[0, 0, 1, 0, 13])
+    run_command_mock = mocker.patch('grizzly_cli.run.run_command', side_effect=[111, 0, 0, 1, 0, 13])
 
     arguments = Namespace(
         file='test.feature',
@@ -46,6 +46,20 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):
                 del environ[key]
+
+        assert distributed(arguments, {}, {}) == 111
+        capture = capsys.readouterr()
+        import sys
+        assert capture.err == ''
+        assert capture.out == (
+            '!! something in the compose project is not valid, check with:\n'
+            f'grizzly-cli {" ".join(sys.argv[1:])} --validate-config\n'
+        )
+
+        try:
+            del environ['GRIZZLY_MTU']
+        except KeyError:
+            pass
 
         assert distributed(arguments, {}, {}) == 255
         capture = capsys.readouterr()
@@ -110,15 +124,15 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
             'docker container logs grizzly-cli-test-project-test-user_worker_3\n'
         )
 
-        assert run_command.call_count == 4
-        args, _ = run_command.call_args_list[-3]
+        assert run_command_mock.call_count == 5
+        args, _ = run_command_mock.call_args_list[-3]
         assert args[0] == [
             'docker-compose',
             '-p', 'grizzly-cli-test-project-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'config',
         ]
-        args, _ = run_command.call_args_list[-2]
+        args, _ = run_command_mock.call_args_list[-2]
         assert args[0] == [
             'docker-compose',
             '-p', 'grizzly-cli-test-project-test-user',
@@ -127,7 +141,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
             '--scale', 'worker=3',
             '--remove-orphans',
         ]
-        args, _ = run_command.call_args_list[-1]
+        args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
             'docker-compose',
             '-p', 'grizzly-cli-test-project-test-user',
@@ -187,8 +201,8 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         assert capture.err == ''
         assert capture.out == ''
 
-        assert run_command.call_count == 5
-        args, _ = run_command.call_args_list[-1]
+        assert run_command_mock.call_count == 6
+        args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
             'docker-compose',
             '-p', 'grizzly-cli-test-project-suffix-test-user',

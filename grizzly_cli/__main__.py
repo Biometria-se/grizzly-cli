@@ -1,4 +1,3 @@
-import sys
 import argparse
 import os
 
@@ -6,7 +5,7 @@ from shutil import which
 
 from .argparse import ArgumentParser
 from .argparse.bashcompletion import BashCompletionTypes
-from .utils import ask_yes_no, get_distributed_system
+from .utils import ask_yes_no, get_distributed_system, get_dependency_versions
 from .run import run
 from .build import build
 from .init import init
@@ -33,7 +32,14 @@ def _create_parser() -> ArgumentParser:
     if parser.prog != 'grizzly-cli':
         parser.prog = 'grizzly-cli'
 
-    parser.add_argument('--version', action='store_true', help='print version of command line interface, and exit')
+    parser.add_argument(
+        '--version',
+        nargs='?',
+        default=None,
+        const=True,
+        choices=['all'],
+        help='print version of command line interface, and exit. add argument `all` to get versions of dependencies',
+    )
 
     sub_parser = parser.add_subparsers(dest='category')
 
@@ -65,7 +71,7 @@ def _create_parser() -> ArgumentParser:
         help='if grizzly should be installed with IBM MQ support (external dependencies excluded)',
     )
 
-    if init_parser.prog != 'grizzly-cli init':
+    if init_parser.prog != 'grizzly-cli init':  # pragma: no cover
         init_parser.prog = 'grizzly-cli init'
 
     # grizzly-cli build ...
@@ -88,7 +94,7 @@ def _create_parser() -> ArgumentParser:
         help='push built image to this registry, if the registry has authentication you need to login first',
     )
 
-    if build_parser.prog != 'grizzly-cli build':
+    if build_parser.prog != 'grizzly-cli build':  # pragma: no cover
         build_parser.prog = 'grizzly-cli build'
 
     # grizzly-cli run ...
@@ -126,7 +132,7 @@ def _create_parser() -> ArgumentParser:
         help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
     )
 
-    if run_parser.prog != 'grizzly-cli run':
+    if run_parser.prog != 'grizzly-cli run':  # pragma: no cover
         run_parser.prog = 'grizzly-cli run'
 
     run_sub_parser = run_parser.add_subparsers(dest='mode')
@@ -144,7 +150,7 @@ def _create_parser() -> ArgumentParser:
         **file_kwargs,  # type: ignore
     )
 
-    if run_local_parser.prog != 'grizzly-cli run local':
+    if run_local_parser.prog != 'grizzly-cli run local':  # pragma: no cover
         run_local_parser.prog = 'grizzly-cli run local'
 
     # grizzly-cli run dist ...
@@ -231,7 +237,7 @@ def _create_parser() -> ArgumentParser:
         help='validate and print compose project file',
     )
 
-    if run_dist_parser.prog != 'grizzly-cli run dist':
+    if run_dist_parser.prog != 'grizzly-cli run dist':  # pragma: no cover
         run_dist_parser.prog = 'grizzly-cli run dist'
 
     return parser
@@ -242,7 +248,23 @@ def _parse_arguments() -> argparse.Namespace:
     args = parser.parse_args()
 
     if args.version:
-        print(__version__)
+        if __version__ == '0.0.0':
+            version = '(development)'
+        else:
+            version = __version__
+
+        if args.version == 'all':
+            grizzly_version, locust_version = get_dependency_versions()
+        else:
+            grizzly_version, locust_version = None, None
+
+        print(f'grizzly-cli {version}')
+        if grizzly_version is not None:
+            print(f'└── grizzly {grizzly_version}')
+
+        if locust_version is not None:
+            print(f'    └── locust {locust_version}')
+
         raise SystemExit(0)
 
     if args.category is None:
@@ -302,7 +324,3 @@ def main() -> int:
 
         print('\n!! aborted grizzly-cli')
         return 1
-
-
-if __name__ == '__main__':
-    sys.exit(main())

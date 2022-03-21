@@ -111,6 +111,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     import sys
 
     try:
+        mocker.patch('grizzly_cli.EXECUTION_CONTEXT', test_context_root)
         chdir(test_context_root)
         sys.argv = ['grizzly-cli']
 
@@ -131,7 +132,54 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert se.value.code == 0
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == '0.0.0\n'
+        assert capture.out == 'grizzly-cli (development)\n'
+
+        sys.argv = ['grizzly-cli', '--version', 'foo']
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 2
+        capture = capsys.readouterr()
+        err = capture.err.split('\n')
+        assert len(err) == 3
+        assert err[0].startswith('usage: grizzly-cli')
+        assert err[1] == (
+            "grizzly-cli: error: argument --version: invalid choice: 'foo' (choose from 'all')"
+        )
+        assert err[2] == ''
+        assert capture.out == ''
+
+        (test_context / 'requirements.txt').write_text('grizzly-loadtester==1.5.3\n')
+
+        sys.argv = ['grizzly-cli', '--version', 'all']
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 0
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            'grizzly-cli (development)\n'
+            '└── grizzly 1.5.3\n'
+            '    └── locust 2.2.1\n'
+        )
+
+        sys.argv = ['grizzly-cli', '--version', 'all']
+        mocker.patch('grizzly_cli.__main__.__version__', '2.5.0')
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 0
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            'grizzly-cli 2.5.0\n'
+            '└── grizzly 1.5.3\n'
+            '    └── locust 2.2.1\n'
+        )
 
         sys.argv = ['grizzly-cli', 'run']
 
