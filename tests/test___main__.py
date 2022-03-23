@@ -126,6 +126,8 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 
         sys.argv = ['grizzly-cli', '--version']
 
+        mocker.patch('grizzly_cli.__main__.__version__', '0.0.0')
+
         with pytest.raises(SystemExit) as se:
             _parse_arguments()
         assert se.type == SystemExit

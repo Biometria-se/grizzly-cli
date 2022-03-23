@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 
 from typing import List, Dict, Any, cast
 from tempfile import NamedTemporaryFile
@@ -19,6 +20,154 @@ from .utils import (
     list_images,
 )
 from .build import build
+from .argparse import ArgumentSubParser
+from .argparse.bashcompletion import BashCompletionTypes
+
+
+def create_parser(sub_parser: ArgumentSubParser) -> None:
+    # grizzly-cli run ...
+    run_parser = sub_parser.add_parser('run', description='execute load test scenarios specified in a feature file.')
+    run_parser.add_argument(
+        '--verbose',
+        action='store_true',
+        required=False,
+        help=(
+            'changes the log level to `DEBUG`, regardless of what it says in the feature file. gives more verbose logging '
+            'that can be useful when troubleshooting a problem with a scenario.'
+        )
+    )
+    run_parser.add_argument(
+        '-T', '--testdata-variable',
+        action='append',
+        type=str,
+        required=False,
+        help=(
+            'specified in the format `<name>=<value>`. avoids being asked for an initial value for a scenario variable.'
+        )
+    )
+    run_parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        default=False,
+        required=False,
+        help='answer yes on any questions that would require confirmation',
+    )
+    run_parser.add_argument(
+        '-e', '--environment-file',
+        type=BashCompletionTypes.File('*.yaml', '*.yml'),
+        required=False,
+        default=None,
+        help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
+    )
+
+    if run_parser.prog != 'grizzly-cli run':  # pragma: no cover
+        run_parser.prog = 'grizzly-cli run'
+
+    run_sub_parser = run_parser.add_subparsers(dest='mode')
+
+    file_kwargs = {
+        'nargs': None,
+        'type': BashCompletionTypes.File('*.feature'),
+        'help': 'path to feature file with one or more scenarios',
+    }
+
+    # grizzly-cli run local ...
+    run_local_parser = run_sub_parser.add_parser('local', description='arguments for running grizzly locally.')
+    run_local_parser.add_argument(
+        'file',
+        **file_kwargs,  # type: ignore
+    )
+
+    if run_local_parser.prog != 'grizzly-cli run local':  # pragma: no cover
+        run_local_parser.prog = 'grizzly-cli run local'
+
+    # grizzly-cli run dist ...
+    run_dist_parser = run_sub_parser.add_parser('dist', description='arguments for running grizzly distributed.')
+    run_dist_parser.add_argument(
+        'file',
+        **file_kwargs,  # type: ignore
+    )
+    run_dist_parser.add_argument(
+        '--workers',
+        type=int,
+        required=False,
+        default=1,
+        help='how many instances of the `workers` container that should be created',
+    )
+    run_dist_parser.add_argument(
+        '--container-system',
+        type=str,
+        choices=['podman', 'docker', None],
+        required=False,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    run_dist_parser.add_argument(
+        '--id',
+        type=str,
+        required=False,
+        default=None,
+        help='unique identifier suffixed to compose project, should be used when the same user needs to run more than one instance of `grizzly-cli`',
+    )
+    run_dist_parser.add_argument(
+        '--limit-nofile',
+        type=int,
+        required=False,
+        default=10001,
+        help='set system limit "number of open files"',
+    )
+    run_dist_parser.add_argument(
+        '--health-retries',
+        type=int,
+        required=False,
+        default=3,
+        help='set number of retries for health check of master container',
+    )
+    run_dist_parser.add_argument(
+        '--health-timeout',
+        type=int,
+        required=False,
+        default=3,
+        help='set timeout in seconds for health check of master container',
+    )
+    run_dist_parser.add_argument(
+        '--health-interval',
+        type=int,
+        required=False,
+        default=5,
+        help='set interval in seconds between health checks of master container',
+    )
+    run_dist_parser.add_argument(
+        '--registry',
+        type=str,
+        default=None,
+        required=False,
+        help='push built image to this registry, if the registry has authentication you need to login first',
+    )
+
+    group_build = run_dist_parser.add_mutually_exclusive_group()
+    group_build.add_argument(
+        '--force-build',
+        action='store_true',
+        required=False,
+        help='force rebuild the grizzly projects container image (no cache)',
+    )
+    group_build.add_argument(
+        '--build',
+        action='store_true',
+        required=False,
+        help='rebuild the grizzly projects container images (with cache)',
+    )
+    group_build.add_argument(
+        '--validate-config',
+        action='store_true',
+        required=False,
+        help='validate and print compose project file',
+    )
+
+    if run_dist_parser.prog != 'grizzly-cli run dist':  # pragma: no cover
+        run_dist_parser.prog = 'grizzly-cli run dist'
+
 
 
 def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
@@ -116,10 +265,23 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
             *compose_args,
             'up',
             *compose_scale_argument,
-            '--remove-orphans'
+            '--remove-orphans',
         ]
 
-        rc = run_command(compose_command)
+        if args.verbose:
+            env_prefix: List[str] = []
+
+            with open('grizzly.env', 'w+') as pfd:
+                pfd.write(fd.read().decode('utf-8'))
+                pfd.flush()
+
+            for key in os.environ:
+                if key == 'GRIZZLY_ENVIRONMENT_FILE':
+                    env_prefix.append(f'{key}=grizzly.env')
+                elif key.startswith('GRIZZLY_') or key in ['LINES', 'COLUMNS']:
+                    env_prefix.append(f'{key}="{os.environ[key]}"')
+            print(f'environment variable prefix: {" ".join(env_prefix)}')
+        rc = run_command(compose_command, verbose=args.verbose)
 
         # stop containers
         compose_command = [
@@ -132,9 +294,9 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
 
         if rc != 0:
             print('\n!! something went wrong, check container logs with:')
-            print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}_master_1')
-            for worker in range(1, args.workers + 1):
-                print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}_worker_{worker}')
+            print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}-master-1')
+            for worker in range(2, args.workers + 2):
+                print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}-worker-{worker}')
 
         return rc
 

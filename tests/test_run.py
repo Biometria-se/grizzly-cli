@@ -118,10 +118,10 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         assert capture.err == ''
         assert capture.out == (
             '\n!! something went wrong, check container logs with:\n'
-            'docker container logs grizzly-cli-test-project-test-user_master_1\n'
-            'docker container logs grizzly-cli-test-project-test-user_worker_1\n'
-            'docker container logs grizzly-cli-test-project-test-user_worker_2\n'
-            'docker container logs grizzly-cli-test-project-test-user_worker_3\n'
+            'docker container logs grizzly-cli-test-project-test-user-master-1\n'
+            'docker container logs grizzly-cli-test-project-test-user-worker-2\n'
+            'docker container logs grizzly-cli-test-project-test-user-worker-3\n'
+            'docker container logs grizzly-cli-test-project-test-user-worker-4\n'
         )
 
         assert run_command_mock.call_count == 5

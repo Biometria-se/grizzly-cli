@@ -24,9 +24,12 @@ from jinja2 import Template
 import grizzly_cli
 
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False) -> int:
+def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> int:
     if env is None:
         env = environ.copy()
+
+    if verbose:
+        print(f'run_command: {" ".join(command)}')
 
     process = subprocess.Popen(
         command,
@@ -47,6 +50,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
 
             if not silent:
                 sys.stdout.write(output.decode('utf-8'))
+                sys.stdout.flush()
 
         process.terminate()
     except KeyboardInterrupt:

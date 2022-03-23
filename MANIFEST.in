@@ -1,0 +1,4 @@
+recursive-include grizzly_cli *
+recursive-exclude tests *
+global-exclude __pycache__
+global-exclude *.py[co]

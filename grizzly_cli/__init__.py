@@ -2,10 +2,19 @@ import os
 
 from typing import Set
 
+# pyright: reportMissingImports=false
+try:
+    from importlib.metadata import version, PackageNotFoundError  # pylint: disable=import-error
+except ImportError:
+    from importlib_metadata import version, PackageNotFoundError  # pylint: disable=import-error
+
 from behave.model import Scenario
 
 
-__version__ = '0.0.0'
+try:
+    __version__ = version('grizzly-loadtester-cli')
+except PackageNotFoundError:
+    __version__ = '0.0.0'
 
 EXECUTION_CONTEXT = os.getcwd()
 

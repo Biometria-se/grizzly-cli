@@ -12,3 +12,5 @@ features/
 .venv/
 grizzly-example/
 *.event
+*.tar.gz
+.dockerignore

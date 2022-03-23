@@ -1,5 +1,1 @@
-behave>=1.2.6
-roundrobin==0.0.2
-Jinja2==3.0.3
-requests==2.27.1
-packaging==21.3
+grizzly-loadtester[mq]

@@ -31,10 +31,6 @@ def test_getuid_getgid_nt(mocker: MockerFixture) -> None:
 def test__create_build_command(mocker: MockerFixture) -> None:
     mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 2)
     mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 2)
-    mocker.patch('grizzly_cli.build.get_dependency_versions', side_effect=[
-        ('(unknown)', '(unknown)',),
-        ('(unknown)', '1.3.37',),
-    ])
     args = Namespace(container_system='test')
 
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
@@ -43,7 +39,6 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         'build',
         '--ssh',
         'default',
-        '--build-arg', 'LOCUST_VERSION=latest',
         '--build-arg', 'GRIZZLY_UID=1337',
         '--build-arg', 'GRIZZLY_GID=2147483647',
         '-f', 'Containerfile.test',
@@ -57,7 +52,6 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         'build',
         '--ssh',
         'default',
-        '--build-arg', 'LOCUST_VERSION=1.3.37',
         '--build-arg', 'GRIZZLY_UID=1337',
         '--build-arg', 'GRIZZLY_GID=2147483647',
         '-f', 'Containerfile.test',
@@ -78,7 +72,6 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         mocker.patch('grizzly_cli.build.getuser', side_effect=['test-user'] * 5)
         mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 5)
         mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 5)
-        mocker.patch('grizzly_cli.build.get_dependency_versions', side_effect=[('1.2.3', '3.2.1',)] * 5)
         run_command = mocker.patch('grizzly_cli.build.run_command', side_effect=[254, 133, 0, 1, 0, 0, 2, 0, 0, 0])
         setattr(getattr(build, '__wrapped__'), '__value__', str(test_context))
 
@@ -103,7 +96,6 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             'build',
             '--ssh',
             'default',
-            '--build-arg', 'LOCUST_VERSION=3.2.1',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '-f', f'{static_context}/Containerfile',
@@ -127,7 +119,6 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             'build',
             '--ssh',
             'default',
-            '--build-arg', 'LOCUST_VERSION=3.2.1',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '-f', f'{static_context}/Containerfile',

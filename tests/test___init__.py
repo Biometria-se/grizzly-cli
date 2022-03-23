@@ -4,13 +4,14 @@ from inspect import getfile
 from importlib import reload
 
 from _pytest.tmpdir import TempPathFactory
+from pytest_mock import MockerFixture
 
 from .helpers import onerror
 
 CWD = getcwd()
 
 
-def test___import__(tmp_path_factory: TempPathFactory) -> None:
+def test___import__(tmp_path_factory: TempPathFactory, mocker: MockerFixture) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
     test_context_root = str(test_context)
 
@@ -21,6 +22,7 @@ def test___import__(tmp_path_factory: TempPathFactory) -> None:
 
         import grizzly_cli
         reload(grizzly_cli)
+        mocker.patch.object(grizzly_cli, '__version__', '0.0.0')
 
         static_context = path.join(path.dirname(getfile(grizzly_cli)), 'static')
 

@@ -4,8 +4,34 @@ from typing import List, cast
 from argparse import Namespace as Arguments
 from getpass import getuser
 
-from .utils import get_dependency_versions, requirements, run_command
+from .utils import requirements, run_command
+from .argparse import ArgumentSubParser
 from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
+
+
+def create_parser(sub_parser: ArgumentSubParser) -> None:
+    # grizzly-cli build ...
+    build_parser = sub_parser.add_parser('build', description=(
+        'build grizzly compose project container image. this command is only applicable if grizzly '
+        'should run distributed and is used to pre-build the container images. if worker nodes runs '
+        'on different physical computers, it is mandatory to build the images before hand and push to a registry.'
+    ))
+    build_parser.add_argument(
+        '--no-cache',
+        action='store_true',
+        required=False,
+        help='build container image with out cache (full build)',
+    )
+    build_parser.add_argument(
+        '--registry',
+        type=str,
+        default=None,
+        required=False,
+        help='push built image to this registry, if the registry has authentication you need to login first',
+    )
+
+    if build_parser.prog != 'grizzly-cli build':  # pragma: no cover
+        build_parser.prog = 'grizzly-cli build'
 
 
 def getuid() -> int:
@@ -23,18 +49,12 @@ def getgid() -> int:
 
 
 def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
-    _, locust_version = get_dependency_versions()
-
-    if locust_version == '(unknown)':
-        locust_version = 'latest'
-
     return [
         f'{args.container_system}',
         'image',
         'build',
         '--ssh',
         'default',
-        '--build-arg', f'LOCUST_VERSION={locust_version}',
         '--build-arg', f'GRIZZLY_UID={getuid()}',
         '--build-arg', f'GRIZZLY_GID={getgid()}',
         '-f', containerfile,
