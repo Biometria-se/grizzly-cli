@@ -1,9 +1,12 @@
-FROM python:3.10-alpine as base
+FROM python:3.10-slim as base
+
+RUN apt-get update
 
 # <!-- mqm
 FROM base as mqm
 
-RUN apk add --no-cache wget
+
+RUN apt-get install -y --no-install-recommends wget
 RUN mkdir /tmp/mqm && cd /tmp/mqm && \
     wget -q --show-progress https://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqdev/redist/9.2.2.0-IBM-MQC-Redist-LinuxX64.tar.gz -O - | tar xzf -
 
@@ -24,16 +27,15 @@ RUN cp /tmp/mqm/inc/*.h* /opt/mqm/inc/ \
 # <!-- python
 FROM base AS python
 
-RUN apk add --no-cache \
-    openssh-client-default \
+RUN apt-get install -y --no-install-recommends \
+    openssh-client \
     git \
     gcc \
     g++ \
-    musl-dev \
     libffi-dev \
     cmake \
     make \
-    openssl-dev \
+    libssl-dev \
     python3-dev
 
 COPY --from=mqm /opt/mqm /opt/mqm
@@ -44,9 +46,9 @@ ENV LANG=C
 
 RUN mkdir -p -m 0600 /root/.ssh
 
-RUN python -m venv /opt/python-env
+RUN python -m venv /venv
 
-ENV PATH="/opt/python-env/bin:$PATH"
+ENV PATH="/venv/bin:$PATH"
 
 COPY requirements.txt /tmp
 
@@ -56,10 +58,12 @@ RUN --mount=type=ssh GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' pip --dis
 # <!-- entrypoint
 FROM base AS entrypoint
 
-RUN echo $'#!/usr/bin/env sh\n\
+RUN echo '#!/bin/sh\n\
 set -e\n\
 \n\
-stty rows $LINES cols $COLUMNS &>/dev/null || true\n\
+if [ "$GRIZZLY_CONTAINER_TTY" = "true" ]; then\n\
+    stty rows $LINES cols $COLUMNS &>/dev/null || true\n\
+fi\n\
 \n\
 exec behave "$@"' >> /grizzly-entrypoint.sh
 
@@ -72,34 +76,36 @@ FROM base
 ARG GRIZZLY_UID
 ARG GRIZZLY_GID
 
-RUN addgroup \
+RUN groupadd \
         -g "${GRIZZLY_GID}" \
         grizzly \
     && \
-    adduser \
+    useradd \
         -u "${GRIZZLY_UID}" \
         -G grizzly \
-        -s /bin/sh \
-        -D \
+        -N \
+        -s /bin/bash \
         grizzly
 
-RUN apk add --no-cache lsof gcompat libstdc++
+RUN apt-get install -y --no-install-recommends lsof
 
 COPY --from=mqm /opt/mqm /opt/mqm
-COPY --from=python --chown=grizzly:grizzly /opt/python-env /opt/python-env
+COPY --from=python --chown=grizzly:grizzly /venv /venv
 COPY --from=entrypoint /grizzly-entrypoint.sh /grizzly-entrypoint.sh
 
 ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
 ENV LC_ALL=C
 ENV LANG=C
-ENV PATH="/opt/python-env/bin:$PATH"
+ENV PATH="/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH="/srv/grizzly"
 
 RUN mkdir -p /home/grizzly/IBM/MQ/data && \
     chown -R grizzly:grizzly /home/grizzly \
     && mkdir -p /srv/grizzly/features/logs \
     && ln -sf /srv/grizzly/features/logs /home/grizzly/IBM/MQ/data/errors \
-    && rm -rf /srv/grizzly/features
+    && rm -rf /srv/grizzly/features \
+    && rm -rf /var/lib/apt/lists/*
 
 USER grizzly
 

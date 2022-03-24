@@ -238,6 +238,7 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
 
         fd.write(f'COLUMNS={columns}\n'.encode('utf-8'))
         fd.write(f'LINES={lines}\n'.encode('utf-8'))
+        fd.write(f'GRIZZLY_CONTAINER_TTY={os.environ["GRIZZLY_CONTAINER_TTY"]}\n'.encode('utf-8'))
 
         fd.flush()
 
