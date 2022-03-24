@@ -1,20 +1,23 @@
 from shutil import rmtree
-from argparse import Namespace
 from os import getcwd, environ, path
 from tempfile import gettempdir
+from argparse import ArgumentParser
 
 from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
-from grizzly_cli.run import distributed, local, run
+from grizzly_cli.run import distributed, local, run, create_parser
 
 from .helpers import onerror
 
 CWD = getcwd()
 
 
-def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
+    (test_context / 'test.feature').write_text('Feature:')
+
     mocker.patch('grizzly_cli.run.getuser', side_effect=['test-user'] * 4)
     mocker.patch('grizzly_cli.run.get_default_mtu', side_effect=['1500', None, '1400', '1800'])
     mocker.patch('grizzly_cli.run.build', side_effect=[255, 0])
@@ -28,20 +31,16 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
 
     run_command_mock = mocker.patch('grizzly_cli.run.run_command', side_effect=[111, 0, 0, 1, 0, 13])
 
-    arguments = Namespace(
-        file='test.feature',
-        workers=3,
-        container_system='docker',
-        id=None,
-        build=True,
-        force_build=False,
-        health_interval=5,
-        health_timeout=3,
-        health_retries=3,
-        registry='',
-    )
+    parser = ArgumentParser()
+
+    sub_parsers = parser.add_subparsers(dest='test')
+
+    create_parser(sub_parsers)
 
     try:
+        arguments = parser.parse_args(['run', 'dist', f'{test_context}/test.feature', '--workers', '3'])
+        setattr(arguments, 'container_system', 'docker')
+
         # this is set in the devcontainer
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):
@@ -80,6 +79,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) is None
         assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == ''
         assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
+        assert environ.get('GRIZZLY_LIMIT_NOFILE', None) == '10001'
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '5'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '3'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '3'
@@ -89,18 +89,17 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
             if key.startswith('GRIZZLY_'):
                 del environ[key]
 
-        arguments = Namespace(
-            file='test.feature',
-            workers=3,
-            container_system='docker',
-            id=None,
-            build=True,
-            force_build=False,
-            health_interval=10,
-            health_timeout=8,
-            health_retries=30,
-            registry='gchr.io/biometria-se',
-        )
+        arguments = parser.parse_args([
+            'run', 'dist', f'{test_context}/test.feature',
+            '--workers', '3',
+            '--build',
+            '--limit-nofile', '133700',
+            '--health-interval', '10',
+            '--health-timeout', '8',
+            '--health-retries', '30',
+            '--registry', 'gchr.io/biometria-se',
+        ])
+        setattr(arguments, 'container_system', 'docker')
 
         assert distributed(
             arguments,
@@ -149,7 +148,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
             'stop',
         ]
 
-        assert environ.get('GRIZZLY_RUN_FILE', None) == 'test.feature'
+        assert environ.get('GRIZZLY_RUN_FILE', None) == f'{test_context}/test.feature'
         assert environ.get('GRIZZLY_MTU', None) == '1400'
         assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/tmp/execution-context'
         assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
@@ -161,6 +160,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         assert environ.get('GRIZZLY_WORKER_RUN_ARGS', None) == '--bar foo --worker'
         assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) == '--common true'
         assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
+        assert environ.get('GRIZZLY_LIMIT_NOFILE', None) == '133700'
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
@@ -171,19 +171,17 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
             if key.startswith('GRIZZLY_'):
                 del environ[key]
 
-        arguments = Namespace(
-            file='test.feature',
-            workers=1,
-            container_system='docker',
-            id='suffix',
-            build=False,
-            force_build=False,
-            validate_config=True,
-            health_interval=10,
-            health_timeout=8,
-            health_retries=30,
-            registry='',
-        )
+        arguments = parser.parse_args([
+            'run', 'dist', f'{test_context}/test.feature',
+            '--workers', '1',
+            '--id', 'suffix',
+            '--validate-config',
+            '--limit-nofile', '20000',
+            '--health-interval', '10',
+            '--health-timeout', '8',
+            '--health-retries', '30',
+        ])
+        setattr(arguments, 'container_system', 'docker')
 
         assert distributed(
             arguments,
@@ -210,7 +208,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
             'config',
         ]
 
-        assert environ.get('GRIZZLY_RUN_FILE', None) == 'test.feature'
+        assert environ.get('GRIZZLY_RUN_FILE', None) == f'{test_context}/test.feature'
         assert environ.get('GRIZZLY_MTU', None) == '1800'
         assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/tmp/execution-context'
         assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
@@ -222,24 +220,36 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         assert environ.get('GRIZZLY_WORKER_RUN_ARGS', None) == '--bar foo --worker'
         assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) == '--common true'
         assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
+        assert environ.get('GRIZZLY_LIMIT_NOFILE', None) == '20000'
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
 
     finally:
+        rmtree(test_context, onerror=onerror)
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):
                 del environ[key]
 
 
-def test_local(mocker: MockerFixture) -> None:
+def test_local(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
     run_command = mocker.patch('grizzly_cli.run.run_command', side_effect=[0])
+    test_context = tmp_path_factory.mktemp('test_context')
+    (test_context / 'test.feature').write_text('Feature:')
 
-    arguments = Namespace(file='test.feature')
+    parser = ArgumentParser()
 
-    assert environ.get('GRIZZLY_TEST_VAR', None) is None
+    sub_parsers = parser.add_subparsers(dest='test')
+
+    create_parser(sub_parsers)
 
     try:
+        assert environ.get('GRIZZLY_TEST_VAR', None) is None
+
+        arguments = parser.parse_args([
+            'run', 'local', f'{test_context}/test.feature',
+        ])
+
         assert local(
             arguments,
             {
@@ -256,7 +266,7 @@ def test_local(mocker: MockerFixture) -> None:
         args, _ = run_command.call_args_list[-1]
         assert args[0] == [
             'behave',
-            'test.feature',
+            f'{test_context}/test.feature',
             '--foo', 'bar', '--master',
             '--bar', 'foo', '--worker',
             '--common', 'true',
@@ -264,6 +274,7 @@ def test_local(mocker: MockerFixture) -> None:
 
         assert environ.get('GRIZZLY_TEST_VAR', None) == 'True'
     finally:
+        rmtree(test_context, onerror=onerror)
         try:
             del environ['GRIZZLY_TEST_VAR']
         except:
@@ -276,6 +287,14 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
     execution_context.mkdir()
     mount_context = test_context / 'mount-context'
     mount_context.mkdir()
+    (execution_context / 'test.feature').write_text('Feature:')
+    (execution_context / 'configuration.yaml').write_text('configuration:')
+
+    parser = ArgumentParser()
+
+    sub_parsers = parser.add_subparsers(dest='test')
+
+    create_parser(sub_parsers)
 
     try:
         mocker.patch('grizzly_cli.run.EXECUTION_CONTEXT', str(execution_context))
@@ -290,7 +309,11 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
 
         setattr(getattr(run, '__wrapped__'), '__value__', str(execution_context))
 
-        arguments = Namespace(file='test.feature', environment_file='configuration.yaml', category='run', mode='dist', verbose=True)
+        arguments = parser.parse_args([
+            'run', '-e', f'{execution_context}/configuration.yaml',
+            'dist', f'{execution_context}/test.feature',
+        ])
+        setattr(arguments, 'verbose', True)
 
         assert run(arguments) == 0
 
@@ -317,7 +340,7 @@ bar = foo
             'GRIZZLY_CLI_HOST': 'localhost',
             'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
             'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
-            'GRIZZLY_CONFIGURATION_FILE': path.join(getcwd(), 'configuration.yaml').lower(),
+            'GRIZZLY_CONFIGURATION_FILE': path.join(execution_context, 'configuration.yaml').lower(),
             'TESTDATA_VARIABLE_foo': 'bar',
             'TESTDATA_VARIABLE_bar': 'foo',
         }
@@ -344,7 +367,10 @@ bar = foo
             'bar = foo\n'
         )
 
-        arguments = Namespace(file='test.feature', environment_file='configuration.yaml', category='run', mode='local', verbose=False)
+        arguments = parser.parse_args([
+            'run', '-e', f'{execution_context}/configuration.yaml',
+            'local', f'{execution_context}/test.feature',
+        ])
 
         assert run(arguments) == 0
 
@@ -363,7 +389,7 @@ bar = foo
             'GRIZZLY_CLI_HOST': 'localhost',
             'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
             'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
-            'GRIZZLY_CONFIGURATION_FILE': path.join(getcwd(), 'configuration.yaml').lower(),
+            'GRIZZLY_CONFIGURATION_FILE': path.join(execution_context, 'configuration.yaml').lower(),
         }
         assert args[2] == {
             'master': [],

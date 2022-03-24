@@ -5,10 +5,10 @@ from shutil import which
 
 from .argparse import ArgumentParser
 from .utils import ask_yes_no, get_distributed_system, get_dependency_versions
-from .run import run, create_parser as run_create_parser
-from .build import build, create_parser as build_create_parser
-from .init import init, create_parser as init_create_parser
-from . import __version__
+from .run import run
+from .build import build
+from .init import init
+from . import __version__, register_parser
 
 
 def _create_parser() -> ArgumentParser:
@@ -42,9 +42,8 @@ def _create_parser() -> ArgumentParser:
 
     sub_parser = parser.add_subparsers(dest='category')
 
-    init_create_parser(sub_parser)
-    build_create_parser(sub_parser)
-    run_create_parser(sub_parser)
+    for create_parser in register_parser.registered:
+        create_parser(sub_parser)
 
     return parser
 

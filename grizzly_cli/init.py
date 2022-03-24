@@ -4,7 +4,7 @@ from os import path
 from pathlib import Path
 
 from .utils import ask_yes_no
-from . import EXECUTION_CONTEXT
+from . import EXECUTION_CONTEXT, register_parser
 from .argparse import ArgumentSubParser
 
 # prefix components:
@@ -15,6 +15,7 @@ tee = '├── '
 last = '└── '
 
 
+@register_parser(order=1)
 def create_parser(sub_parser: ArgumentSubParser) -> None:
     # grizzly-cli init
     init_parser = sub_parser.add_parser('init', description=(
@@ -23,7 +24,7 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
 
     init_parser.add_argument(
         'project',
-        nargs=None,  # type: ignore
+        nargs=None,
         type=str,
         help='project name, a directory will be created with this name',
     )

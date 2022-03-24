@@ -9,7 +9,7 @@ from shutil import get_terminal_size
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 
-from . import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME
+from . import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
 from .utils import (
     find_variable_names_in_questions,
     ask_yes_no, get_input,
@@ -24,6 +24,7 @@ from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
 
 
+@register_parser(order=3)
 def create_parser(sub_parser: ArgumentSubParser) -> None:
     # grizzly-cli run ...
     run_parser = sub_parser.add_parser('run', description='execute load test scenarios specified in a feature file.')
@@ -75,7 +76,7 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
     run_local_parser = run_sub_parser.add_parser('local', description='arguments for running grizzly locally.')
     run_local_parser.add_argument(
         'file',
-        **file_kwargs,  # type: ignore
+        **file_kwargs,
     )
 
     if run_local_parser.prog != 'grizzly-cli run local':  # pragma: no cover
@@ -85,7 +86,7 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
     run_dist_parser = run_sub_parser.add_parser('dist', description='arguments for running grizzly distributed.')
     run_dist_parser.add_argument(
         'file',
-        **file_kwargs,  # type: ignore
+        **file_kwargs,
     )
     run_dist_parser.add_argument(
         '--workers',
@@ -169,7 +170,6 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         run_dist_parser.prog = 'grizzly-cli run dist'
 
 
-
 def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
     suffix = '' if args.id is None else f'-{args.id}'
     tag = getuser()
@@ -199,6 +199,7 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
     os.environ['GRIZZLY_PROJECT_NAME'] = PROJECT_NAME
     os.environ['GRIZZLY_USER_TAG'] = tag
     os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
+    os.environ['GRIZZLY_LIMIT_NOFILE'] = str(args.limit_nofile)
     os.environ['GRIZZLY_HEALTH_CHECK_RETRIES'] = str(args.health_retries)
     os.environ['GRIZZLY_HEALTH_CHECK_INTERVAL'] = str(args.health_interval)
     os.environ['GRIZZLY_HEALTH_CHECK_TIMEOUT'] = str(args.health_timeout)

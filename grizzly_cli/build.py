@@ -6,9 +6,10 @@ from getpass import getuser
 
 from .utils import requirements, run_command
 from .argparse import ArgumentSubParser
-from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
+from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT, register_parser
 
 
+@register_parser(order=2)
 def create_parser(sub_parser: ArgumentSubParser) -> None:
     # grizzly-cli build ...
     build_parser = sub_parser.add_parser('build', description=(

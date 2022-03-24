@@ -12,6 +12,7 @@ services:
       - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/grizzly
     environment:
       - PYTHONPATH=/srv/grizzly
+      - PYTHONUNBUFFERED=1
       - COLUMNS=${COLUMNS}
       - LINES=${LINES}
     command: --no-color -D master=true -D expected-workers=${GRIZZLY_EXPECTED_WORKERS:-1} /srv/grizzly/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_MASTER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}
@@ -33,6 +34,7 @@ services:
       - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/grizzly
     environment:
       - PYTHONPATH=/srv/grizzly
+      - PYTHONUNBUFFERED=1
       - COLUMNS=${COLUMNS}
       - LINES=${LINES}
     command: --no-color -q --no-summary --format null -D worker=true -D master-host=master /srv/grizzly/${GRIZZLY_RUN_FILE:-features} ${GRIZZLY_WORKER_RUN_ARGS:-} ${GRIZZLY_COMMON_RUN_ARGS:-}
