@@ -3,9 +3,9 @@ services:
   master:
     hostname: master
     image: ${GRIZZLY_IMAGE_REGISTRY:-}${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
-    tty: true
+    tty: ${GRIZZLY_CONTAINER_TTY}
     ulimits:
-      nofile: 10001
+      nofile: ${GRIZZLY_LIMIT_NOFILE}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -25,9 +25,9 @@ services:
 
   worker:
     image: ${GRIZZLY_IMAGE_REGISTRY:-}${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
-    tty: true
+    tty: ${GRIZZLY_CONTAINER_TTY}
     ulimits:
-      nofile: 10001
+      nofile: ${GRIZZLY_LIMIT_NOFILE}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

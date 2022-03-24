@@ -145,6 +145,13 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         required=False,
         help='push built image to this registry, if the registry has authentication you need to login first',
     )
+    run_dist_parser.add_argument(
+        '--tty',
+        action='store_true',
+        default=False,
+        required=False,
+        help='start containers with a TTY enabled',
+    )
 
     group_build = run_dist_parser.add_mutually_exclusive_group()
     group_build.add_argument(
@@ -204,6 +211,7 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
     os.environ['GRIZZLY_HEALTH_CHECK_INTERVAL'] = str(args.health_interval)
     os.environ['GRIZZLY_HEALTH_CHECK_TIMEOUT'] = str(args.health_timeout)
     os.environ['GRIZZLY_IMAGE_REGISTRY'] = getattr(args, 'registry', None) or ''
+    os.environ['GRIZZLY_CONTAINER_TTY'] = 'true' if args.tty else 'false'
     os.environ['COLUMNS'] = str(columns)
     os.environ['LINES'] = str(lines)
 

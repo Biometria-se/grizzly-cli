@@ -59,7 +59,7 @@ FROM base AS entrypoint
 RUN echo $'#!/usr/bin/env sh\n\
 set -e\n\
 \n\
-stty rows $LINES cols $COLUMNS\n\
+stty rows $LINES cols $COLUMNS &>/dev/null || true\n\
 \n\
 exec behave "$@"' >> /grizzly-entrypoint.sh
 
@@ -83,7 +83,7 @@ RUN addgroup \
         -D \
         grizzly
 
-RUN apk add --no-cache lsof gcompat
+RUN apk add --no-cache lsof gcompat libstdc++
 
 COPY --from=mqm /opt/mqm /opt/mqm
 COPY --from=python --chown=grizzly:grizzly /opt/python-env /opt/python-env

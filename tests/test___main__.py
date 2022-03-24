@@ -90,6 +90,7 @@ def test__create_parser() -> None:
         '--health-retries',
         '--health-interval',
         '--registry',
+        '--tty',
     ])
     assert sorted([action.dest for action in dist_parser._actions if len(action.option_strings) == 0]) == ['file']
 

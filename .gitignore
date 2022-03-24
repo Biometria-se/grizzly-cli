@@ -14,3 +14,4 @@ grizzly-example/
 *.event
 *.tar.gz
 .dockerignore
+tmp/

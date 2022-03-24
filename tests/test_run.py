@@ -38,7 +38,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
     create_parser(sub_parsers)
 
     try:
-        arguments = parser.parse_args(['run', 'dist', f'{test_context}/test.feature', '--workers', '3'])
+        arguments = parser.parse_args(['run', 'dist', f'{test_context}/test.feature', '--workers', '3', '--tty'])
         setattr(arguments, 'container_system', 'docker')
 
         # this is set in the devcontainer
@@ -83,6 +83,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '5'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '3'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '3'
+        assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'true'
 
         # this is set in the devcontainer
         for key in environ.keys():
@@ -165,6 +166,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
         assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'gchr.io/biometria-se'
+        assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'false'
 
         # this is set in the devcontainer
         for key in environ.keys():
