@@ -2,7 +2,7 @@ import re
 import sys
 import subprocess
 
-from typing import Optional, List, Set, Union, Dict, Any, Tuple, Generator, Callable
+from typing import Optional, List, Set, Union, Dict, Any, Tuple, Generator, Callable, cast
 from os import path, environ
 from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
@@ -64,6 +64,27 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
     process.wait()
 
     return process.returncode
+
+
+def get_docker_compose_version() -> Tuple[int, int, int]:
+    output = subprocess.getoutput('docker-compose version')
+
+    version_line = output.splitlines()[0]
+
+    match = re.match(r'.*version [v]?([1-2]\.[0-9]+\.[0-9]+).*$', version_line)
+
+    if match:
+        version = cast(Tuple[int, int, int], tuple([int(part) for part in match.group(1).split('.')]))
+    else:
+        version = (0, 0, 0,)
+
+    return version
+
+
+def is_docker_compose_v2() -> bool:
+    version = get_docker_compose_version()
+
+    return version[0] == 2
 
 
 def get_dependency_versions() -> Tuple[str, str]:

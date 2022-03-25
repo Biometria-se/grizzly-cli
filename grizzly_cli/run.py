@@ -14,6 +14,7 @@ from .utils import (
     find_variable_names_in_questions,
     ask_yes_no, get_input,
     distribution_of_users_per_scenario,
+    is_docker_compose_v2,
     requirements,
     run_command,
     get_default_mtu,
@@ -278,19 +279,6 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
             '--remove-orphans',
         ]
 
-        if args.verbose:
-            env_prefix: List[str] = []
-
-            with open('grizzly.env', 'w+') as pfd:
-                pfd.write(fd.read().decode('utf-8'))
-                pfd.flush()
-
-            for key in os.environ:
-                if key == 'GRIZZLY_ENVIRONMENT_FILE':
-                    env_prefix.append(f'{key}=grizzly.env')
-                elif key.startswith('GRIZZLY_') or key in ['LINES', 'COLUMNS']:
-                    env_prefix.append(f'{key}="{os.environ[key]}"')
-            print(f'environment variable prefix: {" ".join(env_prefix)}')
         rc = run_command(compose_command, verbose=args.verbose)
 
         # stop containers
@@ -304,9 +292,32 @@ def distributed(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[st
 
         if rc != 0:
             print('\n!! something went wrong, check container logs with:')
-            print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}-master-1')
-            for worker in range(2, args.workers + 2):
-                print(f'{args.container_system} container logs {PROJECT_NAME}{suffix}-{tag}-worker-{worker}')
+            template = '{container_system} container logs '
+            if is_docker_compose_v2():
+                template += '{project}{suffix}-{tag}-{node}-{index}'
+                start_index = 2
+            else:
+                template += '{project}{suffix}-{tag}_{node}_{index}'
+                start_index = 1
+
+            print(template.format(
+                container_system=args.container_system,
+                project=PROJECT_NAME,
+                suffix=suffix,
+                tag=tag,
+                node='master',
+                index=1
+            ))
+
+            for worker in range(start_index, args.workers + start_index):
+                print(template.format(
+                    container_system=args.container_system,
+                    project=PROJECT_NAME,
+                    suffix=suffix,
+                    tag=tag,
+                    node='worker',
+                    index=worker
+                ))
 
         return rc
 

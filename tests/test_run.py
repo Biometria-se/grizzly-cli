@@ -18,10 +18,10 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
     test_context = tmp_path_factory.mktemp('test_context')
     (test_context / 'test.feature').write_text('Feature:')
 
-    mocker.patch('grizzly_cli.run.getuser', side_effect=['test-user'] * 4)
-    mocker.patch('grizzly_cli.run.get_default_mtu', side_effect=['1500', None, '1400', '1800'])
-    mocker.patch('grizzly_cli.run.build', side_effect=[255, 0])
-    mocker.patch('grizzly_cli.run.list_images', side_effect=[{}, {}, {'grizzly-cli-test-project': {'test-user': {}}}, {'grizzly-cli-test-project': {'test-user': {}}}])
+    mocker.patch('grizzly_cli.run.getuser', side_effect=['test-user'] * 5)
+    mocker.patch('grizzly_cli.run.get_default_mtu', side_effect=['1500', None, '1400', '1330', '1800'])
+    mocker.patch('grizzly_cli.run.build', side_effect=[255, 0, 0])
+    mocker.patch('grizzly_cli.run.list_images', side_effect=[{}, {}, {}, {'grizzly-cli-test-project': {'test-user': {}}}, {'grizzly-cli-test-project': {'test-user': {}}}])
 
     import grizzly_cli.run
     mocker.patch.object(grizzly_cli.run, 'EXECUTION_CONTEXT', '/tmp/execution-context')
@@ -29,7 +29,9 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
     mocker.patch.object(grizzly_cli.run, 'MOUNT_CONTEXT', '/tmp/mount-context')
     mocker.patch.object(grizzly_cli.run, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
-    run_command_mock = mocker.patch('grizzly_cli.run.run_command', side_effect=[111, 0, 0, 1, 0, 13])
+    mocker.patch('grizzly_cli.run.is_docker_compose_v2', return_value=False)
+
+    run_command_mock = mocker.patch('grizzly_cli.run.run_command', side_effect=[111, 0, 0, 1, 0, 0, 1, 0, 13])
 
     parser = ArgumentParser()
 
@@ -102,6 +104,9 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
         ])
         setattr(arguments, 'container_system', 'docker')
 
+        mocker.patch('grizzly_cli.run.is_docker_compose_v2', side_effect=[True, False])
+
+        # docker-compose v2
         assert distributed(
             arguments,
             {
@@ -168,6 +173,31 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
         assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'gchr.io/biometria-se'
         assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'false'
 
+        # docker-compose v1
+        assert distributed(
+            arguments,
+            {
+                'GRIZZLY_CONFIGURATION_FILE': '/tmp/execution-context/configuration.yaml',
+                'GRIZZLY_TEST_VAR': 'True',
+            },
+            {
+                'master': ['--foo', 'bar', '--master'],
+                'worker': ['--bar', 'foo', '--worker'],
+                'common': ['--common', 'true'],
+            },
+        ) == 1
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            '\n!! something went wrong, check container logs with:\n'
+            'docker container logs grizzly-cli-test-project-test-user_master_1\n'
+            'docker container logs grizzly-cli-test-project-test-user_worker_1\n'
+            'docker container logs grizzly-cli-test-project-test-user_worker_2\n'
+            'docker container logs grizzly-cli-test-project-test-user_worker_3\n'
+        )
+
+        mocker.patch('grizzly_cli.run.is_docker_compose_v2', return_value=False)
+
         # this is set in the devcontainer
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):
@@ -201,7 +231,7 @@ def test_distributed(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_fac
         assert capture.err == ''
         assert capture.out == ''
 
-        assert run_command_mock.call_count == 6
+        assert run_command_mock.call_count == 9
         args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
             'docker-compose',
