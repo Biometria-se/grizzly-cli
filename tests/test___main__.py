@@ -90,6 +90,7 @@ def test__create_parser() -> None:
         '--health-retries',
         '--health-interval',
         '--registry',
+        '--tty',
     ])
     assert sorted([action.dest for action in dist_parser._actions if len(action.option_strings) == 0]) == ['file']
 
@@ -125,6 +126,8 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert 'grizzly-cli: error: no subcommand specified' in capture.err
 
         sys.argv = ['grizzly-cli', '--version']
+
+        mocker.patch('grizzly_cli.__main__.__version__', '0.0.0')
 
         with pytest.raises(SystemExit) as se:
             _parse_arguments()

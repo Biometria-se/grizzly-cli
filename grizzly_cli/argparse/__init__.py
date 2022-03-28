@@ -2,10 +2,13 @@ import sys
 import re
 
 from typing import Any, Optional, IO, Sequence
-from argparse import ArgumentParser as CoreArgumentParser, Namespace
+from argparse import ArgumentParser as CoreArgumentParser, Namespace, _SubParsersAction
 
 from .markdown import MarkdownFormatter, MarkdownHelpAction
 from .bashcompletion import BashCompletionAction, hook as bashcompletion_hook
+
+
+ArgumentSubParser = _SubParsersAction
 
 
 class ArgumentParser(CoreArgumentParser):

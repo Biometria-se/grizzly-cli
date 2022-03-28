@@ -4,7 +4,8 @@ from os import path
 from pathlib import Path
 
 from .utils import ask_yes_no
-from . import EXECUTION_CONTEXT
+from . import EXECUTION_CONTEXT, register_parser
+from .argparse import ArgumentSubParser
 
 # prefix components:
 space = '    '
@@ -12,6 +13,40 @@ branch = '│   '
 # pointers:
 tee = '├── '
 last = '└── '
+
+
+@register_parser(order=1)
+def create_parser(sub_parser: ArgumentSubParser) -> None:
+    # grizzly-cli init
+    init_parser = sub_parser.add_parser('init', description=(
+        'create a skeleton project with required structure and files.'
+    ))
+
+    init_parser.add_argument(
+        'project',
+        nargs=None,
+        type=str,
+        help='project name, a directory will be created with this name',
+    )
+
+    init_parser.add_argument(
+        '--grizzly-version',
+        type=str,
+        required=False,
+        default=None,
+        help='specify which grizzly version to use for project, default is latest'
+    )
+
+    init_parser.add_argument(
+        '--with-mq',
+        action='store_true',
+        default=False,
+        required=False,
+        help='if grizzly should be installed with IBM MQ support (external dependencies excluded)',
+    )
+
+    if init_parser.prog != 'grizzly-cli init':  # pragma: no cover
+        init_parser.prog = 'grizzly-cli init'
 
 
 def tree(dir_path: Path, prefix: str = '') -> Generator[str, None, None]:

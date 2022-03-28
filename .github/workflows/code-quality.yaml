@@ -7,23 +7,28 @@ on:
 
 jobs:
   code-quality:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.runs-on }}-python-${{ matrix.python-version }}
+    runs-on: ${{ matrix.runs-on }}
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         python-version: ['3.6', '3.7', '3.8', '3.9', '3.10']
+        runs-on: ['ubuntu-latest']
+        include:
+          - python-version: '3.10'
+            runs-on: windows-latest
 
     env:
       PYTHONPATH: .
 
     steps:
-    - name: setup environment
-      id: env
-      run: |
-        sudo ln -fs /usr/share/zoneinfo/Europe/Stockholm /etc/localtime
-        sudo ln -fs /usr/share/zoneinfo/Europe/Stockholm /etc/timezone
-        echo $HOME/.local/bin >> $GITHUB_PATH
+    - name: timezone
+      id: timezone
+      uses: szenius/set-timezone@v1.0
+      with:
+        timezoneLinux: "Europe/Stockholm"
+        timezoneWindows: "W. Europe Standard Time"
 
     - name: checkout
       id: checkout
@@ -36,7 +41,6 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
-        cache-dependency-path: '**/requirements-dev.txt'
 
     - name: setup python (without cache)
       if: ${{ env.ACT }}
@@ -48,30 +52,29 @@ jobs:
     - name: install python dependencies
       id: pip
       run: |
-        pip install --upgrade wheel
-        pip install --upgrade --upgrade-strategy eager -r <(cat requirements.txt requirements-dev.txt)
+        python -m pip install .[dev]
 
     - name: run pytest
       id: pytest
       run: |
-        pytest
+        python -m pytest
 
     - name: run coverage
       id: coverage
       run: |
-        coverage report --fail-under=95
+        python -m coverage report --fail-under=95
 
     - name: run pylint
       id: pylint
       run: |
-        pylint --jobs=0 --fail-under=10 grizzly_cli/ tests/
+        python -m pylint --jobs=0 --fail-under=10 grizzly_cli/ tests/
 
     - name: run mypy
       id: mypy
       run: |
-        mypy grizzly_cli/ tests/
+        python -m mypy grizzly_cli/ tests/
 
     - name: run flake8
       id: flake8
       run: |
-        flake8
+        python -m flake8
