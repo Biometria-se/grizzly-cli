@@ -15,3 +15,4 @@ grizzly-example/
 *.tar.gz
 .dockerignore
 tmp/
+requirements.txt
