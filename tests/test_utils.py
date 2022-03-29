@@ -5,6 +5,7 @@ from importlib import reload
 from shutil import rmtree
 from argparse import Namespace
 from tempfile import gettempdir
+from contextlib import ExitStack
 
 import pytest
 
@@ -173,11 +174,11 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None])
     kill_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.kill', side_effect=[RuntimeError, None])
 
-    assert run_command([]) == 133
+    assert run_command(['hello', 'world'], verbose=True) == 133
 
     capture = capsys.readouterr()
     assert capture.err == ''
-    assert capture.out == ''
+    assert capture.out == 'run_command: hello world\n'
 
     assert terminate.call_count == 1
     assert wait.call_count == 1
@@ -580,14 +581,26 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
 
         requirements_file.write_text('git+https://github.com/Biometria-se/grizzly.git@v1.5.3#egg=grizzly-loadtester')
         import subprocess
-        with mocker.patch.context_manager(subprocess, 'check_call', return_value=1):
+        with ExitStack() as stack:
+            stack.enter_context(
+                mocker.patch.context_manager(subprocess, 'check_call', side_effect=[1, 0, 0, 1, 0]),
+            )
+            stack.enter_context(
+                mocker.patch.context_manager(subprocess, 'check_output', side_effect=[
+                    subprocess.CalledProcessError(returncode=1, cmd=''),
+                    'main\n',
+                    'v1.5.3\n',
+                ]),
+            )
+
             assert ('(unknown)', '(unknown)',) == get_dependency_versions()
 
             capture = capsys.readouterr()
-            assert capture.err == '!! unable to get git repo https://github.com/Biometria-se/grizzly.git and branch v1.5.3\n'
+            assert capture.err == '!! unable to clone git repo https://github.com/Biometria-se/grizzly.git\n'
             assert capture.out == ''
 
-            assert subprocess.check_call.call_count == 2  # type: ignore  # pylint: disable=no-member
+            assert subprocess.check_call.call_count == 1  # type: ignore  # pylint: disable=no-member
+            assert subprocess.check_output.call_count == 0  # type: ignore  # pylint: disable=no-member
 
             # git clone...
             args, kwargs = subprocess.check_call.call_args_list[0]  # type: ignore  # pylint: disable=no-member
@@ -600,8 +613,36 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
             assert kwargs.get('stdout', None) == subprocess.DEVNULL
             assert kwargs.get('stderr', None) == subprocess.DEVNULL
 
+            assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+            capture = capsys.readouterr()
+            assert capture.err == '!! unable to check branch name of HEAD in git repo https://github.com/Biometria-se/grizzly.git\n'
+            assert capture.out == ''
+
+            assert subprocess.check_call.call_count == 2  # type: ignore  # pylint: disable=no-member
+            assert subprocess.check_output.call_count == 1  # type: ignore  # pylint: disable=no-member
+
+            # git rev-parse...
+            args, kwargs = subprocess.check_output.call_args_list[0]  # type: ignore  # pylint: disable=no-member
+            assert len(args) == 1
+            args = args[0]
+            assert args == ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
+            assert not kwargs.get('shell', True)
+            assert kwargs.get('cwd', '').startswith(gettempdir())
+            assert kwargs.get('cwd', '').endswith('grizzly-loadtester_3f210f1809f6ca85ef414b2b4d450bf54353b5e0')
+            assert kwargs.get('universal_newlines', False)
+
+            assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+            capture = capsys.readouterr()
+            assert capture.err == '!! unable to checkout branch v1.5.3 from git repo https://github.com/Biometria-se/grizzly.git\n'
+            assert capture.out == ''
+
+            assert subprocess.check_call.call_count == 4  # type: ignore  # pylint: disable=no-member
+            assert subprocess.check_output.call_count == 2  # type: ignore  # pylint: disable=no-member
+
             # git checkout...
-            args, kwargs = subprocess.check_call.call_args_list[1]  # type: ignore  # pylint: disable=no-member
+            args, kwargs = subprocess.check_call.call_args_list[-1]  # type: ignore  # pylint: disable=no-member
             assert len(args) == 1
             args = args[0]
             assert args == ['git', 'checkout', '-b', 'v1.5.3', '--track', 'origin/v1.5.3']
@@ -611,7 +652,22 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
             assert kwargs.get('stdout', None) == subprocess.DEVNULL
             assert kwargs.get('stderr', None) == subprocess.DEVNULL
 
-        with mocker.patch.context_manager(subprocess, 'check_call', return_value=0):
+            with pytest.raises(FileNotFoundError):
+                get_dependency_versions()
+
+            capture = capsys.readouterr()
+            assert capture.err == ''
+            assert capture.out == ''
+
+            assert subprocess.check_call.call_count == 5  # type: ignore  # pylint: disable=no-member
+            assert subprocess.check_output.call_count == 3  # type: ignore  # pylint: disable=no-member
+
+        with ExitStack() as stack:
+            stack.enter_context(mocker.patch.context_manager(subprocess, 'check_call', return_value=0))
+            stack.enter_context(
+                mocker.patch.context_manager(subprocess, 'check_output', return_value='main\n'),
+            )
+
             with pytest.raises(FileNotFoundError) as fne:
                 get_dependency_versions()
             assert fne.value.errno == 2
@@ -666,10 +722,41 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
                 assert capture.out == ''
 
                 assert open_mock.call_count == 3
+
+            mocker.patch('grizzly_cli.utils.path.exists', return_value=True)
+
+            with pytest.raises(FileNotFoundError) as fne:
+                get_dependency_versions()
+            assert fne.value.errno == 2
+            assert fne.value.strerror == 'No such file or directory'
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='git+https://github.com/Biometria-se/grizzly.git@main#egg=grizzly-loadtester\n').return_value,
+                mock_open(read_data='').return_value,
+            ]) as open_mock:
+                assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == '!! unable to find "version" declaration in setup.cfg from https://github.com/Biometria-se/grizzly.git\n'
+                assert capture.out == ''
+                assert open_mock.call_count == 2
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='git+https://github.com/Biometria-se/grizzly.git@main#egg=grizzly-loadtester\n').return_value,
+                mock_open(read_data='name = grizzly-loadtester\nversion = 2.0.0').return_value,
+                mock_open(read_data='locust==2.8.4 \\ ').return_value,
+            ]) as open_mock:
+                assert ('2.0.0', '2.8.4',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == ''
+                assert capture.out == ''
+                assert open_mock.call_count == 3
     finally:
         rmtree(test_context, onerror=onerror)
 
 
+@pytest.mark.filterwarnings('ignore:Creating a LegacyVersion has been deprecated')
 def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: TempPathFactory, capsys: CaptureFixture, requests_mock: RequestsMocker) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
     requirements_file = test_context / 'requirements.txt'
@@ -735,11 +822,63 @@ def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: T
         assert capture.err == ''
         assert capture.out == ''
 
+        requirements_file.unlink()
+        requirements_file.write_text('grizzly-loadtester[mq]==1.4.0')
+
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/json', status_code=200, text='{"releases": {"1.3.0": [], "1.5.0": []}}')
+
+        assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == '!! could not resolve grizzly-loadtester[mq]==1.4.0 to one specific version available at pypi\n'
+        assert capture.out == ''
+
+        requirements_file.unlink()
+        requirements_file.write_text('grizzly-loadtester[mq]==foobar')
+
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/json', status_code=200, text='{"releases": {"1.3.0": [], "1.5.0": []}}')
+
+        assert ('(unknown)', '(unknown)',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == (
+            '!! ==foobar is a LegacyVersion, expected Version\n'
+            '!! could not resolve grizzly-loadtester[mq]==foobar to one specific version available at pypi\n'
+        )
+        assert capture.out == ''
+
+        requirements_file.unlink()
+        requirements_file.write_text('grizzly-loadtester[mq]>1.3.0,<1.5.0')
+
+        requests_mock.register_uri(
+            'GET', 'https://pypi.org/pypi/grizzly-loadtester/json', status_code=200, text='{"releases": {"1.3.0": [], "1.4.0": [], "1.5.0": [], "foobar": []}}',
+        )
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/1.4.0/json', status_code=200, text='{"info": {"requires_dist": ["locust (==1.0.0)"]}}')
+
+        assert ('1.4.0', '1.0.0',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == '!! foobar is a LegacyVersion, expected Version\n'
+        assert capture.out == ''
+
+        requirements_file.unlink()
+        requirements_file.write_text('grizzly-loadtester[mq]<=1.5.0')
+
+        requests_mock.register_uri(
+            'GET', 'https://pypi.org/pypi/grizzly-loadtester/json', status_code=200, text='{"releases": {"1.4.20": [], "1.5.0": [], "1.5.1": []}}',
+        )
+        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/1.5.0/json', status_code=200, text='{"info": {"requires_dist": ["locust (==1.1.1)"]}}')
+
+        assert ('1.5.0', '1.1.1',) == get_dependency_versions()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
     finally:
         rmtree(test_context, onerror=onerror)
 
 
-def test_requirements(mocker: MockerFixture, capsys: CaptureFixture, tmp_path_factory: TempPathFactory) -> None:
+def test_requirements(capsys: CaptureFixture, tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
     requirements_file = test_context / 'requirements.txt'
 
@@ -773,11 +912,13 @@ def test_get_docker_compose_version(mocker: MockerFixture) -> None:
 docker-py version: 5.0.0
 CPython version: 3.7.10
 OpenSSL version: OpenSSL 1.1.0l 10 Sep 2019''',
-        'Docker Compose version v2.1.0'
+        'Docker Compose version v2.1.0',
+        'Foo bar',
     ])
 
     assert get_docker_compose_version() == (1, 29, 2,)
     assert get_docker_compose_version() == (2, 1, 0,)
+    assert get_docker_compose_version() == (0, 0, 0,)
 
 
 def test_is_docker_compose_v2(mocker: MockerFixture) -> None:
@@ -786,7 +927,7 @@ def test_is_docker_compose_v2(mocker: MockerFixture) -> None:
 docker-py version: 5.0.0
 CPython version: 3.7.10
 OpenSSL version: OpenSSL 1.1.0l 10 Sep 2019''',
-        'Docker Compose version v2.1.0'
+        'Docker Compose version v2.1.0',
     ])
 
     assert not is_docker_compose_v2()
