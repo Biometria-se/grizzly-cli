@@ -1,6 +1,7 @@
+from hashlib import sha1
 from typing import Dict, Optional, cast
 from argparse import ArgumentParser as CoreArgumentParser, Namespace
-from os import getcwd, environ, chdir
+from os import getcwd, environ, chdir, path
 from shutil import rmtree
 
 import pytest
@@ -153,7 +154,8 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert err[2] == ''
         assert capture.out == ''
 
-        (test_context / 'requirements.txt').write_text('grizzly-loadtester==1.5.3\n')
+        requirements_file = test_context / 'requirements.txt'
+        requirements_file.write_text('grizzly-loadtester==1.5.3\n')
 
         sys.argv = ['grizzly-cli', '--version', 'all']
 
@@ -165,6 +167,118 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert capture.err == ''
         assert capture.out == (
             'grizzly-cli (development)\n'
+            '└── grizzly 1.5.3\n'
+            '    └── locust 2.2.1\n'
+        )
+
+        requirements_file.write_text('grizzly-loadtester[mq]==1.5.3\n')
+
+        sys.argv = ['grizzly-cli', '--version', 'all']
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 0
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            'grizzly-cli (development)\n'
+            '└── grizzly 1.5.3 ── extras: mq\n'
+            '    └── locust 2.2.1\n'
+        )
+
+        requirements_file.unlink()
+        requirements_file.write_text('grizzly-loadtester[mq,dev]==1.5.3\n')
+
+        sys.argv = ['grizzly-cli', '--version', 'all']
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 0
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            'grizzly-cli (development)\n'
+            '└── grizzly 1.5.3 ── extras: mq, dev\n'
+            '    └── locust 2.2.1\n'
+        )
+
+        def mocked_mkdtemp(prefix: Optional[str] = '') -> str:
+            tmp_dir = path.join(test_context, f'{prefix}test')
+
+            return tmp_dir
+
+        mocker.patch('grizzly_cli.utils.mkdtemp', mocked_mkdtemp)
+        mocker.patch('grizzly_cli.utils.subprocess.check_call', return_value=0)
+        mocker.patch('grizzly_cli.utils.subprocess.check_output', return_value='main\n')
+
+        repo = 'git+https://git@github.com/biometria-se/grizzly.git@main#egg=grizzly-loadtester'
+        repo_suffix = sha1(repo.encode('utf-8')).hexdigest()
+        repo_dir = test_context / 'grizzly-cli-test' / f'grizzly-loadtester_{repo_suffix}'
+        repo_dir.mkdir(parents=True)
+        (repo_dir / 'pyproject.toml').touch()
+        (repo_dir / 'setup.cfg').write_text('name = grizzly-loadtester\nversion = 0.0.0\n')
+        (repo_dir / 'requirements.txt').write_text('locust==2.8.4  \\ \n')
+
+        requirements_file.unlink()
+        requirements_file.write_text(f'{repo}\n')
+
+        sys.argv = ['grizzly-cli', '--version', 'all']
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 0
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            'grizzly-cli (development)\n'
+            '└── grizzly (development)\n'
+            '    └── locust 2.8.4\n'
+        )
+
+        repo = 'git+https://git@github.com/biometria-se/grizzly.git@main#egg=grizzly-loadtester[mq,dev]'
+        repo_suffix = sha1(repo.encode('utf-8')).hexdigest()
+        repo_dir = test_context / 'grizzly-cli-test' / f'grizzly-loadtester__mq_dev___{repo_suffix}'
+        repo_dir.mkdir(parents=True)
+        (repo_dir / 'pyproject.toml').touch()
+        (repo_dir / 'setup.cfg').write_text('name = grizzly-loadtester\nversion = 0.0.0\n')
+        (repo_dir / 'requirements.txt').write_text('locust==2.8.4  \\ \n')
+
+        requirements_file.unlink()
+        requirements_file.write_text(f'{repo}\n')
+
+        sys.argv = ['grizzly-cli', '--version', 'all']
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 0
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            'grizzly-cli (development)\n'
+            '└── grizzly (development) ── extras: mq, dev\n'
+            '    └── locust 2.8.4\n'
+        )
+
+        requirements_file.unlink()
+        requirements_file.write_text('grizzly-loadtester==1.5.3\n')
+
+        sys.argv = ['grizzly-cli', '--version', 'all']
+        mocker.patch('grizzly_cli.__main__.__version__', '2.5.0')
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 0
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == (
+            'grizzly-cli 2.5.0\n'
             '└── grizzly 1.5.3\n'
             '    └── locust 2.2.1\n'
         )

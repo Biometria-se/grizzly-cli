@@ -87,10 +87,12 @@ def is_docker_compose_v2() -> bool:
     return version[0] == 2
 
 
-def get_dependency_versions() -> Tuple[str, str]:
+def get_dependency_versions() -> Tuple[Tuple[str, Optional[List[str]]], str]:
     grizzly_requirement: Optional[str] = None
+    grizzly_requirement_egg: str
     locust_version: Optional[str] = None
     grizzly_version: Optional[str] = None
+    grizzly_extras: Optional[List[str]] = None
 
     project_requirements = path.join(grizzly_cli.EXECUTION_CONTEXT, 'requirements.txt')
 
@@ -102,7 +104,7 @@ def get_dependency_versions() -> Tuple[str, str]:
 
     if grizzly_requirement is None:
         print(f'!! unable to find grizzly dependency in {project_requirements}', file=sys.stderr)
-        return '(unknown)', '(unknown)'
+        return ('(unknown)', None, ), '(unknown)'
 
     # check if it's a repo or not
     if grizzly_requirement.startswith('git+'):
@@ -110,10 +112,10 @@ def get_dependency_versions() -> Tuple[str, str]:
         url, egg_part = grizzly_requirement.rsplit('#', 1)
         url, branch = url.rsplit('@', 1)
         url = url[4:]  # remove git+
-        _, raw_egg = egg_part.split('=', 1)
+        _, grizzly_requirement_egg = egg_part.split('=', 1)
 
         # extras_requirement normalization
-        egg = raw_egg.replace('[', '__').replace(']', '__')
+        egg = grizzly_requirement_egg.replace('[', '__').replace(']', '__').replace(',', '_')
 
         tmp_workspace = mkdtemp(prefix='grizzly-cli-')
         repo_destination = path.join(tmp_workspace, f'{egg}_{suffix}')
@@ -217,6 +219,8 @@ def get_dependency_versions() -> Tuple[str, str]:
         else:
             pypi = jsonloads(response.text)
 
+            grizzly_requirement_egg = grizzly_requirement
+
             # get grizzly version used in requirements.txt
             if re.match(r'^grizzly-loadtester(\[[^\]]*\])?$', grizzly_requirement):  # latest
                 grizzly_version = pypi.get('info', {}).get('version', None)
@@ -224,24 +228,28 @@ def get_dependency_versions() -> Tuple[str, str]:
                 available_versions = [versioning.parse(available_version) for available_version in pypi.get('releases', {}).keys()]
                 conditions: List[Callable[[versioning.Version], bool]] = []
 
-                condition_expression = re.sub(r'^grizzly-loadtester(\[[^\]]*\])?', '', grizzly_requirement)
+                match = re.match(r'^(grizzly-loadtester(\[[^\]]*\])?)(.*?)$', grizzly_requirement)
 
-                for condition in condition_expression.split(',', 1):
-                    version_string = re.sub(r'^[^0-9]{1,2}', '', condition)
-                    condition_version = versioning.parse(version_string)
+                if match:
+                    grizzly_requirement_egg = match.group(1)
+                    condition_expression = match.group(3)
 
-                    if not isinstance(condition_version, versioning.Version):
-                        print(f'!! {condition} is a {condition_version.__class__.__name__}, expected Version', file=sys.stderr)
-                        break
+                    for condition in condition_expression.split(',', 1):
+                        version_string = re.sub(r'^[^0-9]{1,2}', '', condition)
+                        condition_version = versioning.parse(version_string)
 
-                    if '>' in condition:
-                        compare = condition_version.__le__ if '=' in condition else condition_version.__lt__
-                    elif '<' in condition:
-                        compare = condition_version.__ge__ if '=' in condition else condition_version.__gt__
-                    else:
-                        compare = condition_version.__eq__
+                        if not isinstance(condition_version, versioning.Version):
+                            print(f'!! {condition} is a {condition_version.__class__.__name__}, expected Version', file=sys.stderr)
+                            break
 
-                    conditions.append(compare)
+                        if '>' in condition:
+                            compare = condition_version.__le__ if '=' in condition else condition_version.__lt__
+                        elif '<' in condition:
+                            compare = condition_version.__ge__ if '=' in condition else condition_version.__gt__
+                        else:
+                            compare = condition_version.__eq__
+
+                        conditions.append(compare)
 
                 matched_version = None
 
@@ -288,11 +296,18 @@ def get_dependency_versions() -> Tuple[str, str]:
 
     if grizzly_version is None:
         grizzly_version = '(unknown)'
+    else:
+        match = re.match(r'^grizzly-loadtester\[([^\]]*)\]$', grizzly_requirement_egg)
+
+        if match:
+            grizzly_extras = [extra.strip() for extra in match.group(1).split(',')]
+        else:
+            grizzly_extras = []
 
     if locust_version is None:
         locust_version = '(unknown)'
 
-    return grizzly_version, locust_version
+    return (grizzly_version, grizzly_extras, ), locust_version
 
 
 def list_images(args: Arguments) -> Dict[str, Any]:

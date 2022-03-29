@@ -2,6 +2,7 @@ import argparse
 import os
 
 from shutil import which
+from typing import Tuple, Optional, List
 
 from .argparse import ArgumentParser
 from .utils import ask_yes_no, get_distributed_system, get_dependency_versions
@@ -58,14 +59,20 @@ def _parse_arguments() -> argparse.Namespace:
         else:
             version = __version__
 
+        grizzly_versions: Optional[Tuple[str, Optional[List[str]]]] = None
+
         if args.version == 'all':
-            grizzly_version, locust_version = get_dependency_versions()
+            grizzly_versions, locust_version = get_dependency_versions()
         else:
-            grizzly_version, locust_version = None, None
+            grizzly_versions, locust_version = None, None
 
         print(f'grizzly-cli {version}')
-        if grizzly_version is not None:
-            print(f'└── grizzly {grizzly_version}')
+        if grizzly_versions is not None:
+            grizzly_version, grizzly_extras = grizzly_versions
+            print(f'└── grizzly {grizzly_version}', end='')
+            if grizzly_extras is not None and len(grizzly_extras) > 0:
+                print(f' ── extras: {", ".join(grizzly_extras)}', end='')
+            print('')
 
         if locust_version is not None:
             print(f'    └── locust {locust_version}')
