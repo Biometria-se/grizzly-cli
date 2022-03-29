@@ -56,6 +56,7 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         'build',
         '--ssh',
         'default',
+        '--build-arg', 'GRIZZLY_EXTRA=mq',  # @TODO: check if arg should be base or mq, depending on if grizzly requirement contains mq
         '--build-arg', f'GRIZZLY_UID={getuid()}',
         '--build-arg', f'GRIZZLY_GID={getgid()}',
         '-f', containerfile,
