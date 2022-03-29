@@ -4,7 +4,7 @@ from typing import List, cast
 from argparse import Namespace as Arguments
 from getpass import getuser
 
-from .utils import requirements, run_command
+from .utils import get_dependency_versions, requirements, run_command
 from .argparse import ArgumentSubParser
 from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT, register_parser
 
@@ -50,12 +50,20 @@ def getgid() -> int:
 
 
 def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
+    (_, grizzly_extras, ), _ = get_dependency_versions()
+
+    if grizzly_extras is not None and 'mq' in grizzly_extras:
+        grizzly_extra = 'mq'
+    else:
+        grizzly_extra = 'base'
+
     return [
         f'{args.container_system}',
         'image',
         'build',
         '--ssh',
         'default',
+        '--build-arg', f'GRIZZLY_EXTRA={grizzly_extra}',
         '--build-arg', f'GRIZZLY_UID={getuid()}',
         '--build-arg', f'GRIZZLY_GID={getgid()}',
         '-f', containerfile,

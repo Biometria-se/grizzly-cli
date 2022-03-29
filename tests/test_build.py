@@ -29,9 +29,11 @@ def test_getuid_getgid_nt(mocker: MockerFixture) -> None:
 
 
 def test__create_build_command(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 2)
-    mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 2)
+    mocker.patch('grizzly_cli.build.getuid', return_value=1337)
+    mocker.patch('grizzly_cli.build.getgid', return_value=2147483647)
     args = Namespace(container_system='test')
+
+    mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', None, ), '2.8.4'))
 
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
         'test',
@@ -39,6 +41,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         'build',
         '--ssh',
         'default',
+        '--build-arg', 'GRIZZLY_EXTRA=base',
         '--build-arg', 'GRIZZLY_UID=1337',
         '--build-arg', 'GRIZZLY_GID=2147483647',
         '-f', 'Containerfile.test',
@@ -46,12 +49,31 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         '/home/grizzly-cli/',
     ]
 
+    mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', [], ), '2.8.4'))
+
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
         'test',
         'image',
         'build',
         '--ssh',
         'default',
+        '--build-arg', 'GRIZZLY_EXTRA=base',
+        '--build-arg', 'GRIZZLY_UID=1337',
+        '--build-arg', 'GRIZZLY_GID=2147483647',
+        '-f', 'Containerfile.test',
+        '-t', 'grizzly-cli:test',
+        '/home/grizzly-cli/',
+    ]
+
+    mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', ['dev', 'ci', 'mq'], ), '2.8.4'))
+
+    assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
+        'test',
+        'image',
+        'build',
+        '--ssh',
+        'default',
+        '--build-arg', 'GRIZZLY_EXTRA=mq',
         '--build-arg', 'GRIZZLY_UID=1337',
         '--build-arg', 'GRIZZLY_GID=2147483647',
         '-f', 'Containerfile.test',
@@ -62,8 +84,6 @@ def test__create_build_command(mocker: MockerFixture) -> None:
 
 def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
-
-#    (test_context / 'requirements.txt').write_text('\n')
 
     try:
         chdir(test_context)
@@ -96,6 +116,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             'build',
             '--ssh',
             'default',
+            '--build-arg', 'GRIZZLY_EXTRA=base',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '-f', f'{static_context}/Containerfile',
@@ -109,6 +130,8 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
 
         test_args = Namespace(container_system='docker', force_build=True)
 
+        mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', ['mq', 'dev'], ), '2.8.4'))
+
         assert build(test_args) == 133
         assert run_command.call_count == 2
         args, kwargs = run_command.call_args_list[-1]
@@ -119,6 +142,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             'build',
             '--ssh',
             'default',
+            '--build-arg', 'GRIZZLY_EXTRA=mq',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '-f', f'{static_context}/Containerfile',

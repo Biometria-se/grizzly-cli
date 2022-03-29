@@ -1,12 +1,16 @@
+ARG GRIZZLY_EXTRA=base
+
 FROM python:3.10-slim as base
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update
 
-# <!-- mqm
-FROM base as mqm
-
+# <!-- mq
+FROM base as mq
 
 RUN apt-get install -y --no-install-recommends wget
+
 RUN mkdir /tmp/mqm && cd /tmp/mqm && \
     wget -q --show-progress https://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqdev/redist/9.2.2.0-IBM-MQC-Redist-LinuxX64.tar.gz -O - | tar xzf -
 
@@ -22,10 +26,23 @@ RUN cp /tmp/mqm/inc/*.h* /opt/mqm/inc/ \
     && cp /tmp/mqm/lib64/libmq*_r.so /opt/mqm/lib64/ \
     && cp -r /tmp/mqm/gskit8/lib64 /opt/mqm/gskit8/ \
     && cp /tmp/mqm/msg/en_US/amq.cat /opt/mqm/msg/en_US/
-# mqm -->
+# mq -->
+
+# <!-- python-base (no extras)
+FROM base as python-base
+## NOOP
+# python-base (no extras) -->
+
+# <!-- python-mq (with mq extras -> pymqi)
+FROM python-base as python-mq
+
+COPY --from=mq /opt/mqm /opt/mqm
+
+ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
+# python-mq (with mq extras -> pymqi) -->
 
 # <!-- python
-FROM base AS python
+FROM python-${GRIZZLY_EXTRA} AS python
 
 RUN apt-get install -y --no-install-recommends \
     openssh-client \
@@ -38,9 +55,6 @@ RUN apt-get install -y --no-install-recommends \
     libssl-dev \
     python3-dev
 
-COPY --from=mqm /opt/mqm /opt/mqm
-
-ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
 ENV LC_ALL=C
 ENV LANG=C
 
@@ -70,8 +84,8 @@ exec behave "$@"' >> /grizzly-entrypoint.sh
 RUN chmod +x /grizzly-entrypoint.sh
 # entrypoint -->
 
-# <!-- grizzly
-FROM base
+# <!-- grizzly-base
+FROM base AS grizzly-base
 
 ARG GRIZZLY_UID
 ARG GRIZZLY_GID
@@ -87,25 +101,36 @@ RUN groupadd \
         -s /bin/bash \
         grizzly
 
-RUN apt-get install -y --no-install-recommends lsof
+RUN apt-get install -y --no-install-recommends \
+    lsof \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY --from=mqm /opt/mqm /opt/mqm
 COPY --from=python --chown=grizzly:grizzly /venv /venv
 COPY --from=entrypoint /grizzly-entrypoint.sh /grizzly-entrypoint.sh
 
-ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
 ENV LC_ALL=C
 ENV LANG=C
 ENV PATH="/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH="/srv/grizzly"
+# grizzly-base -->
+
+# <!-- grizzly-mq
+FROM grizzly-base AS grizzly-mq
+
+COPY --from=mq /opt/mqm /opt/mqm
+
+ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
 
 RUN mkdir -p /home/grizzly/IBM/MQ/data && \
     chown -R grizzly:grizzly /home/grizzly \
     && mkdir -p /srv/grizzly/features/logs \
     && ln -sf /srv/grizzly/features/logs /home/grizzly/IBM/MQ/data/errors \
-    && rm -rf /srv/grizzly/features \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /srv/grizzly/features
+# grizzly-mq -->
+
+# <!-- grizzly
+FROM grizzly-${GRIZZLY_EXTRA} as grizzly
 
 USER grizzly
 
