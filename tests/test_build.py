@@ -81,22 +81,28 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         '/home/grizzly-cli/',
     ]
 
-    environ['IBM_MQ_LIB_HOST'] = 'https://localhost:8003'
+    try:
+        environ['IBM_MQ_LIB_HOST'] = 'https://localhost:8003'
 
-    assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
-        'test',
-        'image',
-        'build',
-        '--ssh',
-        'default',
-        '--build-arg', 'GRIZZLY_EXTRA=mq',
-        '--build-arg', 'GRIZZLY_UID=1337',
-        '--build-arg', 'GRIZZLY_GID=2147483647',
-        '--build-arg', 'IBM_MQ_LIB_HOST=https://localhost:8003',
-        '-f', 'Containerfile.test',
-        '-t', 'grizzly-cli:test',
-        '/home/grizzly-cli/',
-    ]
+        assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
+            'test',
+            'image',
+            'build',
+            '--ssh',
+            'default',
+            '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_UID=1337',
+            '--build-arg', 'GRIZZLY_GID=2147483647',
+            '--build-arg', 'IBM_MQ_LIB_HOST=https://localhost:8003',
+            '-f', 'Containerfile.test',
+            '-t', 'grizzly-cli:test',
+            '/home/grizzly-cli/',
+        ]
+    finally:
+        try:
+            del environ['IBM_MQ_LIB_HOST']
+        except KeyError:
+            pass
 
 
 def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
