@@ -57,6 +57,12 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
     else:
         grizzly_extra = 'base'
 
+    extra_args: List[str] = []
+
+    ibm_mq_lib_host = os.environ.get('IBM_MQ_LIB_HOST', None)
+    if ibm_mq_lib_host is not None:
+        extra_args += ['--build-arg', f'IBM_MQ_LIB_HOST={ibm_mq_lib_host}']
+
     return [
         f'{args.container_system}',
         'image',
@@ -66,6 +72,7 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         '--build-arg', f'GRIZZLY_EXTRA={grizzly_extra}',
         '--build-arg', f'GRIZZLY_UID={getuid()}',
         '--build-arg', f'GRIZZLY_GID={getgid()}',
+        *extra_args,
         '-f', containerfile,
         '-t', tag,
         context
