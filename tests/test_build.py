@@ -1,6 +1,7 @@
 from os import environ, path, getcwd, chdir
 from inspect import getfile
 from shutil import rmtree
+from socket import gaierror
 
 from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
@@ -98,6 +99,45 @@ def test__create_build_command(mocker: MockerFixture) -> None:
             '-t', 'grizzly-cli:test',
             '/home/grizzly-cli/',
         ]
+
+        environ['IBM_MQ_LIB_HOST'] = 'http://host.docker.internal:8000'
+
+        mocker.patch('grizzly_cli.build.gethostbyname', return_value='1.2.3.4')
+
+        assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
+            'test',
+            'image',
+            'build',
+            '--ssh',
+            'default',
+            '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_UID=1337',
+            '--build-arg', 'GRIZZLY_GID=2147483647',
+            '--build-arg', 'IBM_MQ_LIB_HOST=http://host.docker.internal:8000',
+            '--add-host', 'host.docker.internal:1.2.3.4',
+            '-f', 'Containerfile.test',
+            '-t', 'grizzly-cli:test',
+            '/home/grizzly-cli/',
+        ]
+
+        mocker.patch('grizzly_cli.build.gethostbyname', side_effect=[gaierror])
+
+        assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
+            'test',
+            'image',
+            'build',
+            '--ssh',
+            'default',
+            '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_UID=1337',
+            '--build-arg', 'GRIZZLY_GID=2147483647',
+            '--build-arg', 'IBM_MQ_LIB_HOST=http://host.docker.internal:8000',
+            '--add-host', 'host.docker.internal:host-gateway',
+            '-f', 'Containerfile.test',
+            '-t', 'grizzly-cli:test',
+            '/home/grizzly-cli/',
+        ]
+
     finally:
         try:
             del environ['IBM_MQ_LIB_HOST']
@@ -110,6 +150,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
 
     try:
         chdir(test_context)
+        mocker.patch('grizzly_cli.EXECUTION_CONTEXT', str(test_context))
         mocker.patch('grizzly_cli.build.EXECUTION_CONTEXT', str(test_context))
         mocker.patch('grizzly_cli.build.PROJECT_NAME', 'grizzly-scenarios')
         mocker.patch('grizzly_cli.build.getuser', side_effect=['test-user'] * 5)
