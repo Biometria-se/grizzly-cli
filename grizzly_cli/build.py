@@ -3,6 +3,7 @@ import os
 from typing import List, cast
 from argparse import Namespace as Arguments
 from getpass import getuser
+from socket import gethostbyname, gaierror
 
 from .utils import get_dependency_versions, requirements, run_command
 from .argparse import ArgumentSubParser
@@ -62,6 +63,14 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
     ibm_mq_lib_host = os.environ.get('IBM_MQ_LIB_HOST', None)
     if ibm_mq_lib_host is not None:
         extra_args += ['--build-arg', f'IBM_MQ_LIB_HOST={ibm_mq_lib_host}']
+
+        if 'host.docker.internal' in ibm_mq_lib_host:
+            try:
+                host_docker_internal = gethostbyname('host.docker.internal')
+            except gaierror:
+                host_docker_internal = 'host-gateway'
+
+            extra_args += ['--add-host', f'host.docker.internal:{host_docker_internal}']
 
     return [
         f'{args.container_system}',
