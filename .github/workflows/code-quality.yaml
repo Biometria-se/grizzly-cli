@@ -6,8 +6,45 @@ on:
     - main
 
 jobs:
-  code-quality:
-    name: ${{ matrix.runs-on }}-python-${{ matrix.python-version }}
+  linting:
+    name: linting
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+
+    env:
+      PYTHONPATH: .
+
+    steps:
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v2
+
+    - name: setup python
+      id: setup-python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: install python dependencies
+      id: pip
+      run: python -m pip install .[dev]
+
+    - name: pylint
+      id: pylint
+      run: python -m pylint --jobs=0 --fail-under=10 grizzly_cli/ tests/
+
+    - name: mypy
+      id: mypy
+      run: python -m mypy grizzly_cli/ tests/
+
+    - name: flake8
+      id: flake8
+      run: python -m flake8
+
+  test-and-coverage:
+    name: test-and-coverage/${{ matrix.runs-on }}-python-${{ matrix.python-version }}
     runs-on: ${{ matrix.runs-on }}
 
     strategy:
@@ -44,25 +81,13 @@ jobs:
       id: pip
       run: python -m pip install .[dev]
 
-    - name: run pytest
+    - name: pytest
       id: pytest
       run: python -m pytest
 
-    - name: run coverage
+    - name: coverage
       id: coverage
       run: python -m coverage report --fail-under=95
-
-    - name: run pylint
-      id: pylint
-      run: python -m pylint --jobs=0 --fail-under=10 grizzly_cli/ tests/
-
-    - name: run mypy
-      id: mypy
-      run: python -m mypy grizzly_cli/ tests/
-
-    - name: run flake8
-      id: flake8
-      run: python -m flake8
 
   documentation-scripts:
     name: "documentation/${{ matrix.script }}"
