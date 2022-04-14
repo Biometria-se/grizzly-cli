@@ -2,7 +2,7 @@ import re
 import sys
 import subprocess
 
-from typing import Optional, List, Set, Union, Dict, Any, Tuple, Generator, Callable, cast
+from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, cast
 from os import path, environ
 from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
@@ -14,11 +14,11 @@ from functools import wraps
 from packaging import version as versioning
 from tempfile import mkdtemp
 from hashlib import sha1
+from math import ceil
 
 import requests
 
 from behave.model import Scenario
-from roundrobin import smooth
 from jinja2 import Template
 
 import grizzly_cli
@@ -468,6 +468,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         symbol: str
         weight: float
         iterations: int
+        user_count: int
 
         def __init__(
             self,
@@ -476,6 +477,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             weight: Optional[float] = None,
             user: Optional[str] = None,
             iterations: Optional[int] = None,
+            user_count: Optional[int] = None,
         ) -> None:
             self.name = name
             self.symbol = symbol
@@ -483,6 +485,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             self.iterations = iterations or 1
             self.weight = weight or 1.0
             self.identifier = generate_identifier(name)
+            self.user_count = user_count or 0
 
     distribution: Dict[str, ScenarioProperties] = {}
     variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
@@ -503,13 +506,15 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     def generate_identifier(name: str) -> str:
         return sha1_hash(name.encode('utf-8')).hexdigest()[:8]
 
+    scenario_user_count = 0
+
     for scenario in sorted(list(grizzly_cli.SCENARIOS), key=attrgetter('name')):
         if len(scenario.steps) < 1:
             raise ValueError(f'{scenario.name} does not have any steps')
 
         _pre_populate_scenario(scenario)
 
-        for step in scenario.steps:
+        for step in scenario.steps + scenario.background_steps or []:
             if step.name.startswith('a user of type'):
                 match = re.match(r'a user of type "([^"]*)" (with weight "([^"]*)")?.*', step.name)
                 if match:
@@ -519,27 +524,47 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 match = re.match(r'repeat for "([^"]*)" iteration.*', step.name)
                 if match:
                     distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
+            elif step.name.endswith(' users') and step.keyword == 'Given':
+                match = re.match(r'"([^"]*)" users', step.name)
+                if match:
+                    scenario_user_count += int(round(float(Template(match.group(1)).render(**variables)), 0))
 
-    dataset: List[Tuple[str, float]] = [(scenario.name, scenario.weight, ) for scenario in distribution.values()]
-    get_weighted_smooth = smooth(dataset)
+    scenario_count = len(distribution.keys())
+    if scenario_count > scenario_user_count:
+        raise ValueError(f'grizzly needs at least {scenario_count} users to run this feature')
 
+    total_weight = 0
+    total_iterations = 0
     for scenario in distribution.values():
         if scenario.user is None:
             raise ValueError(f'{scenario.name} does not have a user type')
 
-    total_iterations = sum([scenario.iterations for scenario in distribution.values()])
-    timeline: List[str] = []
+        total_weight += scenario.weight
+        total_iterations += scenario.iterations
 
-    for _ in range(0, total_iterations):
-        scenario = get_weighted_smooth()
-        symbol = distribution[scenario].symbol
-        timeline.append(symbol)
+    for scenario in distribution.values():
+        scenario.user_count = ceil(scenario_user_count * (scenario.weight / total_weight))
 
-    def chunks(input: List[str], n: int) -> Generator[List[str], None, None]:
-        for i in range(0, len(input), n):
-            yield input[i:i + n]
+    # smooth assigned user count based on weight, so that the sum of scenario.user_count == total_user_count
+    total_user_count = sum([scenario.user_count for scenario in distribution.values()])
+    user_overflow = total_user_count - scenario_user_count
 
-    def print_table_lines(max_length_iterations: int, max_length_description: int) -> None:
+    while user_overflow > 0:
+        for scenario in dict(sorted(distribution.items(), key=lambda d: d[1].user_count, reverse=True)).values():
+            if scenario.user_count <= 1:
+                continue
+
+            scenario.user_count -= 1
+            user_overflow -= 1
+
+            if user_overflow < 1:
+                break
+
+    for scenario in distribution.values():
+        if scenario.iterations < scenario.user_count:
+            raise ValueError(f'{scenario.name} will have {scenario.user_count} users to run {scenario.iterations} iterations, increase iterations or lower user count')
+
+    def print_table_lines(max_length_iterations: int, max_length_users: int, max_length_description: int) -> None:
         sys.stdout.write('-' * 10)
         sys.stdout.write('-|-')
         sys.stdout.write('-' * 6)
@@ -548,56 +573,49 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         sys.stdout.write('|-')
         sys.stdout.write('-' * max_length_iterations)
         sys.stdout.write('|-')
+        sys.stdout.write('-' * max_length_users)
+        sys.stdout.write('|-')
         sys.stdout.write('-' * max_length_description)
         sys.stdout.write('-|\n')
 
     rows: List[str] = []
     max_length_description = len('description')
-    max_length_iterations = len('#')
+    max_length_iterations = len('#iter')
+    max_length_users = len('#user')
 
     print(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
 
     for scenario in distribution.values():
-        description_length = len(scenario.name)
-        if description_length > max_length_description:
-            max_length_description = description_length
-
-        iterations_length = len(str(scenario.iterations))
-        if iterations_length > max_length_iterations:
-            max_length_iterations = iterations_length
+        max_length_description = max(len(scenario.name), max_length_description)
+        max_length_iterations = max(len(str(scenario.iterations)), max_length_iterations)
+        max_length_users = max(len(str(scenario.user_count)), max_length_users)
 
     for scenario in distribution.values():
-        row = '{:10}   {:^6}   {:>6.1f}  {:>{}}  {}'.format(
+        row = '{:10}   {:^6}   {:>6.1f}  {:>{}}  {:>{}}  {}'.format(
             scenario.identifier,
             scenario.symbol,
             scenario.weight,
             scenario.iterations,
             max_length_iterations,
+            scenario.user_count,
+            max_length_users,
             scenario.name,
         )
         rows.append(row)
 
     print('each scenario will execute accordingly:\n')
-    print('{:10}   {:6}   {:>6}  {:>{}}  {}'.format('identifier', 'symbol', 'weight', '#', max_length_iterations, 'description'))
-    print_table_lines(max_length_iterations, max_length_description)
+    print('{:10}   {:6}   {:>6}  {:>{}}  {:>{}}  {}'.format(
+        'identifier',
+        'symbol',
+        'weight',
+        '#iter', max_length_iterations,
+        '#user', max_length_users,
+        'description',
+    ))
+    print_table_lines(max_length_iterations, max_length_users, max_length_description)
     for row in rows:
         print(row)
-    print_table_lines(max_length_iterations, max_length_description)
-
-    print('')
-
-    formatted_timeline: List[str] = []
-
-    for chunk in chunks(timeline, 120):
-        formatted_timeline.append('{} \\'.format(''.join(chunk)))
-
-    formatted_timeline[-1] = formatted_timeline[-1][:-2]
-
-    if len(formatted_timeline) > 10:
-        formatted_timeline = formatted_timeline[:5] + ['...'] + formatted_timeline[-5:]
-
-    print('timeline of user scheduling will look as following:')
-    print('\n'.join(formatted_timeline))
+    print_table_lines(max_length_iterations, max_length_users, max_length_description)
 
     print('')
 
