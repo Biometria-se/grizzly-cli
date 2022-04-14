@@ -22,11 +22,11 @@ def test___import__(tmp_path_factory: TempPathFactory, mocker: MockerFixture) ->
 
         import grizzly_cli
         reload(grizzly_cli)
-        mocker.patch.object(grizzly_cli, '__version__', '0.0.0')
+        mocker.patch.object(grizzly_cli, '__version__', '1.2.3')
 
         static_context = path.join(path.dirname(getfile(grizzly_cli)), 'static')
 
-        assert grizzly_cli.__version__ == '0.0.0'
+        assert grizzly_cli.__version__ == '1.2.3'
         assert grizzly_cli.EXECUTION_CONTEXT == test_context_root
         assert grizzly_cli.MOUNT_CONTEXT == '/var/tmp'
         assert grizzly_cli.STATIC_CONTEXT == static_context

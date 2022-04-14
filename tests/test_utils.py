@@ -340,6 +340,52 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
                 'And ask for value of variable "test_variable_1"',
             ],
         ),
+    ])
+
+    with pytest.raises(ValueError) as ve:
+        distribution_of_users_per_scenario(arguments, {})
+    assert str(ve.value) == 'grizzly needs at least 1 users to run this feature'
+
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-1',
+            [
+                'Given "10" users',
+            ],
+            [
+                'Given a user of type "RestApi" load testing "https://localhost"',
+                'And ask for value of variable "test_variable_2"',
+                'And ask for value of variable "test_variable_1"',
+            ],
+        ),
+        create_scenario(
+            'scenario-2',
+            [
+                'And ask for value of variable "bar"',
+            ],
+            [
+                'Given a user of type "MessageQueueUser" load testing "mqs://localhost"',
+                'And ask for value of variable "foo"',
+            ],
+        )
+    ])
+
+    with pytest.raises(ValueError) as ve:
+        distribution_of_users_per_scenario(arguments, {})
+    assert str(ve.value) == 'scenario-1 will have 5 users to run 1 iterations, increase iterations or lower user count'
+
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-1',
+            [
+                'Given "2" users',
+            ],
+            [
+                'Given a user of type "RestApi" load testing "https://localhost"',
+                'And ask for value of variable "test_variable_2"',
+                'And ask for value of variable "test_variable_1"',
+            ],
+        ),
         create_scenario(
             'scenario-2',
             [
@@ -362,14 +408,11 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight  #  description
-        -----------|--------|-------|--|-------------|
-        02ce541f       A         1.0  1  scenario-1
-        91d624d8       B         1.0  1  scenario-2
-        -----------|--------|-------|--|-------------|
-
-        timeline of user scheduling will look as following:
-        AB
+        identifier   symbol   weight  #iter  #user  description
+        -----------|--------|-------|------|------|-------------|
+        02ce541f       A         1.0      1      1  scenario-1
+        91d624d8       B         1.0      1      1  scenario-2
+        -----------|--------|-------|------|------|-------------|
 
     ''')
     capsys.readouterr()
@@ -392,7 +435,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     mocker.patch('grizzly_cli.SCENARIOS', [
         create_scenario(
             'scenario-1',
-            [],
+            ['Given "1" users'],
             ['And repeat for "10" iterations'],
         ),
     ])
@@ -404,7 +447,9 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     mocker.patch('grizzly_cli.SCENARIOS', [
         create_scenario(
             'scenario-1',
-            [],
+            [
+                'Given "{{ users }}" users',
+            ],
             [
                 'Given a user of type "RestApi" with weight "10" load testing "https://localhost"',
                 'And repeat for "{{ integer * 0.10 }}" iterations'
@@ -419,6 +464,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
             ],
             [
                 'Given a user of type "MessageQueueUser" load testing "mqs://localhost"',
+                'And repeat for "{{ integer * 0.01 }}" iterations',
                 'And ask for value of variable "foo"',
             ],
         )
@@ -429,8 +475,9 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     render = mocker.spy(grizzly_cli.utils.Template, 'render')  # type: ignore
 
     distribution_of_users_per_scenario(arguments, {
+        'TESTDATA_VARIABLE_users': '40',
         'TESTDATA_VARIABLE_boolean': 'True',
-        'TESTDATA_VARIABLE_integer': '100',
+        'TESTDATA_VARIABLE_integer': '500',
         'TESTDATA_VARIABLE_float': '1.33',
         'TESTDATA_VARIABLE_string': 'foo bar',
         'TESTDATA_VARIABLE_neg_integer': '-100',
@@ -442,18 +489,15 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     assert capture.err == ''
     print(capture.out)
     assert capture.out == dedent('''
-        feature file test.feature will execute in total 11 iterations
+        feature file test.feature will execute in total 55 iterations
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight   #  description
-        -----------|--------|-------|---|-------------|
-        02ce541f       A        10.0  10  scenario-1
-        91d624d8       B         1.0   1  scenario-2
-        -----------|--------|-------|---|-------------|
-
-        timeline of user scheduling will look as following:
-        AAAAABAAAAA
+        identifier   symbol   weight  #iter  #user  description
+        -----------|--------|-------|------|------|-------------|
+        02ce541f       A        10.0     50     36  scenario-1
+        91d624d8       B         1.0      5      4  scenario-2
+        -----------|--------|-------|------|------|-------------|
 
     ''')
     capsys.readouterr()
@@ -461,23 +505,24 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     args, _ = ask_yes_no.call_args_list[-1]
     assert args[0] == 'continue?'
 
-    assert render.call_count == 1
-    _, kwargs = render.call_args_list[-1]
-
-    assert kwargs.get('boolean', None)
-    assert kwargs.get('integer', None) == 100
-    assert kwargs.get('float', None) == 1.33
-    assert kwargs.get('string', None) == 'foo bar'
-    assert kwargs.get('neg_integer', None) == -100
-    assert kwargs.get('neg_float', None) == -1.33
-    assert kwargs.get('pad_integer', None) == '001'
+    assert render.call_count == 3
+    for _, kwargs in render.call_args_list:
+        assert kwargs.get('boolean', None)
+        assert kwargs.get('integer', None) == 500
+        assert kwargs.get('float', None) == 1.33
+        assert kwargs.get('string', None) == 'foo bar'
+        assert kwargs.get('neg_integer', None) == -100
+        assert kwargs.get('neg_float', None) == -1.33
+        assert kwargs.get('pad_integer', None) == '001'
 
     mocker.patch('grizzly_cli.SCENARIOS', [
         create_scenario(
             'scenario-1 testing a lot of stuff',
-            [],
             [
-                'Given a user of type "RestApi" with weight "10" load testing "https://localhost"',
+                'Given "70" users',
+            ],
+            [
+                'Given a user of type "RestApi" with weight "100" load testing "https://localhost"',
                 'And repeat for "500" iterations'
                 'And ask for value of variable "test_variable_2"',
                 'And ask for value of variable "test_variable_1"',
@@ -489,10 +534,18 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
                 'And ask for value of variable "bar"',
             ],
             [
-                'Given a user of type "MessageQueueUser" with weight "5" load testing "mqs://localhost"',
-                'And repeat for "750" iterations'
+                'Given a user of type "MessageQueueUser" with weight "50" load testing "mqs://localhost"',
+                'And repeat for "750" iterations',
                 'And ask for value of variable "foo"',
             ],
+        ),
+        create_scenario(
+            'scenario-3',
+            [],
+            [
+                'Given a user of type "RestApi" with weight "1" load testing "https://127.0.0.2"',
+                'And repeat for "10" iterations',
+            ]
         )
     ])
 
@@ -504,28 +557,16 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     assert capture.err == ''
     print(capture.out)
     assert capture.out == dedent('''
-        feature file integration.feature will execute in total 1250 iterations
+        feature file integration.feature will execute in total 1260 iterations
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight    #  description
-        -----------|--------|-------|----|--------------------------------------------------------------------------------------|
-        5b66789b       A        10.0  500  scenario-1 testing a lot of stuff
-        d06b7314       B         5.0  750  scenario-2 testing a lot more of many different things that scenario-1 does not test
-        -----------|--------|-------|----|--------------------------------------------------------------------------------------|
-
-        timeline of user scheduling will look as following:
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ...
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABA \\
-        ABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAABAAB
+        identifier   symbol   weight  #iter  #user  description
+        -----------|--------|-------|------|------|--------------------------------------------------------------------------------------|
+        5b66789b       A       100.0    500     46  scenario-1 testing a lot of stuff
+        d06b7314       B        50.0    750     23  scenario-2 testing a lot more of many different things that scenario-1 does not test
+        4a0fab3b       C         1.0     10      1  scenario-3
+        -----------|--------|-------|------|------|--------------------------------------------------------------------------------------|
 
     ''')
     capsys.readouterr()
