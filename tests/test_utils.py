@@ -572,6 +572,106 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capsys.readouterr()
     assert ask_yes_no.call_count == 2
 
+    # all scenarios in a feature file will, at this point, have all the background steps
+    # grizzly will later make sure that they are only run once
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-1',
+            [
+                'Given "{{ users }}" users',
+                'And spawn rate is "{{ rate }}" users per second'
+            ],
+            [
+                'Given a user of type "RestApi" with weight "25" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser * 0.25) | round | int }}" iterations'
+            ]
+        ),
+        create_scenario(
+            'scenario-2',
+            [
+                'Given "{{ users }}" users',
+                'And spawn rate is "{{ rate }}" users per second'
+            ],
+            [
+                'Given a user of type "RestApi" with weight "42" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser * 0.42) | round | int }}" iterations'
+            ],
+        ),
+        create_scenario(
+            'scenario-3',
+            [
+                'Given "{{ users }}" users',
+                'And spawn rate is "{{ rate }}" users per second'
+            ],
+            [
+                'Given a user of type "RestApi" with weight "8" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser * 0.08) | round | int }}" iterations'
+            ],
+        ),
+        create_scenario(
+            'scenario-4',
+            [
+                'Given "{{ users }}" users',
+                'And spawn rate is "{{ rate }}" users per second'
+            ],
+            [
+                'Given a user of type "RestApi" with weight "13" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser * 0.13) | round | int }}" iterations'
+            ],
+        ),
+        create_scenario(
+            'scenario-5',
+            [
+                'Given "{{ users }}" users',
+                'And spawn rate is "{{ rate }}" users per second'
+            ],
+            [
+                'Given a user of type "RestApi" with weight "6" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser * 0.06) | round | int }}" iterations'
+            ],
+        ),
+        create_scenario(
+            'scenario-6',
+            [
+                'Given "{{ users }}" users',
+                'And spawn rate is "{{ rate }}" users per second'
+            ],
+            [
+                'Given a user of type "RestApi" with weight "6" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser * 0.06) | round | int }}" iterations'
+            ],
+        ),
+    ])
+
+    arguments = Namespace(file='integration.feature', yes=True)
+
+    distribution_of_users_per_scenario(arguments, {
+        'TESTDATA_VARIABLE_leveranser': '10',
+        'TESTDATA_VARIABLE_users': '6',
+        'TESTDATA_VARIABLE_rate': '6',
+    })
+    capture = capsys.readouterr()
+
+    assert capture.err == ''
+    print(capture.out)
+    assert capture.out == dedent('''
+        feature file integration.feature will execute in total 10 iterations
+
+        each scenario will execute accordingly:
+
+        identifier   symbol   weight  #iter  #user  description
+        -----------|--------|-------|------|------|-------------|
+        02ce541f       A        25.0      2      1  scenario-1
+        91d624d8       B        42.0      4      1  scenario-2
+        4a0fab3b       C         8.0      1      1  scenario-3
+        62fc25f5       D        13.0      1      1  scenario-4
+        367a6eff       E         6.0      1      1  scenario-5
+        7d326458       F         6.0      1      1  scenario-6
+        -----------|--------|-------|------|------|-------------|
+
+    ''')
+    capsys.readouterr()
+
 
 def test_ask_yes_no(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     get_input = mocker.patch('grizzly_cli.utils.get_input', side_effect=['yeah', 'n', 'y'])
