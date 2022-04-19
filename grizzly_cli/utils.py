@@ -487,6 +487,16 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             self.identifier = generate_identifier(name)
             self.user_count = user_count or 0
 
+        def __str__(self) -> str:
+            values: List[str] = []
+            for key, value in self.__dict__.items():
+                if key.startswith('_'):
+                    continue
+
+                values.append(f'{key}={value}')
+
+            return f'<{self.__class__.__name__}: {", ".join(values)}>'
+
     distribution: Dict[str, ScenarioProperties] = {}
     variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
     current_symbol = 65  # ASCII decimal for A
@@ -508,13 +518,20 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
     scenario_user_count = 0
 
-    for scenario in sorted(list(grizzly_cli.SCENARIOS), key=attrgetter('name')):
+    for index, scenario in enumerate(sorted(list(grizzly_cli.SCENARIOS), key=attrgetter('name'))):
         if len(scenario.steps) < 1:
             raise ValueError(f'{scenario.name} does not have any steps')
 
         _pre_populate_scenario(scenario)
 
-        for step in scenario.steps + scenario.background_steps or []:
+        if index == 0:  # background_steps is only processed for first scenario in grizzly
+            for step in scenario.background_steps or []:
+                if step.name.endswith(' users') and step.keyword == 'Given':
+                    match = re.match(r'"([^"]*)" users', step.name)
+                    if match:
+                        scenario_user_count = int(round(float(Template(match.group(1)).render(**variables)), 0))
+
+        for step in scenario.steps:
             if step.name.startswith('a user of type'):
                 match = re.match(r'a user of type "([^"]*)" (with weight "([^"]*)")?.*', step.name)
                 if match:
@@ -524,10 +541,6 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 match = re.match(r'repeat for "([^"]*)" iteration.*', step.name)
                 if match:
                     distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
-            elif step.name.endswith(' users') and step.keyword == 'Given':
-                match = re.match(r'"([^"]*)" users', step.name)
-                if match:
-                    scenario_user_count += int(round(float(Template(match.group(1)).render(**variables)), 0))
 
     scenario_count = len(distribution.keys())
     if scenario_count > scenario_user_count:

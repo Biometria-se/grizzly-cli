@@ -121,4 +121,4 @@ jobs:
       run: test -x ${{ matrix.script }}
 
     - name: runnable
-      run: ./${{ matrix.script }} &> /dev/null
+      run: ./${{ matrix.script }} 1> /dev/null
