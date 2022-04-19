@@ -526,8 +526,8 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
         if index == 0:  # background_steps is only processed for first scenario in grizzly
             for step in scenario.background_steps or []:
-                if step.name.endswith(' users') and step.keyword == 'Given':
-                    match = re.match(r'"([^"]*)" users', step.name)
+                if (step.name.endswith(' users') or step.name.endswith(' user')) and step.keyword == 'Given':
+                    match = re.match(r'"([^"]*)" user(s)?', step.name)
                     if match:
                         scenario_user_count = int(round(float(Template(match.group(1)).render(**variables)), 0))
 
