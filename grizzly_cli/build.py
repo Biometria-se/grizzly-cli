@@ -17,6 +17,9 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         'build grizzly compose project container image. this command is only applicable if grizzly '
         'should run distributed and is used to pre-build the container images. if worker nodes runs '
         'on different physical computers, it is mandatory to build the images before hand and push to a registry.'
+        '\n\n'
+        'if image includes IBM MQ native dependencies, the build time increases due to download times. it is possible '
+        'to self-host the archive and override the download host with environment variable `IBM_MQ_LIB_HOST`.'
     ))
     build_parser.add_argument(
         '--no-cache',
