@@ -672,6 +672,37 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     ''')
     capsys.readouterr()
 
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-1',
+            [
+                'Given "1" user',
+            ],
+            [
+                'Given a user of type "RestApi" with weight "25" load testing "https://localhost"',
+                'And repeat for "1" iterations',
+            ]
+        ),
+    ])
+
+    distribution_of_users_per_scenario(arguments, {})
+    capture = capsys.readouterr()
+
+    assert capture.err == ''
+    print(capture.out)
+    assert capture.out == dedent('''
+        feature file integration.feature will execute in total 1 iterations
+
+        each scenario will execute accordingly:
+
+        identifier   symbol   weight  #iter  #user  description
+        -----------|--------|-------|------|------|-------------|
+        02ce541f       A        25.0      1      1  scenario-1
+        -----------|--------|-------|------|------|-------------|
+
+    ''')
+    capsys.readouterr()
+
 
 def test_ask_yes_no(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     get_input = mocker.patch('grizzly_cli.utils.get_input', side_effect=['yeah', 'n', 'y'])
