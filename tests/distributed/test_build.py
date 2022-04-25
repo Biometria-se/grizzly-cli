@@ -9,32 +9,32 @@ from pytest_mock import MockerFixture
 
 from argparse import Namespace
 
-from grizzly_cli.build import _create_build_command, getgid, getuid, build
+from grizzly_cli.distributed.build import _create_build_command, getgid, getuid, build
 
-from .helpers import onerror
+from ..helpers import onerror
 
 
 CWD = getcwd()
 
 
 def test_getuid_getgid_nt(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.build.os.name', 'nt')
+    mocker.patch('grizzly_cli.distributed.build.os.name', 'nt')
 
     assert getuid() == 1000
     assert getgid() == 1000
 
-    mocker.patch('grizzly_cli.build.os.name', 'posix')
+    mocker.patch('grizzly_cli.distributed.build.os.name', 'posix')
 
     assert getuid() >= 0
     assert getgid() >= 0
 
 
 def test__create_build_command(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.build.getuid', return_value=1337)
-    mocker.patch('grizzly_cli.build.getgid', return_value=2147483647)
+    mocker.patch('grizzly_cli.distributed.build.getuid', return_value=1337)
+    mocker.patch('grizzly_cli.distributed.build.getgid', return_value=2147483647)
     args = Namespace(container_system='test')
 
-    mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', None, ), '2.8.4'))
+    mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', None, ), '2.8.4'))
 
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
         'test',
@@ -50,7 +50,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         '/home/grizzly-cli/',
     ]
 
-    mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', [], ), '2.8.4'))
+    mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', [], ), '2.8.4'))
 
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
         'test',
@@ -66,7 +66,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         '/home/grizzly-cli/',
     ]
 
-    mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', ['dev', 'ci', 'mq'], ), '2.8.4'))
+    mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', ['dev', 'ci', 'mq'], ), '2.8.4'))
 
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
         'test',
@@ -102,7 +102,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
 
         environ['IBM_MQ_LIB_HOST'] = 'http://host.docker.internal:8000'
 
-        mocker.patch('grizzly_cli.build.gethostbyname', return_value='1.2.3.4')
+        mocker.patch('grizzly_cli.distributed.build.gethostbyname', return_value='1.2.3.4')
 
         assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
             'test',
@@ -120,7 +120,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
             '/home/grizzly-cli/',
         ]
 
-        mocker.patch('grizzly_cli.build.gethostbyname', side_effect=[gaierror])
+        mocker.patch('grizzly_cli.distributed.build.gethostbyname', side_effect=[gaierror])
 
         assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
             'test',
@@ -151,17 +151,17 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
     try:
         chdir(test_context)
         mocker.patch('grizzly_cli.EXECUTION_CONTEXT', str(test_context))
-        mocker.patch('grizzly_cli.build.EXECUTION_CONTEXT', str(test_context))
-        mocker.patch('grizzly_cli.build.PROJECT_NAME', 'grizzly-scenarios')
-        mocker.patch('grizzly_cli.build.getuser', side_effect=['test-user'] * 5)
-        mocker.patch('grizzly_cli.build.getuid', side_effect=[1337] * 5)
-        mocker.patch('grizzly_cli.build.getgid', side_effect=[2147483647] * 5)
-        run_command = mocker.patch('grizzly_cli.build.run_command', side_effect=[254, 133, 0, 1, 0, 0, 2, 0, 0, 0])
+        mocker.patch('grizzly_cli.distributed.build.EXECUTION_CONTEXT', str(test_context))
+        mocker.patch('grizzly_cli.distributed.build.PROJECT_NAME', 'grizzly-scenarios')
+        mocker.patch('grizzly_cli.distributed.build.getuser', return_value='test-user')
+        mocker.patch('grizzly_cli.distributed.build.getuid', return_value=1337)
+        mocker.patch('grizzly_cli.distributed.build.getgid', return_value=2147483647)
+        run_command = mocker.patch('grizzly_cli.distributed.build.run_command', side_effect=[254, 133, 0, 1, 0, 0, 2, 0, 0, 0])
         setattr(getattr(build, '__wrapped__'), '__value__', str(test_context))
 
         test_args = Namespace(container_system='test', force_build=False)
 
-        static_context = path.join(path.dirname(getfile(_create_build_command)), 'static')
+        static_context = path.realpath(path.join(path.dirname(getfile(_create_build_command)), '..', 'static'))
 
         assert build(test_args) == 254
 
@@ -194,7 +194,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
 
         test_args = Namespace(container_system='docker', force_build=True)
 
-        mocker.patch('grizzly_cli.build.get_dependency_versions', return_value=(('1.1.1', ['mq', 'dev'], ), '2.8.4'))
+        mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', ['mq', 'dev'], ), '2.8.4'))
 
         assert build(test_args) == 133
         assert run_command.call_count == 2
