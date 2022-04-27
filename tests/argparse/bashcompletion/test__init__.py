@@ -1,8 +1,8 @@
 import argparse
 import inspect
 
-from typing import Optional, Generator, cast
-from os import path, chdir, getcwd, sep
+from typing import Optional, Generator
+from os import path, chdir, getcwd
 from shutil import rmtree
 
 import pytest
@@ -222,10 +222,10 @@ class TestBashCompleteAction:
     @pytest.mark.parametrize(
         'input,expected',
         [
-            ('grizzly-cli ', '-h --help --version init build run',),
+            ('grizzly-cli ', '-h --help --version init local dist',),
             ('grizzly-cli -', '-h --help --version'),
             ('grizzly-cli --', '--help --version'),
-            ('grizzly-cli ru', 'run'),
+            ('grizzly-cli lo', 'local'),
             ('grizzly-cli -h', ''),
         ]
     )
@@ -238,32 +238,34 @@ class TestBashCompleteAction:
         assert capture.out == f'{expected}\n'
 
     @pytest.mark.parametrize(
-        'input,expected',
-        [
-            ('grizzly-cli run ', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file local dist'),
-            ('grizzly-cli run -', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file'),
-            ('grizzly-cli run --', '--help --verbose --testdata-variable --yes --environment-file'),
-            ('grizzly-cli run --yes', '-h --help --verbose -T --testdata-variable -e --environment-file local dist'),
-            ('grizzly-cli run --help --yes', ''),
-            ('grizzly-cli run --yes -T', ''),
-            ('grizzly-cli run --yes -T key=value', '-h --help --verbose -T --testdata-variable -e --environment-file local dist'),
-            ('grizzly-cli run --yes -T key=value --env', '--environment-file'),
-            ('grizzly-cli run --yes -T key=value --environment-file', 'test.yaml test-dir'),
-            ('grizzly-cli run --yes -T key=value --environment-file test', 'test.yaml test-dir'),
-            ('grizzly-cli run --yes -T key=value --environment-file test-', 'test-dir'),
-            ('grizzly-cli run --yes -T key=value --environment-file test-dir', '-h --help --verbose -T --testdata-variable local dist'),
-            ('grizzly-cli run --yes -T key=value --environment-file test.', 'test.yaml'),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml', '-h --help --verbose -T --testdata-variable local dist'),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml --test', '--testdata-variable'),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable', ''),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value', '-h --help --verbose -T --testdata-variable local dist'),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value l', 'local'),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value d', 'dist'),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
-            ('grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
+        'input,expected', [
+            ('grizzly-cli local run ', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file test.feature test-dir'),
+            ('grizzly-cli local run -', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file'),
+            ('grizzly-cli local run --', '--help --verbose --testdata-variable --yes --environment-file'),
+            ('grizzly-cli local run --yes', '-h --help --verbose -T --testdata-variable -e --environment-file'),
+            ('grizzly-cli local run --help --yes', ''),
+            ('grizzly-cli local run --yes -T', ''),
+            ('grizzly-cli local run --yes -T key=value', '-h --help --verbose -T --testdata-variable -e --environment-file test.feature test-dir'),
+            ('grizzly-cli local run --yes -T key=value --env', '--environment-file'),
+            ('grizzly-cli local run --yes -T key=value --environment-file', 'test.yaml test-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test', 'test.yaml test-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test-', 'test-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test-dir', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.', 'test.yaml'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --test', '--testdata-variable'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable', ''),
+            (
+                'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value',
+                '-h --help --verbose -T --testdata-variable test.feature test-dir',
+            ),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature test-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
         ]
     )
-    def test___call___run(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+    def test___call___local_run(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
         capture: Optional[CaptureResult] = None
 
         try:
@@ -272,170 +274,157 @@ class TestBashCompleteAction:
             _subparsers = getattr(parser, '_subparsers', None)
             assert _subparsers is not None
             subparser: Optional[argparse.ArgumentParser]
-            for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
-                    if name == 'run':
-                        break
-
-            assert subparser is not None
-            assert subparser.prog == 'grizzly-cli run'
-
-            with pytest.raises(SystemExit):
-                subparser.parse_args([f'--bash-complete={input}'])
-            capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
-        except:
-            print(f'input={input}')
-            print(f'expected={expected}')
-            if capture is not None:
-                print(f'actual={capture.out}')
-            raise
-        finally:
-            chdir(CWD)
-
-    @pytest.mark.parametrize(
-        'input,expected',
-        [
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist',
-                (
-                    '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --force-build --build --validate-config test.feature test-dir'
-                )
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist -',
-                '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --force-build --build --validate-config',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --',
-                '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --force-build --build --validate-config',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers',
-                '',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers asdf',
-                '',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --force-build --build --validate-config',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 --force-build',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty test.feature test-dir',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 --force-build test',
-                'test.feature test-dir',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 --force-build test.',
-                'test.feature',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 --force-build test.feature',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value dist --workers 8 -h --force-build',
-                '',
-            ),
-        ]
-    )
-    def test___call___run_dist(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
-        capture: Optional[CaptureResult] = None
-
-        try:
-            parser = _create_parser()
-            hook(parser)
-            _subparsers = getattr(parser, '_subparsers', None)
-            assert _subparsers is not None
-            subparser: Optional[argparse.ArgumentParser]
-            for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
-                    if name == 'run':
-                        break
-
-            assert subparser is not None
-            parser = cast(ArgumentParser, subparser)
-            _subparsers = getattr(parser, '_subparsers', None)
-            assert _subparsers is not None
-            for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
-                    if name == 'dist':
-                        break
-            assert subparser is not None
-            assert subparser.prog == 'grizzly-cli run dist'
-
-            with pytest.raises(SystemExit):
-                subparser.parse_args([f'--bash-complete={input}'])
-            capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
-        except:
-            print(f'input={input}')
-            print(f'expected={expected}')
-            if capture is not None:
-                print(f'actual={capture.out}')
-            raise
-        finally:
-            chdir(CWD)
-
-    @pytest.mark.parametrize(
-        'input,expected',
-        [
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local',
-                '-h --help test.feature test-dir',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local -',
-                '-h --help',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local --help',
-                '',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local ---help',
-                '-h --help test.feature test-dir',
-            ),
-            (
-                'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local test',
-                'test.feature test-dir',
-            ),
-            (
-                f'grizzly-cli run --yes -T key=value --environment-file test.yaml --testdata-variable key=value local test-dir{sep}',
-                f'test-dir{sep}test.feature',
-            ),
-        ]
-    )
-    def test___call___run_local(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
-        capture: Optional[CaptureResult] = None
-
-        try:
-            parser = _create_parser()
-            hook(parser)
-            _subparsers = getattr(parser, '_subparsers', None)
-            assert _subparsers is not None
-            subparser: Optional[argparse.ArgumentParser]
-            for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
-                    if name == 'run':
-                        break
-
-            assert subparser is not None
-            parser = cast(ArgumentParser, subparser)
-            _subparsers = getattr(parser, '_subparsers', None)
-            assert _subparsers is not None
             for subparsers in _subparsers._group_actions:
                 for name, subparser in subparsers.choices.items():
                     if name == 'local':
                         break
+
             assert subparser is not None
-            assert subparser.prog == 'grizzly-cli run local'
+            assert subparser.prog == 'grizzly-cli local'
+
+            _subparsers = getattr(subparser, '_subparsers', None)
+            assert _subparsers is not None
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'run':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli local run'
+
+            with pytest.raises(SystemExit):
+                subparser.parse_args([f'--bash-complete={input}'])
+            capture = capsys.readouterr()
+            assert capture.out == f'{expected}\n'
+        except:
+            print(f'input={input}')
+            print(f'expected={expected}')
+            if capture is not None:
+                print(f'actual={capture.out}')
+            raise
+        finally:
+            chdir(CWD)
+
+    @pytest.mark.parametrize(
+        'input,expected', [
+            ('grizzly-cli dist run ', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file test.feature test-dir'),
+            ('grizzly-cli dist run -', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file'),
+            ('grizzly-cli dist run --', '--help --verbose --testdata-variable --yes --environment-file'),
+            ('grizzly-cli dist run --yes', '-h --help --verbose -T --testdata-variable -e --environment-file'),
+            ('grizzly-cli dist run --help --yes', ''),
+            ('grizzly-cli dist run --yes -T', ''),
+            ('grizzly-cli dist run --yes -T key=value', '-h --help --verbose -T --testdata-variable -e --environment-file test.feature test-dir'),
+            ('grizzly-cli dist run --yes -T key=value --env', '--environment-file'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file', 'test.yaml test-dir'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test', 'test.yaml test-dir'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test-', 'test-dir'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test-dir', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.', 'test.yaml'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --test', '--testdata-variable'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable', ''),
+            (
+                'grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value',
+                '-h --help --verbose -T --testdata-variable test.feature test-dir',
+            ),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature test-dir'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
+        ]
+    )
+    def test___call___dist_run(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+        capture: Optional[CaptureResult] = None
+
+        try:
+            parser = _create_parser()
+            hook(parser)
+            _subparsers = getattr(parser, '_subparsers', None)
+            assert _subparsers is not None
+            subparser: Optional[argparse.ArgumentParser]
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'dist':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli dist'
+
+            _subparsers = getattr(subparser, '_subparsers', None)
+            assert _subparsers is not None
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'run':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli dist run'
+
+            with pytest.raises(SystemExit):
+                subparser.parse_args([f'--bash-complete={input}'])
+            capture = capsys.readouterr()
+            assert capture.out == f'{expected}\n'
+        except:
+            print(f'input={input}')
+            print(f'expected={expected}')
+            if capture is not None:
+                print(f'actual={capture.out}')
+            raise
+        finally:
+            chdir(CWD)
+
+    @pytest.mark.parametrize(
+        'input,expected',
+        [
+            (
+                'grizzly-cli dist',
+                (
+                    '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
+                    '--tty --force-build --build --validate-config build run'
+                )
+            ),
+            (
+                'grizzly-cli dist -',
+                '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --force-build --build --validate-config',
+            ),
+            (
+                'grizzly-cli dist --',
+                '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --force-build --build --validate-config',
+            ),
+            (
+                'grizzly-cli dist --workers',
+                '',
+            ),
+            (
+                'grizzly-cli dist --workers asdf',
+                '',
+            ),
+            (
+                'grizzly-cli dist --workers 8',
+                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --force-build --build --validate-config build run',
+            ),
+            (
+                'grizzly-cli dist --workers 8 --force-build',
+                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty build run',
+            ),
+        ],
+    )
+    def test___call__dist(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+        capture: Optional[CaptureResult] = None
+
+        try:
+            parser = _create_parser()
+            hook(parser)
+            _subparsers = getattr(parser, '_subparsers', None)
+            assert _subparsers is not None
+            subparser: Optional[argparse.ArgumentParser]
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'dist':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli dist'
 
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])

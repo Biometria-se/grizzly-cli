@@ -6,9 +6,9 @@ from typing import Tuple, Optional, List
 
 from .argparse import ArgumentParser
 from .utils import ask_yes_no, get_distributed_system, get_dependency_versions
-from .run import run
-from .build import build
 from .init import init
+from .local import local
+from .distributed import distributed
 from . import __version__, register_parser
 
 
@@ -41,7 +41,7 @@ def _create_parser() -> ArgumentParser:
         help='print version of command line interface, and exit. add argument `all` to get versions of dependencies',
     )
 
-    sub_parser = parser.add_subparsers(dest='category')
+    sub_parser = parser.add_subparsers(dest='command')
 
     for create_parser in register_parser.registered:
         create_parser(sub_parser)
@@ -79,13 +79,13 @@ def _parse_arguments() -> argparse.Namespace:
 
         raise SystemExit(0)
 
-    if args.category is None:
-        parser.error('no subcommand specified')
+    if args.command is None:
+        parser.error('no command specified')
 
-    if getattr(args, 'mode', None) is None and args.category == 'run':
-        parser.error(f'no subcommand for {args.category} specified')
+    if getattr(args, 'subcommand', None) is None and args.command not in ['init']:
+        parser.error_no_help(f'no subcommand for {args.command} specified')
 
-    if args.category == 'build' or (args.category == 'run' and args.mode == 'dist'):
+    if args.command == 'dist':
         args.container_system = get_distributed_system()
 
         if args.container_system is None:
@@ -94,12 +94,12 @@ def _parse_arguments() -> argparse.Namespace:
         if args.registry is not None and not args.registry.endswith('/'):
             setattr(args, 'registry', f'{args.registry}/')
 
-    if args.category == 'run':
-        if args.mode == 'dist':
+    if args.subcommand == 'run':
+        if args.command == 'dist':
             if args.limit_nofile < 10001 and not args.yes:
                 print('!! this will cause warning messages from locust later on')
                 ask_yes_no('are you sure you know what you are doing?')
-        elif args.mode == 'local':
+        elif args.command == 'local':
             if which('behave') is None:
                 parser.error_no_help('"behave" not found in PATH, needed when running local mode')
 
@@ -110,7 +110,7 @@ def _parse_arguments() -> argparse.Namespace:
                     os.environ[f'TESTDATA_VARIABLE_{name}'] = value
                 except ValueError:
                     parser.error_no_help('-T/--testdata-variable needs to be in the format NAME=VALUE')
-    elif args.category == 'build':
+    elif args.command == 'dist' and args.subcommand == 'build':
         setattr(args, 'force_build', args.no_cache)
         setattr(args, 'build', not args.no_cache)
 
@@ -121,14 +121,14 @@ def main() -> int:
     try:
         args = _parse_arguments()
 
-        if args.category == 'run':
-            return run(args)
-        elif args.category == 'build':
-            return build(args)
-        elif args.category == 'init':
+        if args.command == 'local':
+            return local(args)
+        elif args.command == 'dist':
+            return distributed(args)
+        elif args.command == 'init':
             return init(args)
         else:
-            raise ValueError(f'unknown subcommand {args.category}')
+            raise ValueError(f'unknown command {args.command}')
     except (KeyboardInterrupt, ValueError) as e:
         print('')
         if isinstance(e, ValueError):

@@ -32,7 +32,7 @@ def test__create_parser() -> None:
         '--md-help',
         '--bash-completion',
     ])
-    assert sorted([action.dest for action in parser._actions if len(action.option_strings) == 0]) == ['category']
+    assert sorted([action.dest for action in parser._actions if len(action.option_strings) == 0]) == ['command']
     subparser = parser._subparsers._group_actions[0]
     assert subparser is not None
     assert subparser.choices is not None
@@ -48,38 +48,23 @@ def test__create_parser() -> None:
         '--grizzly-version',
     ])
 
-    build_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('build', None)
-    assert build_parser is not None
-    assert build_parser._subparsers is None
-    assert getattr(build_parser, 'prog', None) == 'grizzly-cli build'
-    assert sorted([option_string for action in build_parser._actions for option_string in action.option_strings]) == sorted([
+    local_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('local', None)
+    assert local_parser is not None
+    assert local_parser._subparsers is not None
+    assert getattr(local_parser, 'prog', None) == 'grizzly-cli local'
+    assert sorted([option_string for action in local_parser._actions for option_string in action.option_strings]) == sorted([
         '-h', '--help',
-        '--no-cache',
-        '--registry',
     ])
-
-    run_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('run', None)
-    assert run_parser is not None
-    assert getattr(run_parser, 'prog', None) == 'grizzly-cli run'
-    assert sorted([option_string for action in run_parser._actions for option_string in action.option_strings]) == sorted([
-        '-h', '--help',
-        '--verbose',
-        '-T', '--testdata-variable',
-        '-y', '--yes',
-        '-e', '--environment-file',
-    ])
-    assert sorted([action.dest for action in run_parser._actions if len(action.option_strings) == 0]) == ['mode']
-    assert run_parser._subparsers is not None
-    assert len(run_parser._subparsers._group_actions) == 1
-    subparser = run_parser._subparsers._group_actions[0]
-    assert subparser is not None
-    assert subparser.choices is not None
-    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 2
+    assert len(local_parser._subparsers._group_actions) == 1
+    local_subparser = local_parser._subparsers._group_actions[0]
+    assert local_subparser is not None
+    assert local_subparser.choices is not None
+    assert list(cast(Dict[str, Optional[CoreArgumentParser]], local_subparser.choices).keys()) == ['run']
 
     dist_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('dist', None)
     assert dist_parser is not None
-    assert getattr(dist_parser, 'prog', None) == 'grizzly-cli run dist'
-    assert dist_parser._subparsers is None
+    assert dist_parser._subparsers is not None
+    assert getattr(dist_parser, 'prog', None) == 'grizzly-cli dist'
     assert sorted([option_string for action in dist_parser._actions for option_string in action.option_strings]) == sorted([
         '-h', '--help',
         '--force-build', '--build', '--validate-config',
@@ -93,16 +78,39 @@ def test__create_parser() -> None:
         '--registry',
         '--tty',
     ])
-    assert sorted([action.dest for action in dist_parser._actions if len(action.option_strings) == 0]) == ['file']
+    assert sorted([action.dest for action in dist_parser._actions if len(action.option_strings) == 0]) == ['subcommand']
+    assert len(dist_parser._subparsers._group_actions) == 1
+    dist_subparser = dist_parser._subparsers._group_actions[0]
+    assert dist_subparser is not None
+    assert dist_subparser.choices is not None
+    assert list(cast(Dict[str, Optional[CoreArgumentParser]], dist_subparser.choices).keys()) == ['build', 'run']
 
-    local_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('local', None)
-    assert local_parser is not None
-    assert getattr(local_parser, 'prog', None) == 'grizzly-cli run local'
-    assert local_parser._subparsers is None
-    assert sorted([option_string for action in local_parser._actions for option_string in action.option_strings]) == sorted([
+    dist_build_parser = cast(Dict[str, Optional[CoreArgumentParser]], dist_subparser.choices).get('build', None)
+    assert dist_build_parser is not None
+    assert dist_build_parser._subparsers is None
+    assert getattr(dist_build_parser, 'prog', None) == 'grizzly-cli dist build'
+    assert sorted([option_string for action in dist_build_parser._actions for option_string in action.option_strings]) == sorted([
         '-h', '--help',
+        '--no-cache',
+        '--registry',
     ])
-    assert sorted([action.dest for action in local_parser._actions if len(action.option_strings) == 0]) == ['file']
+
+    # grizzly-cli ... run
+    for tested_parser, parent in [(local_parser, 'local',), (dist_parser, 'dist',)]:
+        assert tested_parser._subparsers is not None
+        assert len(tested_parser._subparsers._group_actions) == 1
+        subparser = tested_parser._subparsers._group_actions[0]
+        run_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('run', None)
+        assert run_parser is not None
+        assert getattr(run_parser, 'prog', None) == f'grizzly-cli {parent} run'
+        assert sorted([option_string for action in run_parser._actions for option_string in action.option_strings]) == sorted([
+            '-h', '--help',
+            '--verbose',
+            '-T', '--testdata-variable',
+            '-y', '--yes',
+            '-e', '--environment-file',
+        ])
+        assert sorted([action.dest for action in run_parser._actions if len(action.option_strings) == 0]) == ['file']
 
 
 def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
@@ -124,7 +132,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         capture = capsys.readouterr()
         assert capture.out == ''
         assert 'usage: grizzly-cli' in capture.err
-        assert 'grizzly-cli: error: no subcommand specified' in capture.err
+        assert 'grizzly-cli: error: no command specified' in capture.err
 
         sys.argv = ['grizzly-cli', '--version']
 
@@ -298,7 +306,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '    └── locust 2.2.1\n'
         )
 
-        sys.argv = ['grizzly-cli', 'run']
+        sys.argv = ['grizzly-cli', 'local']
 
         with pytest.raises(SystemExit) as se:
             _parse_arguments()
@@ -306,10 +314,9 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert se.value.code == 2
         capture = capsys.readouterr()
         assert capture.out == ''
-        assert 'usage: grizzly-cli' in capture.err
-        assert 'grizzly-cli: error: no subcommand for run specified' in capture.err
+        assert 'grizzly-cli: error: no subcommand for local specified\n' == capture.err
 
-        sys.argv = ['grizzly-cli', 'run', 'dist', 'test.feature']
+        sys.argv = ['grizzly-cli', 'dist', 'run', 'test.feature']
 
         mocker.patch('grizzly_cli.__main__.get_distributed_system', side_effect=[None])
 
@@ -323,9 +330,9 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 
         mocker.patch('grizzly_cli.EXECUTION_CONTEXT', getcwd())
         mocker.patch('grizzly_cli.__main__.get_distributed_system', side_effect=['docker'])
-        mocker.patch('grizzly_cli.__main__.build', side_effect=[0, 4, 0])
+        mocker.patch('grizzly_cli.distributed.do_build', side_effect=[0, 4, 0])
 
-        sys.argv = ['grizzly-cli', 'run', 'dist', 'test.feature', '--limit-nofile', '100', '--registry', 'ghcr.io/biometria-se']
+        sys.argv = ['grizzly-cli', 'dist', '--limit-nofile', '100', '--registry', 'ghcr.io/biometria-se', 'run', 'test.feature']
         (test_context / 'requirements.txt').write_text('grizzly-loadtester')
         mocker.patch('grizzly_cli.__main__.get_distributed_system', side_effect=['docker'])
         ask_yes_no = mocker.patch('grizzly_cli.__main__.ask_yes_no', autospec=True)
@@ -341,7 +348,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         args, _ = ask_yes_no.call_args_list[-1]
         assert args[0] == 'are you sure you know what you are doing?'
 
-        sys.argv = ['grizzly-cli', 'run', 'local', 'test.feature']
+        sys.argv = ['grizzly-cli', 'local', 'run', 'test.feature']
         mocker.patch('grizzly_cli.__main__.which', side_effect=[None])
 
         with pytest.raises(SystemExit) as se:
@@ -353,7 +360,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert capture.out == ''
         assert capture.err == 'grizzly-cli: error: "behave" not found in PATH, needed when running local mode\n'
 
-        sys.argv = ['grizzly-cli', 'run', '-T', 'variable', 'local', 'test.feature']
+        sys.argv = ['grizzly-cli', 'local', 'run', '-T', 'variable', 'test.feature']
         mocker.patch('grizzly_cli.__main__.which', side_effect=['behave'])
 
         with pytest.raises(SystemExit) as se:
@@ -365,21 +372,21 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert capture.out == ''
         assert capture.err == 'grizzly-cli: error: -T/--testdata-variable needs to be in the format NAME=VALUE\n'
 
-        sys.argv = ['grizzly-cli', 'run', '-T', 'key=value', 'local', 'test.feature']
+        sys.argv = ['grizzly-cli', 'local', 'run', '-T', 'key=value', 'test.feature']
         mocker.patch('grizzly_cli.__main__.which', side_effect=['behave'])
 
         assert environ.get('TESTDATA_VARIABLE_key', None) is None
 
         arguments = _parse_arguments()
-        assert arguments.category == 'run'
-        assert arguments.mode == 'local'
+        assert arguments.command == 'local'
+        assert arguments.subcommand == 'run'
         assert arguments.file == 'test.feature'
 
         assert environ.get('TESTDATA_VARIABLE_key', None) == 'value'
 
         mocker.patch('grizzly_cli.__main__.get_distributed_system', side_effect=['docker'] * 3)
 
-        sys.argv = ['grizzly-cli', 'build']
+        sys.argv = ['grizzly-cli', 'dist', 'build']
         arguments = _parse_arguments()
 
         assert not arguments.no_cache
@@ -387,7 +394,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert arguments.build
         assert arguments.registry is None
 
-        sys.argv = ['grizzly-cli', 'build', '--no-cache', '--registry', 'gchr.io/biometria-se']
+        sys.argv = ['grizzly-cli', 'dist', 'build', '--no-cache', '--registry', 'gchr.io/biometria-se']
         arguments = _parse_arguments()
 
         assert arguments.no_cache
@@ -401,38 +408,38 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 
 
 def test_main(mocker: MockerFixture, capsys: CaptureFixture) -> None:
-    run_mock = mocker.patch('grizzly_cli.__main__.run', side_effect=[0])
-    build_mock = mocker.patch('grizzly_cli.__main__.build', side_effect=[1337])
+    local_mock = mocker.patch('grizzly_cli.__main__.local', side_effect=[0])
+    dist_mock = mocker.patch('grizzly_cli.__main__.distributed', side_effect=[1337])
     init_mock = mocker.patch('grizzly_cli.__main__.init', side_effect=[7331])
     mocker.patch('grizzly_cli.__main__._parse_arguments', side_effect=[
-        Namespace(category='run'),
-        Namespace(category='build'),
-        Namespace(category='init'),
-        Namespace(category='foobar'),
+        Namespace(command='local'),
+        Namespace(command='dist'),
+        Namespace(command='init'),
+        Namespace(command='foobar'),
         KeyboardInterrupt,
         ValueError('hello there'),
     ],)
 
     assert main() == 0
-    assert run_mock.call_count == 1
-    assert build_mock.call_count == 0
+    assert local_mock.call_count == 1
+    assert dist_mock.call_count == 0
     assert init_mock.call_count == 0
 
     assert main() == 1337
-    assert run_mock.call_count == 1
-    assert build_mock.call_count == 1
+    assert local_mock.call_count == 1
+    assert dist_mock.call_count == 1
     assert init_mock.call_count == 0
 
     assert main() == 7331
-    assert run_mock.call_count == 1
-    assert build_mock.call_count == 1
+    assert local_mock.call_count == 1
+    assert dist_mock.call_count == 1
     assert init_mock.call_count == 1
 
     assert main() == 1
 
     capture = capsys.readouterr()
     assert capture.err == ''
-    assert capture.out == '\nunknown subcommand foobar\n\n!! aborted grizzly-cli\n'
+    assert capture.out == '\nunknown command foobar\n\n!! aborted grizzly-cli\n'
 
     assert main() == 1
 

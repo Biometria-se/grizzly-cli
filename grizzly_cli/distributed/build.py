@@ -5,18 +5,16 @@ from argparse import Namespace as Arguments
 from getpass import getuser
 from socket import gethostbyname, gaierror
 
-from .utils import get_dependency_versions, requirements, run_command
-from .argparse import ArgumentSubParser
-from . import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT, register_parser
+from ..utils import get_dependency_versions, requirements, run_command
+from ..argparse import ArgumentSubParser
+from .. import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
 
 
-@register_parser(order=2)
 def create_parser(sub_parser: ArgumentSubParser) -> None:
-    # grizzly-cli build ...
+    # grizzly-cli dist build ...
     build_parser = sub_parser.add_parser('build', description=(
-        'build grizzly compose project container image. this command is only applicable if grizzly '
-        'should run distributed and is used to pre-build the container images. if worker nodes runs '
-        'on different physical computers, it is mandatory to build the images before hand and push to a registry.'
+        'build grizzly compose project container image before running test. if worker nodes runs on different physical '
+        'computers, it is mandatory to build the images before hand and push to a registry.'
         '\n\n'
         'if image includes IBM MQ native dependencies, the build time increases due to download times. it is possible '
         'to self-host the archive and override the download host with environment variable `IBM_MQ_LIB_HOST`.'
@@ -35,8 +33,8 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         help='push built image to this registry, if the registry has authentication you need to login first',
     )
 
-    if build_parser.prog != 'grizzly-cli build':  # pragma: no cover
-        build_parser.prog = 'grizzly-cli build'
+    if build_parser.prog != 'grizzly-cli dist build':  # pragma: no cover
+        build_parser.prog = 'grizzly-cli dist build'
 
 
 def getuid() -> int:

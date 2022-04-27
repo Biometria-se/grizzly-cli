@@ -356,10 +356,10 @@ def get_default_mtu(args: Arguments) -> Optional[str]:
         return None
 
 
-def requirements(execution_context: str) -> Callable[[Callable[[Arguments], int]], Callable[[Arguments], int]]:
-    def wrapper(func: Callable[[Arguments], int]) -> Callable[[Arguments], int]:
+def requirements(execution_context: str) -> Callable[[Callable[..., int]], Callable[..., int]]:
+    def wrapper(func: Callable[..., int]) -> Callable[..., int]:
         @wraps(func)
-        def _wrapper(arguments: Arguments) -> int:
+        def _wrapper(*args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> int:
             requirements_file = path.join(getattr(func, '__value__'), 'requirements.txt')
             if not path.exists(requirements_file):
                 with open(requirements_file, 'w+') as fd:
@@ -368,7 +368,7 @@ def requirements(execution_context: str) -> Callable[[Callable[[Arguments], int]
                 print('!! created a default requirements.txt with one dependency:')
                 print('grizzly-loadtester\n')
 
-            return func(arguments)
+            return func(*args, **kwargs)
 
         # a bit ugly, but needed for testability
         setattr(func, '__value__', execution_context)
