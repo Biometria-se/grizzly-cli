@@ -408,11 +408,11 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight  #iter  #user  description
-        -----------|--------|-------|------|------|-------------|
-        02ce541f       A         1.0      1      1  scenario-1
-        91d624d8       B         1.0      1      1  scenario-2
-        -----------|--------|-------|------|------|-------------|
+        ident   weight  #iter  #user  description
+        ------|-------|------|------|-------------|
+        001        1.0      1      1  scenario-1
+        002        1.0      1      1  scenario-2
+        ------|-------|------|------|-------------|
 
     ''')
     capsys.readouterr()
@@ -493,11 +493,11 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight  #iter  #user  description
-        -----------|--------|-------|------|------|-------------|
-        02ce541f       A        10.0     50     36  scenario-1
-        91d624d8       B         1.0      5      4  scenario-2
-        -----------|--------|-------|------|------|-------------|
+        ident   weight  #iter  #user  description
+        ------|-------|------|------|-------------|
+        001       10.0     50     36  scenario-1
+        002        1.0      5      4  scenario-2
+        ------|-------|------|------|-------------|
 
     ''')
     capsys.readouterr()
@@ -561,12 +561,12 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight  #iter  #user  description
-        -----------|--------|-------|------|------|--------------------------------------------------------------------------------------|
-        5b66789b       A       100.0    500     46  scenario-1 testing a lot of stuff
-        d06b7314       B        50.0    750     23  scenario-2 testing a lot more of many different things that scenario-1 does not test
-        4a0fab3b       C         1.0     10      1  scenario-3
-        -----------|--------|-------|------|------|--------------------------------------------------------------------------------------|
+        ident   weight  #iter  #user  description
+        ------|-------|------|------|--------------------------------------------------------------------------------------|
+        001      100.0    500     46  scenario-1 testing a lot of stuff
+        002       50.0    750     23  scenario-2 testing a lot more of many different things that scenario-1 does not test
+        003        1.0     10      1  scenario-3
+        ------|-------|------|------|--------------------------------------------------------------------------------------|
 
     ''')
     capsys.readouterr()
@@ -659,15 +659,15 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight  #iter  #user  description
-        -----------|--------|-------|------|------|-------------|
-        02ce541f       A        25.0      2      1  scenario-1
-        91d624d8       B        42.0      4      1  scenario-2
-        4a0fab3b       C         8.0      1      1  scenario-3
-        62fc25f5       D        13.0      1      1  scenario-4
-        367a6eff       E         6.0      1      1  scenario-5
-        7d326458       F         6.0      1      1  scenario-6
-        -----------|--------|-------|------|------|-------------|
+        ident   weight  #iter  #user  description
+        ------|-------|------|------|-------------|
+        001       25.0      2      1  scenario-1
+        002       42.0      4      1  scenario-2
+        003        8.0      1      1  scenario-3
+        004       13.0      1      1  scenario-4
+        005        6.0      1      1  scenario-5
+        006        6.0      1      1  scenario-6
+        ------|-------|------|------|-------------|
 
     ''')
     capsys.readouterr()
@@ -695,10 +695,10 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         each scenario will execute accordingly:
 
-        identifier   symbol   weight  #iter  #user  description
-        -----------|--------|-------|------|------|-------------|
-        02ce541f       A        25.0      1      1  scenario-1
-        -----------|--------|-------|------|------|-------------|
+        ident   weight  #iter  #user  description
+        ------|-------|------|------|-------------|
+        001       25.0      1      1  scenario-1
+        ------|-------|------|------|-------------|
 
     ''')
     capsys.readouterr()
