@@ -7,7 +7,6 @@ from os import path, environ
 from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
 from argparse import Namespace as Arguments
-from operator import attrgetter
 from json import loads as jsonloads
 from functools import wraps
 from packaging import version as versioning
@@ -511,11 +510,11 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
     scenario_user_count = 0
 
-    for index, scenario in enumerate(sorted(list(grizzly_cli.SCENARIOS), key=attrgetter('name'))):
+    for index, scenario in enumerate(grizzly_cli.SCENARIOS):
         if len(scenario.steps) < 1:
             raise ValueError(f'{scenario.name} does not have any steps')
 
-        _pre_populate_scenario(scenario, index=index+1)
+        _pre_populate_scenario(scenario, index=index + 1)
 
         if index == 0:  # background_steps is only processed for first scenario in grizzly
             for step in scenario.background_steps or []:
