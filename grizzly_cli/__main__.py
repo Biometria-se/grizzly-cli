@@ -93,6 +93,8 @@ def _parse_arguments() -> argparse.Namespace:
 
         if args.registry is not None and not args.registry.endswith('/'):
             setattr(args, 'registry', f'{args.registry}/')
+    elif args.command == 'init':
+        setattr(args, 'subcommand', None)
 
     if args.subcommand == 'run':
         if args.command == 'dist':
