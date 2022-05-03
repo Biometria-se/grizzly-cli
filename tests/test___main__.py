@@ -402,6 +402,11 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert not arguments.build
         assert arguments.registry == 'gchr.io/biometria-se/'
 
+        sys.argv = ['grizzly-cli', 'init', 'test-project']
+        arguments = _parse_arguments()
+
+        assert arguments.project == 'test-project'
+        assert getattr(arguments, 'subcommand', None) is None
     finally:
         chdir(CWD)
         rmtree(test_context_root, onerror=onerror)
