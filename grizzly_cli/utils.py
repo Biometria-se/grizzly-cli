@@ -7,8 +7,6 @@ from os import path, environ
 from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
 from argparse import Namespace as Arguments
-from operator import attrgetter
-from hashlib import sha1 as sha1_hash
 from json import loads as jsonloads
 from functools import wraps
 from packaging import version as versioning
@@ -463,9 +461,9 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
     class ScenarioProperties:
         name: str
+        index: int
         identifier: str
         user: Optional[str]
-        symbol: str
         weight: float
         iterations: int
         user_count: int
@@ -473,18 +471,18 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         def __init__(
             self,
             name: str,
-            symbol: str,
+            index: int,
             weight: Optional[float] = None,
             user: Optional[str] = None,
             iterations: Optional[int] = None,
             user_count: Optional[int] = None,
         ) -> None:
             self.name = name
-            self.symbol = symbol
+            self.index = index
             self.user = user
             self.iterations = iterations or 1
             self.weight = weight or 1.0
-            self.identifier = generate_identifier(name)
+            self.identifier = f'{index:03}'
             self.user_count = user_count or 0
 
         def __str__(self) -> str:
@@ -499,30 +497,24 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
     distribution: Dict[str, ScenarioProperties] = {}
     variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
-    current_symbol = 65  # ASCII decimal for A
 
-    def _pre_populate_scenario(scenario: Scenario) -> None:
-        nonlocal current_symbol
+    def _pre_populate_scenario(scenario: Scenario, index: int) -> None:
         if scenario.name not in distribution:
             distribution[scenario.name] = ScenarioProperties(
                 name=scenario.name,
+                index=index,
                 user=None,
-                symbol=chr(current_symbol),
                 weight=None,
                 iterations=None,
             )
-            current_symbol += 1
-
-    def generate_identifier(name: str) -> str:
-        return sha1_hash(name.encode('utf-8')).hexdigest()[:8]
 
     scenario_user_count = 0
 
-    for index, scenario in enumerate(sorted(list(grizzly_cli.SCENARIOS), key=attrgetter('name'))):
+    for index, scenario in enumerate(grizzly_cli.SCENARIOS):
         if len(scenario.steps) < 1:
             raise ValueError(f'{scenario.name} does not have any steps')
 
-        _pre_populate_scenario(scenario)
+        _pre_populate_scenario(scenario, index=index + 1)
 
         if index == 0:  # background_steps is only processed for first scenario in grizzly
             for step in scenario.background_steps or []:
@@ -578,9 +570,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             raise ValueError(f'{scenario.name} will have {scenario.user_count} users to run {scenario.iterations} iterations, increase iterations or lower user count')
 
     def print_table_lines(max_length_iterations: int, max_length_users: int, max_length_description: int) -> None:
-        sys.stdout.write('-' * 10)
-        sys.stdout.write('-|-')
-        sys.stdout.write('-' * 6)
+        sys.stdout.write('-' * 5)
         sys.stdout.write('-|-')
         sys.stdout.write('-' * 6)
         sys.stdout.write('|-')
@@ -604,9 +594,8 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         max_length_users = max(len(str(scenario.user_count)), max_length_users)
 
     for scenario in distribution.values():
-        row = '{:10}   {:^6}   {:>6.1f}  {:>{}}  {:>{}}  {}'.format(
+        row = '{:5}   {:>6.1f}  {:>{}}  {:>{}}  {}'.format(
             scenario.identifier,
-            scenario.symbol,
             scenario.weight,
             scenario.iterations,
             max_length_iterations,
@@ -617,9 +606,8 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         rows.append(row)
 
     print('each scenario will execute accordingly:\n')
-    print('{:10}   {:6}   {:>6}  {:>{}}  {:>{}}  {}'.format(
-        'identifier',
-        'symbol',
+    print('{:5}   {:>6}  {:>{}}  {:>{}}  {}'.format(
+        'ident',
         'weight',
         '#iter', max_length_iterations,
         '#user', max_length_users,
