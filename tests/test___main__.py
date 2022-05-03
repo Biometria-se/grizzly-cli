@@ -44,6 +44,7 @@ def test__create_parser() -> None:
     assert getattr(init_parser, 'prog', None) == 'grizzly-cli init'
     assert sorted([option_string for action in init_parser._actions for option_string in action.option_strings]) == sorted([
         '-h', '--help',
+        '-y', '--yes',
         '--with-mq',
         '--grizzly-version',
     ])
