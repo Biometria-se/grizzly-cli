@@ -45,6 +45,14 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         help='if grizzly should be installed with IBM MQ support (external dependencies excluded)',
     )
 
+    init_parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        default=False,
+        required=False,
+        help='automagically answer yes on any questions',
+    )
+
     if init_parser.prog != 'grizzly-cli init':  # pragma: no cover
         init_parser.prog = 'grizzly-cli init'
 
@@ -82,7 +90,7 @@ def init(args: Arguments) -> int:
     layout = f'''
     {args.project}
     ├── environments
-    │   └── foobar.yaml
+    │   └── {args.project}.yaml
     ├── features
     │   ├── environment.py
     │   ├── steps
@@ -91,7 +99,13 @@ def init(args: Arguments) -> int:
     │   └── requests
     └── requirements.txt
 '''
-    ask_yes_no(f'the following structure will be created:\n{layout}\ndo you want to create grizzly project "{args.project}"?')
+
+    message = f'the following structure will be created:\n{layout}'
+
+    if not args.yes:
+        ask_yes_no(f'{message}\ndo you want to create grizzly project "{args.project}"?')
+    else:
+        print(message)
 
     # create project root
     structure = Path(path.join(EXECUTION_CONTEXT, args.project))
