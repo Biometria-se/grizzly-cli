@@ -416,7 +416,7 @@ def parse_feature_file(file: str) -> None:
     feature = feature_file_parser(file)
 
     for scenario in feature.scenarios:
-        grizzly_cli.SCENARIOS.add(scenario)
+        grizzly_cli.SCENARIOS.append(scenario)
 
 
 def find_variable_names_in_questions(file: str) -> List[str]:
