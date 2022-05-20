@@ -1,6 +1,6 @@
 import os
 
-from typing import Set, Callable, List
+from typing import Callable, List
 
 from .argparse import ArgumentSubParser
 
@@ -26,7 +26,7 @@ MOUNT_CONTEXT = os.environ.get('GRIZZLY_MOUNT_CONTEXT', EXECUTION_CONTEXT)
 
 PROJECT_NAME = os.path.basename(EXECUTION_CONTEXT)
 
-SCENARIOS: Set[Scenario] = set()
+SCENARIOS: List[Scenario] = []
 
 
 class register_parser:
