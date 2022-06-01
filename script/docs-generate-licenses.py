@@ -110,7 +110,7 @@ def main() -> int:
 
     license_table = generate_license_table()
     contents[0] = f'#{contents[0]}'
-    license_contents = ['# Licenses\n', '\n'] + contents + ['\n', '## Third party licenses\n', '\n'] + license_table[:-1]
+    license_contents = contents + ['\n', '## Third party licenses\n', '\n'] + license_table[:-1]
 
     print(''.join(license_contents))
 
