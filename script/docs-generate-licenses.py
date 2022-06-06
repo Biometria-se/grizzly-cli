@@ -43,7 +43,8 @@ def generate_license_table() -> List[str]:
 
     for license in licenses:
         name = license['Name']
-        if name.startswith('grizzly-'):
+        # https://stackoverflow.com/questions/39577984/what-is-pkg-resources-0-0-0-in-output-of-pip-freeze-command
+        if name.startswith('grizzly-') or name in ['pkg-resources']:
             continue
 
         if license['URL'] == 'UNKNOWN':
