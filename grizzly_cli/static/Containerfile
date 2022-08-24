@@ -10,13 +10,14 @@ RUN apt-get update
 FROM base as mq
 
 ARG IBM_MQ_LIB_HOST=https://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqdev/redist
+ARG IBM_MQ_LIB=9.2.5.0-IBM-MQC-Redist-LinuxX64.tar.gz
 
 RUN apt-get install -y --no-install-recommends wget
 
 ENV IBM_MQ_LIB_HOST=${IBM_MQ_LIB_HOST}
 
 RUN mkdir /tmp/mqm && cd /tmp/mqm && \
-    wget -q --show-progress ${IBM_MQ_LIB_HOST}/9.2.2.0-IBM-MQC-Redist-LinuxX64.tar.gz -O - | tar xzf -
+    wget -q --show-progress ${IBM_MQ_LIB_HOST}/${IBM_MQ_LIB} -O - | tar xzf -
 
 RUN mkdir -p /opt/mqm/inc \
     && mkdir -p /opt/mqm/lib \

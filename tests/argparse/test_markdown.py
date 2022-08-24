@@ -1,5 +1,7 @@
 import argparse
 
+from typing import cast
+
 import pytest
 
 from pytest_mock import MockerFixture
@@ -116,7 +118,7 @@ test
 
         core_formatter = parser.formatter_class(parser.prog)
 
-        usage = core_formatter._format_usage(parser.usage, parser._get_positional_actions(), parser._mutually_exclusive_groups, 'a prefix ')  # type: ignore
+        usage = core_formatter._format_usage(cast(str, parser.usage), parser._get_positional_actions(), parser._mutually_exclusive_groups, 'a prefix ')
         assert usage == '''a prefix test file
 
 '''
