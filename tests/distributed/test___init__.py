@@ -116,10 +116,11 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '3'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '3'
         assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'true'
+        assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) is None
 
         # this is set in the devcontainer
         for key in environ.keys():
-            if key.startswith('GRIZZLY_'):
+            if key.startswith('GRIZZLY_') or key.startswith('LOCUST_'):
                 del environ[key]
 
         arguments = parser.parse_args([
@@ -131,6 +132,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '--health-timeout', '8',
             '--health-retries', '30',
             '--registry', 'gchr.io/biometria-se',
+            '--wait-for-worker', '10000',
             'run',
             f'{test_context}/test.feature',
         ])
@@ -204,6 +206,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
         assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'gchr.io/biometria-se'
         assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'false'
+        assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) == '10000'
 
         # docker-compose v1
         assert distributed_run(
@@ -232,7 +235,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 
         # this is set in the devcontainer
         for key in environ.keys():
-            if key.startswith('GRIZZLY_'):
+            if key.startswith('GRIZZLY_') or key.startswith('LOCUST_'):
                 del environ[key]
 
         arguments = parser.parse_args([
@@ -244,6 +247,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '--health-interval', '10',
             '--health-timeout', '8',
             '--health-retries', '30',
+            '--wait-for-worker', '1.25 * WORKER_REPORT_INTERVAL',
             'run', f'{test_context}/test.feature',
         ])
         setattr(arguments, 'container_system', 'docker')
@@ -289,6 +293,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
+        assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) == '1.25 * WORKER_REPORT_INTERVAL'
 
     finally:
         rmtree(test_context, onerror=onerror)

@@ -78,6 +78,7 @@ def test__create_parser() -> None:
         '--health-interval',
         '--registry',
         '--tty',
+        '--wait-for-worker',
     ])
     assert sorted([action.dest for action in dist_parser._actions if len(action.option_strings) == 0]) == ['subcommand']
     assert len(dist_parser._subparsers._group_actions) == 1

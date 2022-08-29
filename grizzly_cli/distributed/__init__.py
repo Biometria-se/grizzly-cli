@@ -88,6 +88,16 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         required=False,
         help='start containers with a TTY enabled',
     )
+    dist_parser.add_argument(
+        '--wait-for-worker',
+        type=str,
+        default=None,
+        required=False,
+        help=(
+            'sets enviroment variable LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP, which tells master to wait '
+            'this amount of time for worker report'
+        )
+    )
 
     group_build = dist_parser.add_mutually_exclusive_group()
     group_build.add_argument(
@@ -140,6 +150,9 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
     if args.file is not None:
         os.environ['GRIZZLY_RUN_FILE'] = args.file
 
+    if args.wait_for_worker is not None:
+        os.environ['LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP'] = f'{args.wait_for_worker}'
+
     mtu = get_default_mtu(args)
 
     if mtu is None and os.environ.get('GRIZZLY_MTU', None) is None:
@@ -189,6 +202,9 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
         fd.write(f'COLUMNS={columns}\n'.encode('utf-8'))
         fd.write(f'LINES={lines}\n'.encode('utf-8'))
         fd.write(f'GRIZZLY_CONTAINER_TTY={os.environ["GRIZZLY_CONTAINER_TTY"]}\n'.encode('utf-8'))
+
+        if args.wait_for_worker is not None:
+            fd.write(f'LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP="{args.wait_for_worker}"'.encode('utf-8'))
 
         fd.flush()
 
