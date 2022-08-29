@@ -385,11 +385,17 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli dist -',
-                '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --wait-for-worker --force-build --build --validate-config',
+                (
+                    '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
+                    '--tty --wait-for-worker --force-build --build --validate-config'
+                ),
             ),
             (
                 'grizzly-cli dist --',
-                '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --wait-for-worker --force-build --build --validate-config',
+                (
+                    '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
+                    '--tty --wait-for-worker --force-build --build --validate-config'
+                ),
             ),
             (
                 'grizzly-cli dist --workers',
@@ -401,7 +407,10 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli dist --workers 8',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --wait-for-worker --force-build --build --validate-config build run',
+                (
+                    '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty '
+                    '--wait-for-worker --force-build --build --validate-config build run'
+                ),
             ),
             (
                 'grizzly-cli dist --workers 8 --force-build',

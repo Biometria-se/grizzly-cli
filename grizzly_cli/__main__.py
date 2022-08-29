@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 
 from shutil import which
 from typing import Tuple, Optional, List
@@ -119,9 +120,36 @@ def _parse_arguments() -> argparse.Namespace:
     return args
 
 
+def _inject_additional_arguments_from_metadata(args: argparse.Namespace) -> argparse.Namespace:
+    with open(args.file) as fd:
+        file_metadata = [line.strip().replace('# grizzly-cli ', '').split(' ') for line in fd.readlines() if line.strip().startswith('# grizzly-cli')]
+
+    if len(file_metadata) < 1:
+        return args
+
+    argv = sys.argv[1:]
+    for additional_arguments in file_metadata:
+        try:
+            if additional_arguments[0].strip().startswith('-'):
+                raise ValueError()
+
+            index = argv.index(additional_arguments[0]) + 1
+            for zindex, additional_argument in enumerate(additional_arguments[1:]):
+                argv.insert(index + zindex, additional_argument)
+        except ValueError:
+            print('?? ignoring {}'.format(' '.join(additional_arguments)))
+
+    sys.argv = sys.argv[0:1] + argv
+
+    return _parse_arguments()
+
+
 def main() -> int:
     try:
         args = _parse_arguments()
+
+        if getattr(args, 'file', None) is not None:
+            args = _inject_additional_arguments_from_metadata(args)
 
         if args.command == 'local':
             return local(args)
