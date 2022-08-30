@@ -32,13 +32,20 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         required=False,
         help='push built image to this registry, if the registry has authentication you need to login first',
     )
-    # used during development, hide from help
+    # <!-- used during development, hide from help
     build_parser.add_argument(
         '--local-install',
         action='store_true',
         default=False,
         help=SUPPRESS,
     )
+    build_parser.add_argument(
+        '--image-name',
+        type=str,
+        default=None,
+        help=SUPPRESS,
+    )
+    # used during development, hide from help -->
 
     if build_parser.prog != 'grizzly-cli dist build':  # pragma: no cover
         build_parser.prog = 'grizzly-cli dist build'
@@ -110,7 +117,10 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
 def build(args: Arguments) -> int:
     tag = getuser()
 
-    image_name = f'{PROJECT_NAME}:{tag}'
+    if args.image_name is None:
+        image_name = f'{PROJECT_NAME}:{tag}'
+    else:
+        image_name = f'{args.image_name}:{tag}'
 
     build_command = _create_build_command(
         args,
