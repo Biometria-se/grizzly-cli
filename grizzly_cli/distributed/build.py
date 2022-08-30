@@ -1,7 +1,7 @@
 import os
 
 from typing import List, cast
-from argparse import Namespace as Arguments
+from argparse import SUPPRESS, Namespace as Arguments
 from getpass import getuser
 from socket import gethostbyname, gaierror
 
@@ -32,6 +32,13 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         required=False,
         help='push built image to this registry, if the registry has authentication you need to login first',
     )
+    # used during development, hide from help
+    build_parser.add_argument(
+        '--local-install',
+        action='store_true',
+        default=False,
+        help=SUPPRESS,
+    )
 
     if build_parser.prog != 'grizzly-cli dist build':  # pragma: no cover
         build_parser.prog = 'grizzly-cli dist build'
@@ -59,6 +66,11 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
     else:
         grizzly_extra = 'base'
 
+    if args.local_install:
+        install_type = 'local'
+    else:
+        install_type = 'remote'
+
     extra_args: List[str] = []
 
     ibm_mq_lib_host = os.environ.get('IBM_MQ_LIB_HOST', None)
@@ -84,6 +96,7 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         '--ssh',
         'default',
         '--build-arg', f'GRIZZLY_EXTRA={grizzly_extra}',
+        '--build-arg', f'GRIZZLY_INSTALL_TYPE={install_type}',
         '--build-arg', f'GRIZZLY_UID={getuid()}',
         '--build-arg', f'GRIZZLY_GID={getgid()}',
         *extra_args,
@@ -115,6 +128,8 @@ def build(args: Arguments) -> int:
         build_env['DOCKER_BUILDKIT'] = '1'
 
     rc = run_command(build_command, env=build_env)
+
+    print(f'built image {image_name}')
 
     if getattr(args, 'registry', None) is None or rc != 0:
         return rc
