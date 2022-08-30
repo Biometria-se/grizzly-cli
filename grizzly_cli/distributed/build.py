@@ -39,12 +39,6 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         default=False,
         help=SUPPRESS,
     )
-    build_parser.add_argument(
-        '--image-name',
-        type=str,
-        default=None,
-        help=SUPPRESS,
-    )
     # used during development, hide from help -->
 
     if build_parser.prog != 'grizzly-cli dist build':  # pragma: no cover

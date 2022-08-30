@@ -99,6 +99,13 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         )
     )
 
+    dist_parser.add_argument(
+        '--image-name',
+        type=str,
+        default=None,
+        help='override image name, which otherwise would be the name of the directory where command is executed in',
+    )
+
     group_build = dist_parser.add_mutually_exclusive_group()
     group_build.add_argument(
         '--force-build',
@@ -161,12 +168,18 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
     columns, lines = get_terminal_size()
 
+    if args.image_name is None:
+        image_name = PROJECT_NAME
+    else:
+        image_name = args.image_name
+
     # set environment variables needed by compose files, when *-compose executes
     os.environ['GRIZZLY_MTU'] = cast(str, mtu)
     os.environ['GRIZZLY_EXECUTION_CONTEXT'] = EXECUTION_CONTEXT
     os.environ['GRIZZLY_STATIC_CONTEXT'] = STATIC_CONTEXT
     os.environ['GRIZZLY_MOUNT_CONTEXT'] = MOUNT_CONTEXT
     os.environ['GRIZZLY_PROJECT_NAME'] = PROJECT_NAME
+    os.environ['GRIZZLY_IMAGE_NAME'] = image_name
     os.environ['GRIZZLY_USER_TAG'] = tag
     os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
     os.environ['GRIZZLY_LIMIT_NOFILE'] = str(args.limit_nofile)
