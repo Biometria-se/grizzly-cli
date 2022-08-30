@@ -104,6 +104,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
         assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
         assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'grizzly-cli-test-project'
+        assert environ.get('GRIZZLY_IMAGE_NAME', None) == 'grizzly-cli-test-project'
         assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '3'
         assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) is None
@@ -133,6 +134,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '--health-retries', '30',
             '--registry', 'gchr.io/biometria-se',
             '--wait-for-worker', '10000',
+            '--image-name', 'foobar'
             'run',
             f'{test_context}/test.feature',
         ])
@@ -194,6 +196,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
         assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
         assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'grizzly-cli-test-project'
+        assert environ.get('GRIZZLY_IMAGE_NAME', None) == 'foobar'
         assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '3'
         assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) == '--foo bar --master'

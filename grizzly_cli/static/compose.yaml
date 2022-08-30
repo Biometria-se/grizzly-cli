@@ -2,7 +2,7 @@ version: '3'
 services:
   master:
     hostname: master
-    image: ${GRIZZLY_IMAGE_REGISTRY:-}${GRIZZLY_IMAGE_NAME}:${GRIZZLY_USER_TAG}
+    image: ${GRIZZLY_IMAGE_REGISTRY:-}${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
     tty: ${GRIZZLY_CONTAINER_TTY}
     ulimits:
       nofile: ${GRIZZLY_LIMIT_NOFILE}
@@ -22,7 +22,7 @@ services:
       retries: ${GRIZZLY_HEALTH_CHECK_RETRIES:-3}
 
   worker:
-    image: ${GRIZZLY_IMAGE_REGISTRY:-}${GRIZZLY_IMAGE_NAME}:${GRIZZLY_USER_TAG}
+    image: ${GRIZZLY_IMAGE_REGISTRY:-}${GRIZZLY_PROJECT_NAME}:${GRIZZLY_USER_TAG}
     tty: ${GRIZZLY_CONTAINER_TTY}
     ulimits:
       nofile: ${GRIZZLY_LIMIT_NOFILE}

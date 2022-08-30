@@ -100,10 +100,10 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
     )
 
     dist_parser.add_argument(
-        '--image-name',
+        '--project-name',
         type=str,
         default=None,
-        help='override image name, which otherwise would be the name of the directory where command is executed in',
+        help='override project name, which otherwise would be the name of the directory where command is executed in',
     )
 
     group_build = dist_parser.add_mutually_exclusive_group()
@@ -148,9 +148,14 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
     suffix = '' if args.id is None else f'-{args.id}'
     tag = getuser()
 
+    if args.project_name is None:
+        project_name = PROJECT_NAME
+    else:
+        project_name = args.project_name
+
     # default locust project
     compose_args: List[str] = [
-        '-p', f'{PROJECT_NAME}{suffix}-{tag}',
+        '-p', f'{project_name}{suffix}-{tag}',
         '-f', f'{STATIC_CONTEXT}/compose.yaml',
     ]
 
@@ -168,18 +173,12 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
     columns, lines = get_terminal_size()
 
-    if args.image_name is None:
-        image_name = PROJECT_NAME
-    else:
-        image_name = args.image_name
-
     # set environment variables needed by compose files, when *-compose executes
     os.environ['GRIZZLY_MTU'] = cast(str, mtu)
     os.environ['GRIZZLY_EXECUTION_CONTEXT'] = EXECUTION_CONTEXT
     os.environ['GRIZZLY_STATIC_CONTEXT'] = STATIC_CONTEXT
     os.environ['GRIZZLY_MOUNT_CONTEXT'] = MOUNT_CONTEXT
-    os.environ['GRIZZLY_PROJECT_NAME'] = PROJECT_NAME
-    os.environ['GRIZZLY_IMAGE_NAME'] = image_name
+    os.environ['GRIZZLY_PROJECT_NAME'] = project_name
     os.environ['GRIZZLY_USER_TAG'] = tag
     os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
     os.environ['GRIZZLY_LIMIT_NOFILE'] = str(args.limit_nofile)
@@ -240,10 +239,10 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
             return rc
 
-        if images.get(PROJECT_NAME, {}).get(tag, None) is None or args.force_build or args.build:
+        if images.get(project_name, {}).get(tag, None) is None or args.force_build or args.build:
             rc = do_build(args)
             if rc != 0:
-                print(f'!! failed to build {PROJECT_NAME}, rc={rc}')
+                print(f'!! failed to build {project_name}, rc={rc}')
                 return rc
 
         compose_scale_argument = ['--scale', f'worker={args.workers}']
@@ -280,7 +279,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
             print(template.format(
                 container_system=args.container_system,
-                project=PROJECT_NAME,
+                project=project_name,
                 suffix=suffix,
                 tag=tag,
                 node='master',
@@ -290,7 +289,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
             for worker in range(start_index, args.workers + start_index):
                 print(template.format(
                     container_system=args.container_system,
-                    project=PROJECT_NAME,
+                    project=project_name,
                     suffix=suffix,
                     tag=tag,
                     node='worker',

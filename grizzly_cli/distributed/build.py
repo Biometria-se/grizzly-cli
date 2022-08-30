@@ -111,10 +111,10 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
 def build(args: Arguments) -> int:
     tag = getuser()
 
-    if args.image_name is None:
+    if args.project_name is None:
         image_name = f'{PROJECT_NAME}:{tag}'
     else:
-        image_name = f'{args.image_name}:{tag}'
+        image_name = f'{args.project_name}:{tag}'
 
     build_command = _create_build_command(
         args,
