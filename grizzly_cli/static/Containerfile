@@ -34,16 +34,16 @@ RUN cp /tmp/mqm/inc/*.h* /opt/mqm/inc/ \
     && cp /tmp/mqm/msg/en_US/amq.cat /opt/mqm/msg/en_US/
 # mq -->
 
-# <!-- python-base-no (no extras, no local install)
+# <!-- python-base-remote (no extras, remote install)
 FROM base as python-base-remote
 ## NOOP
-# python-base (no extras) -->
+# python-base-remote (no extras) -->
 
-# <!-- python-base-yes (no extras, get code from build machine)
+# <!-- python-base-local (no extras, local install)
 FROM base as python-base-local
-# @TODO: copy whole build context
+
 COPY . /tmp/grizzly
-# python-local (get code from build machine) -->
+# python-base-local (get code from build machine) -->
 
 # <!-- python-mq (with mq extras -> pymqi)
 FROM python-base-${GRIZZLY_INSTALL_TYPE} as python-mq
@@ -53,13 +53,14 @@ COPY --from=mq /opt/mqm /opt/mqm
 ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
 # python-mq (with mq extras -> pymqi) -->
 
-# <!-- python-mq-yes (with mq extras -> pymqi, local install)
+# <!-- python-mq-local (with mq extras -> pymqi, local install)
 FROM python-mq as python-mq-local
-# python-mq-yes (with mq extras -> pymqi, local install) -->
+# NOOP
+# python-mq-local (with mq extras -> pymqi, local install) -->
 
-# <!-- python-mq-no (with mq extras -> pymqi, remote install)
+# <!-- python-mq-remote (with mq extras -> pymqi, remote install)
 FROM python-mq as python-mq-remote
-# python-mq-no (with mq extras -> pymqi, remote install) -->
+# python-mq-remote (with mq extras -> pymqi, remote install) -->
 
 # <!-- python-venv
 FROM python-${GRIZZLY_EXTRA}-${GRIZZLY_INSTALL_TYPE} AS python-venv

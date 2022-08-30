@@ -38,6 +38,7 @@ services:
     depends_on:
       master:
         condition: service_healthy
+
 networks:
   default:
     driver: bridge

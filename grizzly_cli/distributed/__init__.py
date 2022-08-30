@@ -254,6 +254,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
             'up',
             *compose_scale_argument,
             '--remove-orphans',
+            '--exit-code-from', 'master'
         ]
 
         rc = run_command(compose_command, verbose=args.verbose)
