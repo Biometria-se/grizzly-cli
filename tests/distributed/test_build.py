@@ -32,7 +32,7 @@ def test_getuid_getgid_nt(mocker: MockerFixture) -> None:
 def test__create_build_command(mocker: MockerFixture) -> None:
     mocker.patch('grizzly_cli.distributed.build.getuid', return_value=1337)
     mocker.patch('grizzly_cli.distributed.build.getgid', return_value=2147483647)
-    args = Namespace(container_system='test')
+    args = Namespace(container_system='test', local_install=False)
 
     mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', None, ), '2.8.4'))
 
@@ -43,6 +43,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         '--ssh',
         'default',
         '--build-arg', 'GRIZZLY_EXTRA=base',
+        '--build-arg', 'GRIZZLY_INSTALL_TYPE=remote',
         '--build-arg', 'GRIZZLY_UID=1337',
         '--build-arg', 'GRIZZLY_GID=2147483647',
         '-f', 'Containerfile.test',
@@ -52,6 +53,8 @@ def test__create_build_command(mocker: MockerFixture) -> None:
 
     mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', [], ), '2.8.4'))
 
+    args.local_install = True
+
     assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
         'test',
         'image',
@@ -59,6 +62,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         '--ssh',
         'default',
         '--build-arg', 'GRIZZLY_EXTRA=base',
+        '--build-arg', 'GRIZZLY_INSTALL_TYPE=local',
         '--build-arg', 'GRIZZLY_UID=1337',
         '--build-arg', 'GRIZZLY_GID=2147483647',
         '-f', 'Containerfile.test',
@@ -75,6 +79,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         '--ssh',
         'default',
         '--build-arg', 'GRIZZLY_EXTRA=mq',
+        '--build-arg', 'GRIZZLY_INSTALL_TYPE=local',
         '--build-arg', 'GRIZZLY_UID=1337',
         '--build-arg', 'GRIZZLY_GID=2147483647',
         '-f', 'Containerfile.test',
@@ -84,6 +89,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
 
     try:
         environ['IBM_MQ_LIB_HOST'] = 'https://localhost:8003'
+        args.local_install = False
 
         assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
             'test',
@@ -92,6 +98,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
             '--ssh',
             'default',
             '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_INSTALL_TYPE=remote',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '--build-arg', 'IBM_MQ_LIB_HOST=https://localhost:8003',
@@ -103,6 +110,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
         environ['IBM_MQ_LIB_HOST'] = 'http://host.docker.internal:8000'
 
         mocker.patch('grizzly_cli.distributed.build.gethostbyname', return_value='1.2.3.4')
+        args.local_install = True
 
         assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
             'test',
@@ -111,6 +119,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
             '--ssh',
             'default',
             '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_INSTALL_TYPE=local',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '--build-arg', 'IBM_MQ_LIB_HOST=http://host.docker.internal:8000',
@@ -129,6 +138,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
             '--ssh',
             'default',
             '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_INSTALL_TYPE=local',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '--build-arg', 'IBM_MQ_LIB_HOST=http://host.docker.internal:8000',
@@ -140,6 +150,8 @@ def test__create_build_command(mocker: MockerFixture) -> None:
 
         environ['IBM_MQ_LIB'] = 'mqm.tar.gz'
 
+        args.local_install = False
+
         assert _create_build_command(args, 'Containerfile.test', 'grizzly-cli:test', '/home/grizzly-cli/') == [
             'test',
             'image',
@@ -147,6 +159,7 @@ def test__create_build_command(mocker: MockerFixture) -> None:
             '--ssh',
             'default',
             '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_INSTALL_TYPE=remote',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '--build-arg', 'IBM_MQ_LIB_HOST=http://host.docker.internal:8000',
@@ -182,7 +195,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         run_command = mocker.patch('grizzly_cli.distributed.build.run_command', side_effect=[254, 133, 0, 1, 0, 0, 2, 0, 0, 0])
         setattr(getattr(build, '__wrapped__'), '__value__', str(test_context))
 
-        test_args = Namespace(container_system='test', force_build=False)
+        test_args = Namespace(container_system='test', force_build=False, project_name=None, local_install=False)
 
         static_context = path.realpath(path.join(path.dirname(getfile(_create_build_command)), '..', 'static'))
 
@@ -193,6 +206,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         assert capture.out == (
             '!! created a default requirements.txt with one dependency:\n'
             'grizzly-loadtester\n\n'
+            'built image grizzly-scenarios:test-user\n'
         )
         assert run_command.call_count == 1
         args, kwargs = run_command.call_args_list[-1]
@@ -204,6 +218,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             '--ssh',
             'default',
             '--build-arg', 'GRIZZLY_EXTRA=base',
+            '--build-arg', 'GRIZZLY_INSTALL_TYPE=remote',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '-f', f'{static_context}/Containerfile',
@@ -215,7 +230,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         assert actual_env is not None
         assert actual_env.get('DOCKER_BUILDKIT', None) == environ.get('DOCKER_BUILDKIT', None)
 
-        test_args = Namespace(container_system='docker', force_build=True)
+        test_args = Namespace(container_system='docker', force_build=True, local_install=True, project_name='foobar')
 
         mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', ['mq', 'dev'], ), '2.8.4'))
 
@@ -230,26 +245,36 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             '--ssh',
             'default',
             '--build-arg', 'GRIZZLY_EXTRA=mq',
+            '--build-arg', 'GRIZZLY_INSTALL_TYPE=local',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
             '-f', f'{static_context}/Containerfile',
-            '-t', 'grizzly-scenarios:test-user',
+            '-t', 'foobar:test-user',
             str(test_context),
             '--no-cache'
         ]
+
+        capsys.readouterr()
 
         actual_env = kwargs.get('env', None)
         assert actual_env is not None
         assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
 
         image_name = 'grizzly-scenarios:test-user'
-        test_args = Namespace(container_system='docker', force_build=False, registry='ghcr.io/biometria-se/')
+        test_args = Namespace(
+            container_system='docker',
+            force_build=False,
+            local_install=False,
+            project_name=None,
+            registry='ghcr.io/biometria-se/',
+        )
 
         assert build(test_args) == 1
 
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
+            f'built image {image_name}\n'
             f'\n!! failed to tag image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
         )
 
@@ -267,13 +292,25 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         actual_env = kwargs.get('env', None)
         assert actual_env.get('DOCKER_BUILDKIT', None) == '1'
 
-        test_args = Namespace(container_system='docker', force_build=True, no_cache=True, build=True, registry='ghcr.io/biometria-se/')
+        test_args = Namespace(
+            container_system='docker',
+            force_build=True,
+            no_cache=True,
+            build=True,
+            registry='ghcr.io/biometria-se/',
+            project_name='foobar',
+            local_install=True,
+        )
 
+        image_name = 'foobar:test-user'
         assert build(test_args) == 2
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == f'\n!! failed to push image ghcr.io/biometria-se/{image_name}\n'
+        assert capture.out == (
+            f'built image {image_name}\n'
+            f'\n!! failed to push image ghcr.io/biometria-se/{image_name}\n'
+        )
 
         assert run_command.call_count == 7
 
@@ -292,7 +329,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == ''
+        assert capture.out == f'built image {image_name}\n'
     finally:
         chdir(CWD)
         rmtree(test_context, onerror=onerror)

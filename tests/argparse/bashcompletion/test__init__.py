@@ -380,21 +380,21 @@ class TestBashCompleteAction:
                 'grizzly-cli dist',
                 (
                     '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --wait-for-worker --force-build --build --validate-config build run'
+                    '--tty --wait-for-worker --project-name --force-build --build --validate-config build run'
                 )
             ),
             (
                 'grizzly-cli dist -',
                 (
                     '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --wait-for-worker --force-build --build --validate-config'
+                    '--tty --wait-for-worker --project-name --force-build --build --validate-config'
                 ),
             ),
             (
                 'grizzly-cli dist --',
                 (
                     '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --wait-for-worker --force-build --build --validate-config'
+                    '--tty --wait-for-worker --project-name --force-build --build --validate-config'
                 ),
             ),
             (
@@ -409,12 +409,15 @@ class TestBashCompleteAction:
                 'grizzly-cli dist --workers 8',
                 (
                     '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty '
-                    '--wait-for-worker --force-build --build --validate-config build run'
+                    '--wait-for-worker --project-name --force-build --build --validate-config build run'
                 ),
             ),
             (
                 'grizzly-cli dist --workers 8 --force-build',
-                '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty --wait-for-worker build run',
+                (
+                    '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty '
+                    '--wait-for-worker --project-name build run'
+                ),
             ),
         ],
     )

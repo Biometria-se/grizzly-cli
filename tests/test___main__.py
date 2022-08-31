@@ -78,6 +78,7 @@ def test__create_parser() -> None:
         '--health-timeout',
         '--health-retries',
         '--health-interval',
+        '--project-name',
         '--registry',
         '--tty',
         '--wait-for-worker',
@@ -95,6 +96,7 @@ def test__create_parser() -> None:
     assert getattr(dist_build_parser, 'prog', None) == 'grizzly-cli dist build'
     assert sorted([option_string for action in dist_build_parser._actions for option_string in action.option_strings]) == sorted([
         '-h', '--help',
+        '--local-install',
         '--no-cache',
         '--registry',
     ])

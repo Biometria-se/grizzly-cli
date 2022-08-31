@@ -104,7 +104,6 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
         assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
         assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'grizzly-cli-test-project'
-        assert environ.get('GRIZZLY_IMAGE_NAME', None) == 'grizzly-cli-test-project'
         assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '3'
         assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) is None
@@ -134,7 +133,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '--health-retries', '30',
             '--registry', 'gchr.io/biometria-se',
             '--wait-for-worker', '10000',
-            '--image-name', 'foobar'
+            '--project-name', 'foobar',
             'run',
             f'{test_context}/test.feature',
         ])
@@ -159,33 +158,34 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert capture.err == ''
         assert capture.out == (
             '\n!! something went wrong, check container logs with:\n'
-            'docker container logs grizzly-cli-test-project-test-user-master-1\n'
-            'docker container logs grizzly-cli-test-project-test-user-worker-2\n'
-            'docker container logs grizzly-cli-test-project-test-user-worker-3\n'
-            'docker container logs grizzly-cli-test-project-test-user-worker-4\n'
+            'docker container logs foobar-test-user-master-1\n'
+            'docker container logs foobar-test-user-worker-2\n'
+            'docker container logs foobar-test-user-worker-3\n'
+            'docker container logs foobar-test-user-worker-4\n'
         )
 
         assert run_command_mock.call_count == 5
         args, _ = run_command_mock.call_args_list[-3]
         assert args[0] == [
             'docker-compose',
-            '-p', 'grizzly-cli-test-project-test-user',
+            '-p', 'foobar-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'config',
         ]
         args, _ = run_command_mock.call_args_list[-2]
         assert args[0] == [
             'docker-compose',
-            '-p', 'grizzly-cli-test-project-test-user',
+            '-p', 'foobar-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'up',
             '--scale', 'worker=3',
             '--remove-orphans',
+            '--exit-code-from', 'master',
         ]
         args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
             'docker-compose',
-            '-p', 'grizzly-cli-test-project-test-user',
+            '-p', 'foobar-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'stop',
         ]
@@ -195,8 +195,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/tmp/execution-context'
         assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
         assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
-        assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'grizzly-cli-test-project'
-        assert environ.get('GRIZZLY_IMAGE_NAME', None) == 'foobar'
+        assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'foobar'
         assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '3'
         assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) == '--foo bar --master'
@@ -210,6 +209,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'gchr.io/biometria-se'
         assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'false'
         assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) == '10000'
+
+        arguments.project_name = None
 
         # docker-compose v1
         assert distributed_run(
