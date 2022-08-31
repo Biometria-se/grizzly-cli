@@ -380,7 +380,7 @@ class TestBashCompleteAction:
                 'grizzly-cli dist',
                 (
                     '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --wait-for-worker --project-name --force-build --build --validate-config build run'
+                    '--tty --wait-for-worker --project-name --force-build --build --validate-config build clean run'
                 )
             ),
             (
@@ -409,14 +409,14 @@ class TestBashCompleteAction:
                 'grizzly-cli dist --workers 8',
                 (
                     '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty '
-                    '--wait-for-worker --project-name --force-build --build --validate-config build run'
+                    '--wait-for-worker --project-name --force-build --build --validate-config build clean run'
                 ),
             ),
             (
                 'grizzly-cli dist --workers 8 --force-build',
                 (
                     '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty '
-                    '--wait-for-worker --project-name build run'
+                    '--wait-for-worker --project-name build clean run'
                 ),
             ),
         ],
@@ -437,6 +437,128 @@ class TestBashCompleteAction:
 
             assert subparser is not None
             assert subparser.prog == 'grizzly-cli dist'
+
+            with pytest.raises(SystemExit):
+                subparser.parse_args([f'--bash-complete={input}'])
+            capture = capsys.readouterr()
+            assert capture.out == f'{expected}\n'
+        except:
+            print(f'input={input}')
+            print(f'expected={expected}')
+            if capture is not None:
+                print(f'actual={capture.out}')
+            raise
+        finally:
+            chdir(CWD)
+
+    @pytest.mark.parametrize(
+        'input,expected',
+        [
+            (
+                'grizzly-cli dist build',
+                '-h --help --no-cache --registry',
+            ),
+            (
+                'grizzly-cli dist build --',
+                '--help --no-cache --registry',
+            ),
+            (
+                'grizzly-cli dist build --help',
+                '',
+            ),
+            (
+                'grizzly-cli dist build --no-cache',
+                '-h --help --registry',
+            ),
+            (
+                'grizzly-cli dist build --no-cache --registry',
+                '',
+            ),
+            (
+                'grizzly-cli dist build --no-cache --registry asdf',
+                '-h --help',
+            ),
+        ],
+    )
+    def test___call__dist_build(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+        capture: Optional[CaptureResult] = None
+
+        try:
+            parser = _create_parser()
+            hook(parser)
+            _subparsers = getattr(parser, '_subparsers', None)
+            assert _subparsers is not None
+            subparser: Optional[argparse.ArgumentParser]
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'dist':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli dist'
+
+            _subparsers = getattr(subparser, '_subparsers', None)
+            assert _subparsers is not None
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'build':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli dist build'
+
+            with pytest.raises(SystemExit):
+                subparser.parse_args([f'--bash-complete={input}'])
+            capture = capsys.readouterr()
+            assert capture.out == f'{expected}\n'
+        except:
+            print(f'input={input}')
+            print(f'expected={expected}')
+            if capture is not None:
+                print(f'actual={capture.out}')
+            raise
+        finally:
+            chdir(CWD)
+
+    @pytest.mark.parametrize(
+        'input,expected',
+        [
+            (
+                'grizzly-cli dist clean',
+                '-h --help --no-images --no-networks',
+            ),
+            (
+                'grizzly-cli dist clean --no',
+                '--no-images --no-networks',
+            ),
+        ],
+    )
+    def test___call__dist_clean(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+        capture: Optional[CaptureResult] = None
+
+        try:
+            parser = _create_parser()
+            hook(parser)
+            _subparsers = getattr(parser, '_subparsers', None)
+            assert _subparsers is not None
+            subparser: Optional[argparse.ArgumentParser]
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'dist':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli dist'
+
+            _subparsers = getattr(subparser, '_subparsers', None)
+            assert _subparsers is not None
+            for subparsers in _subparsers._group_actions:
+                for name, subparser in subparsers.choices.items():
+                    if name == 'clean':
+                        break
+
+            assert subparser is not None
+            assert subparser.prog == 'grizzly-cli dist clean'
 
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])

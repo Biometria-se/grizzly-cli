@@ -67,7 +67,7 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
     else:
         grizzly_extra = 'base'
 
-    if args.local_install:
+    if getattr(args, 'local_install', False):
         install_type = 'local'
     else:
         install_type = 'remote'
