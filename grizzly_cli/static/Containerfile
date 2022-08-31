@@ -1,4 +1,5 @@
 ARG GRIZZLY_EXTRA=base
+ARG GRIZZLY_INSTALL_TYPE=remote
 
 FROM python:3.10-slim as base
 
@@ -33,21 +34,36 @@ RUN cp /tmp/mqm/inc/*.h* /opt/mqm/inc/ \
     && cp /tmp/mqm/msg/en_US/amq.cat /opt/mqm/msg/en_US/
 # mq -->
 
-# <!-- python-base (no extras)
-FROM base as python-base
+# <!-- python-base-remote (no extras, remote install)
+FROM base as python-base-remote
 ## NOOP
-# python-base (no extras) -->
+# python-base-remote (no extras) -->
+
+# <!-- python-base-local (no extras, local install)
+FROM base as python-base-local
+
+COPY . /tmp/grizzly
+# python-base-local (get code from build machine) -->
 
 # <!-- python-mq (with mq extras -> pymqi)
-FROM python-base as python-mq
+FROM python-base-${GRIZZLY_INSTALL_TYPE} as python-mq
 
 COPY --from=mq /opt/mqm /opt/mqm
 
 ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
 # python-mq (with mq extras -> pymqi) -->
 
-# <!-- python
-FROM python-${GRIZZLY_EXTRA} AS python
+# <!-- python-mq-local (with mq extras -> pymqi, local install)
+FROM python-mq as python-mq-local
+# NOOP
+# python-mq-local (with mq extras -> pymqi, local install) -->
+
+# <!-- python-mq-remote (with mq extras -> pymqi, remote install)
+FROM python-mq as python-mq-remote
+# python-mq-remote (with mq extras -> pymqi, remote install) -->
+
+# <!-- python-venv
+FROM python-${GRIZZLY_EXTRA}-${GRIZZLY_INSTALL_TYPE} AS python-venv
 
 RUN apt-get install -y --no-install-recommends \
     openssh-client \
@@ -69,10 +85,38 @@ RUN python -m venv /venv
 
 ENV PATH="/venv/bin:$PATH"
 
+# python-venv -->
+
+# <!-- python-venv-base-local (no mq extras, local install)
+FROM python-venv as python-venv-base-local
+
+RUN python -m pip --disable-pip-version-check --no-cache-dir install /tmp/grizzly
+# python-venv-base-local (no mq extras, local install) -->
+
+# <!-- python-venv-mq-local (mq extras, local install)
+FROM python-venv as python-venv-mq-local
+
+RUN python -m pip --disable-pip-version-check --no-cache-dir install /tmp/grizzly[mq]
+# python-venv-mq-local (mq extras, local install) -->
+
+# <!-- python-venv-base-remote (no mq extras, remote install)
+FROM python-venv as python-venv-base-remote
+
 COPY requirements.txt /tmp
 
-RUN --mount=type=ssh GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' pip --disable-pip-version-check --no-cache-dir install -r /tmp/requirements.txt
-# python -->
+RUN --mount=type=ssh GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' python -m pip --disable-pip-version-check --no-cache-dir install -r /tmp/requirements.txt
+# python-venv-base-remote (no mq extras, remote install) -->
+
+
+# <!-- python-venv-mq-remote (no mq extras, remote install)
+FROM python-venv-base-remote as python-venv-mq-remote
+# NOOP, same as without mq extras, installed from requirements.txt
+# python-venv-mq-remote (no mq extras, remote install) -->
+
+# <!-- python (simple reference to copy from)
+FROM python-venv-${GRIZZLY_EXTRA}-${GRIZZLY_INSTALL_TYPE} as python
+# NOOP
+# python (simple reference to copy from) -->
 
 # <!-- entrypoint
 FROM base AS entrypoint
