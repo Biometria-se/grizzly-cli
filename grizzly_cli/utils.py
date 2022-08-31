@@ -485,16 +485,6 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             self.identifier = f'{index:03}'
             self.user_count = user_count or 0
 
-        def __str__(self) -> str:
-            values: List[str] = []
-            for key, value in self.__dict__.items():
-                if key.startswith('_'):
-                    continue
-
-                values.append(f'{key}={value}')
-
-            return f'<{self.__class__.__name__}: {", ".join(values)}>'
-
     distribution: Dict[str, ScenarioProperties] = {}
     variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
 

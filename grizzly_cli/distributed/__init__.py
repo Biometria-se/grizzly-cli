@@ -16,6 +16,7 @@ from ..utils import (
     list_images,
 )
 from .build import build as do_build, create_parser as build_create_parser
+from .clean import clean as do_clean, create_parser as clean_create_parser
 from ..run import create_parser as run_create_parser, run
 from ..argparse import ArgumentSubParser
 
@@ -132,6 +133,7 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
     sub_parser = dist_parser.add_subparsers(dest='subcommand')
 
     build_create_parser(sub_parser)
+    clean_create_parser(sub_parser)
     run_create_parser(sub_parser, parent='dist')
 
 
@@ -140,6 +142,8 @@ def distributed(args: Arguments) -> int:
         return run(args, distributed_run)
     elif args.subcommand == 'build':
         return do_build(args)
+    elif args.subcommand == 'clean':
+        return do_clean(args)
     else:
         raise ValueError(f'unknown subcommand {args.subcommand}')
 
@@ -235,7 +239,9 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
         if validate_config or rc != 0:
             if rc != 0 and not validate_config:
                 print('!! something in the compose project is not valid, check with:')
-                print(f'grizzly-cli {" ".join(sys.argv[1:])} --validate-config')
+                argv = sys.argv[:]
+                argv.insert(argv.index('dist') + 1, '--validate-config')
+                print(f'grizzly-cli {" ".join(argv[1:])}')
 
             return rc
 

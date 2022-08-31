@@ -1,3 +1,5 @@
+import sys
+
 from shutil import rmtree
 from os import getcwd, environ
 from tempfile import gettempdir
@@ -19,6 +21,7 @@ CWD = getcwd()
 def test_distributed(mocker: MockerFixture) -> None:
     run_mocked = mocker.patch('grizzly_cli.distributed.run', return_value=0)
     build_mocked = mocker.patch('grizzly_cli.distributed.do_build', return_value=5)
+    clean_mocked = mocker.patch('grizzly_cli.distributed.do_clean', return_value=10)
 
     arguments = Namespace(subcommand='run')
     assert distributed(arguments) == 0
@@ -29,13 +32,24 @@ def test_distributed(mocker: MockerFixture) -> None:
     assert args[1] is distributed_run
 
     assert build_mocked.call_count == 0
+    assert clean_mocked.call_count == 0
 
     arguments = Namespace(subcommand='build')
     assert distributed(arguments) == 5
 
     assert run_mocked.call_count == 1
     assert build_mocked.call_count == 1
+    assert clean_mocked.call_count == 0
     args, _ = build_mocked.call_args_list[0]
+    assert args[0] is arguments
+
+    arguments = Namespace(subcommand='clean')
+    assert distributed(arguments) == 10
+
+    assert run_mocked.call_count == 1
+    assert build_mocked.call_count == 1
+    assert clean_mocked.call_count == 1
+    args, _ = clean_mocked.call_args_list[0]
     assert args[0] is arguments
 
     arguments = Namespace(subcommand='foo')
@@ -70,7 +84,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     create_parser(sub_parsers)
 
     try:
-        arguments = parser.parse_args(['dist', '--workers', '3', '--tty', 'run', f'{test_context}/test.feature'])
+        sys.argv = ['grizzly-cli', 'dist', '--workers', '3', '--tty', 'run', f'{test_context}/test.feature']
+        arguments = parser.parse_args()
         setattr(arguments, 'container_system', 'docker')
 
         # this is set in the devcontainer
@@ -80,11 +95,10 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 
         assert distributed_run(arguments, {}, {}) == 111
         capture = capsys.readouterr()
-        import sys
         assert capture.err == ''
         assert capture.out == (
             '!! something in the compose project is not valid, check with:\n'
-            f'grizzly-cli {" ".join(sys.argv[1:])} --validate-config\n'
+            f'grizzly-cli dist --validate-config --workers 3 --tty run {test_context}/test.feature\n'
         )
 
         try:

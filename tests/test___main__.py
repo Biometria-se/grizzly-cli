@@ -88,7 +88,7 @@ def test__create_parser() -> None:
     dist_subparser = dist_parser._subparsers._group_actions[0]
     assert dist_subparser is not None
     assert dist_subparser.choices is not None
-    assert list(cast(Dict[str, Optional[CoreArgumentParser]], dist_subparser.choices).keys()) == ['build', 'run']
+    assert list(cast(Dict[str, Optional[CoreArgumentParser]], dist_subparser.choices).keys()) == ['build', 'clean', 'run']
 
     dist_build_parser = cast(Dict[str, Optional[CoreArgumentParser]], dist_subparser.choices).get('build', None)
     assert dist_build_parser is not None
@@ -99,6 +99,16 @@ def test__create_parser() -> None:
         '--local-install',
         '--no-cache',
         '--registry',
+    ])
+
+    dist_clean_parser = cast(Dict[str, Optional[CoreArgumentParser]], dist_subparser.choices).get('clean', None)
+    assert dist_clean_parser is not None
+    assert dist_clean_parser._subparsers is None
+    assert getattr(dist_clean_parser, 'prog', None) == 'grizzly-cli dist clean'
+    assert sorted([option_string for action in dist_clean_parser._actions for option_string in action.option_strings]) == sorted([
+        '-h', '--help',
+        '--no-images',
+        '--no-networks'
     ])
 
     # grizzly-cli ... run
