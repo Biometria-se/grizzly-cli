@@ -183,5 +183,7 @@ FROM grizzly-${GRIZZLY_EXTRA} as grizzly
 
 USER grizzly
 
+WORKDIR /srv/grizzly
+
 ENTRYPOINT ["./grizzly-entrypoint.sh"]
 # grizzly -->
