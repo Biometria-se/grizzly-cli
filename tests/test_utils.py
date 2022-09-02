@@ -223,15 +223,15 @@ def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -
     which = mocker.patch('grizzly_cli.utils.which', side_effect=[
         None,               # test 1
         None,               # - " -
+        None,
         'podman',           # test 2
         None,               # - " -
+        None,
         'podman',           # test 3
         'podman-compose',   # - " -
-        None,               # test 4
-        'docker',           # - " -
-        None,               # - " -
-        None,               # test 5
-        'docker',           # - " -
+        'docker',           # test 4
+        None,
+        'docker',           # test 5
         'docker-compose',   # - " -
     ])
 
@@ -245,7 +245,7 @@ def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -
     # test 2
     assert get_distributed_system() is None
     capture = capsys.readouterr()
-    assert which.call_count == 2
+    assert which.call_count == 3
     assert capture.out == (
         '!! podman might not work due to buildah missing support for `RUN --mount=type=ssh`: https://github.com/containers/buildah/issues/2835\n'
         '"podman-compose" not found in PATH\n'
@@ -255,7 +255,7 @@ def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -
     # test 3
     assert get_distributed_system() == 'podman'
     capture = capsys.readouterr()
-    assert which.call_count == 2
+    assert which.call_count == 3
     assert capture.out == (
         '!! podman might not work due to buildah missing support for `RUN --mount=type=ssh`: https://github.com/containers/buildah/issues/2835\n'
     )
@@ -264,7 +264,7 @@ def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -
     # test 4
     assert get_distributed_system() is None
     capture = capsys.readouterr()
-    assert which.call_count == 3
+    assert which.call_count == 2
     assert capture.out == (
         '"docker-compose" not found in PATH\n'
     )
@@ -273,7 +273,7 @@ def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -
     # test 5
     assert get_distributed_system() == 'docker'
     capture = capsys.readouterr()
-    assert which.call_count == 3
+    assert which.call_count == 2
     assert capture.out == ''
     which.reset_mock()
 

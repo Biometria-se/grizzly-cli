@@ -150,13 +150,13 @@ you cannot belive it, it's another sentence.
 '''
         print(formatter._format_text(text))
         assert formatter._format_text(text) == '''test-prog is awesome!
-Also, here is a sentence. And here is another one!
+also, here is a sentence. and here is another one!
 
 ```bash
 hostname -f
 ```
 
-You cannot belive it, it's another sentence.
+you cannot belive it, it's another sentence.
 '''
 
     def test_start_section(self) -> None:

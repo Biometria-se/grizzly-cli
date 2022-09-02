@@ -378,11 +378,11 @@ def requirements(execution_context: str) -> Callable[[Callable[..., int]], Calla
 
 
 def get_distributed_system() -> Optional[str]:
-    if which('podman') is not None:
+    if which('docker') is not None:
+        container_system = 'docker'
+    elif which('podman') is not None:
         container_system = 'podman'
         print('!! podman might not work due to buildah missing support for `RUN --mount=type=ssh`: https://github.com/containers/buildah/issues/2835')
-    elif which('docker') is not None:
-        container_system = 'docker'
     else:
         print('neither "podman" nor "docker" found in PATH')
         return None
