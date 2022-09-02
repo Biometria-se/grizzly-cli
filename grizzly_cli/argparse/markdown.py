@@ -1,7 +1,7 @@
 from typing import Any, List, Union, Sequence, Optional, Tuple, Callable
 from types import MethodType
 from argparse import Action, SUPPRESS, ArgumentParser, Namespace, HelpFormatter
-from re import split as resplit
+from textwrap import fill as textwrap_fill
 
 
 __all__ = [
@@ -187,31 +187,10 @@ class MarkdownFormatter(HelpFormatter):
         if '%(prog)' in text:
             text = text % dict(prog=self._prog)
 
-        # in markdown, it will look better if we have first upper case on the first word in the sentence
-        # sentence = string that ends with dot .
         if len(text.strip()) > 0:
             lines: List[str] = []
-            in_code_block = False
             for line in text.split('\n'):
-                sentences: List[str] = []
-
-                # do not to upper the first letter of the first word in a
-                # sentence if we're in a code block
-                if line.strip().startswith('```'):
-                    in_code_block = not in_code_block
-
-                for sentence in resplit(r'[?\.!:;]', line):
-                    if len(sentence.strip()) > 0 and not in_code_block and sentence != line:
-                        index = line.index(sentence)
-                        sentence_end = line[len(sentence) + index]
-                        if not sentence.startswith(self._prog):
-                            index = len(sentence) - len(sentence.lstrip())
-                            sentence = f'{sentence[:index]}{sentence[index].upper()}{sentence[index+1:]}'
-                        sentence = f'{sentence}{sentence_end}'
-
-                    sentences.append(sentence)
-
-                line = ''.join(sentences)
+                line = textwrap_fill(line, 120)
                 lines.append(line)
             text = '\n'.join(lines)
 

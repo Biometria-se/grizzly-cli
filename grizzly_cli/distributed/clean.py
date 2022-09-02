@@ -12,8 +12,8 @@ from .. import PROJECT_NAME, STATIC_CONTEXT
 def create_parser(sub_parser: ArgumentSubParser) -> None:
     # grizzly-cli dist clean ...
     clean_parser = sub_parser.add_parser('clean', description=(
-        'clean all grizzly compose project resources; containers, images, networks, volumes'
-    ))
+        'clean all grizzly compose project resources; containers, images, networks and volumes'
+    ),)
 
     clean_parser.add_argument(
         '--no-images',
