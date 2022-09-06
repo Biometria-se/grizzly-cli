@@ -185,5 +185,5 @@ USER grizzly
 
 WORKDIR /srv/grizzly
 
-ENTRYPOINT ["./grizzly-entrypoint.sh"]
+ENTRYPOINT ["/grizzly-entrypoint.sh"]
 # grizzly -->
