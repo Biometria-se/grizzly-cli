@@ -44,7 +44,7 @@ jobs:
       run: python -m flake8
 
   test-and-coverage:
-    name: test-and-coverage/${{ matrix.runs-on }}-python-${{ matrix.python-version }}
+    name: "test-and-coverage / ${{ matrix.runs-on }} / python-${{ matrix.python-version }}"
     runs-on: ${{ matrix.runs-on }}
 
     strategy:
@@ -90,7 +90,7 @@ jobs:
       run: python -m coverage report --fail-under=95
 
   documentation-scripts:
-    name: "documentation/${{ matrix.script }}"
+    name: "documentation / ${{ matrix.script }}"
     runs-on: 'ubuntu-latest'
 
     strategy:
