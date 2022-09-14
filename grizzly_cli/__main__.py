@@ -54,6 +54,10 @@ def _parse_arguments() -> argparse.Namespace:
     parser = _create_parser()
     args = parser.parse_args()
 
+    if hasattr(args, 'file'):
+        # needed to support file names with spaces, which is escaped (sh-style)
+        setattr(args, 'file', ' '.join(args.file))
+
     if args.version:
         if __version__ == '0.0.0':
             version = '(development)'
@@ -152,13 +156,15 @@ def main() -> int:
             args = _inject_additional_arguments_from_metadata(args)
 
         if args.command == 'local':
-            return local(args)
+            rc = local(args)
         elif args.command == 'dist':
-            return distributed(args)
+            rc = distributed(args)
         elif args.command == 'init':
-            return init(args)
+            rc = init(args)
         else:
             raise ValueError(f'unknown command {args.command}')
+
+        return rc
     except (KeyboardInterrupt, ValueError) as e:
         print('')
         if isinstance(e, ValueError):

@@ -1,6 +1,9 @@
 **/__pycache__
 **/.mypy_cache
 **/.pytest_cache
+**/*.prof
+**/*.lprof
+**/*.svg
 *.egg-info/
 build/
 dist/

@@ -58,8 +58,9 @@ class ArgumentParser(CoreArgumentParser):
             self._actions = original_actions
 
     def parse_args(self, args: Optional[Sequence[str]] = None, namespace: Optional[Namespace] = None) -> Namespace:  # type: ignore
-        '''Hook to add `--bash-complete` to all parsers, if enabled for parser.
-        '''
+        """
+        Hook to add `--bash-complete` to all parsers, if enabled for parser.
+        """
         if self.bash_completion:
             bashcompletion_hook(self)
 
