@@ -1,3 +1,5 @@
+import sys
+
 from typing import Any, Dict, List, Union, Sequence, Optional, cast
 from argparse import (
     ArgumentParser,
@@ -168,7 +170,7 @@ class BashCompleteAction(Action):
                     continue
             elif not any([suggested_option.startswith(option) for suggested_option in suggestions.keys()]):  # could be values for an option
                 remove = True
-                if option.endswith('\\'):
+                if option.endswith('\\') and sys.platform != 'win32':
                     concat = True
                     continue
 

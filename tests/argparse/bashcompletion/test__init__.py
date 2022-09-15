@@ -230,7 +230,7 @@ class TestBashCompleteAction:
         with pytest.raises(SystemExit):
             parser.parse_args([f'--bash-complete={input}'])
         capture = capsys.readouterr()
-        assert capture.out == f'{expected}\n'
+        assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
 
     @pytest.mark.parametrize(
         'input,expected', [
@@ -290,7 +290,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -358,7 +358,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -436,7 +436,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -505,7 +505,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -558,7 +558,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')

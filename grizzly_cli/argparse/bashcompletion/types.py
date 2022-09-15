@@ -1,3 +1,5 @@
+import sys
+
 from typing import Dict, Optional
 from glob import glob
 from os import getcwd
@@ -43,7 +45,7 @@ class BashCompletionTypes:
             matches: Dict[str, str] = {}
 
             if value is not None:
-                if value.endswith('\\'):
+                if value.endswith('\\') and sys.platform != 'win32':
                     value += ' '
                 value = value.replace('\\ ', ' ').replace('\\(', '(').replace('\\)', ')')
 

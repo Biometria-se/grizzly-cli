@@ -118,7 +118,7 @@ def build(args: Arguments) -> int:
 
     build_command = _create_build_command(
         args,
-        f'{STATIC_CONTEXT}/Containerfile',
+        f'{STATIC_CONTEXT}{os.path.sep}Containerfile',
         image_name,
         EXECUTION_CONTEXT,
     )
