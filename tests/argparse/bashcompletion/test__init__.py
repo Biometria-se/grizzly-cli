@@ -45,39 +45,34 @@ def test_parser() -> ArgumentParser:
 def test_file_structure(tmp_path_factory: TempPathFactory) -> Generator[str, None, None]:
     test_context = tmp_path_factory.mktemp('test_context')
     file = test_context / 'test.txt'
-    file.touch()
     file.write_text('test.txt file')
 
     file = test_context / 'test.json'
-    file.touch()
     file.write_text('{"value": "test.json file"}')
 
     file = test_context / 'test.xml'
-    file.touch()
     file.write_text('<value>test.xml file</value>')
 
     file = test_context / 'test.yaml'
-    file.touch()
+    file.write_text('test:')
+
+    file = test_context / 'test space.yaml'
     file.write_text('test:')
 
     file = test_context / 'test.feature'
-    file.touch()
     file.write_text('Feature:')
 
     test_dir = test_context / 'test-dir'
     test_dir.mkdir()
     file = test_dir / 'test.yaml'
-    file.touch()
     file.write_text('test:')
 
     file = test_dir / 'test.feature'
-    file.touch()
     file.write_text('Feature:')
 
     hidden_dir = test_context / '.hidden'
     hidden_dir.mkdir()
     file = hidden_dir / 'hidden.txt'
-    file.touch()
     file.write_text('hidden.txt file')
 
     chdir(test_context)
@@ -222,9 +217,9 @@ class TestBashCompleteAction:
     @pytest.mark.parametrize(
         'input,expected',
         [
-            ('grizzly-cli ', '-h --help --version init local dist',),
-            ('grizzly-cli -', '-h --help --version'),
-            ('grizzly-cli --', '--help --version'),
+            ('grizzly-cli ', '-h\n--help\n--version\ninit\nlocal\ndist',),
+            ('grizzly-cli -', '-h\n--help\n--version'),
+            ('grizzly-cli --', '--help\n--version'),
             ('grizzly-cli lo', 'local'),
             ('grizzly-cli -h', ''),
         ]
@@ -235,31 +230,31 @@ class TestBashCompleteAction:
         with pytest.raises(SystemExit):
             parser.parse_args([f'--bash-complete={input}'])
         capture = capsys.readouterr()
-        assert capture.out == f'{expected}\n'
+        assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
 
     @pytest.mark.parametrize(
         'input,expected', [
-            ('grizzly-cli local run ', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file test.feature test-dir'),
-            ('grizzly-cli local run -', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file'),
-            ('grizzly-cli local run --', '--help --verbose --testdata-variable --yes --environment-file'),
-            ('grizzly-cli local run --yes', '-h --help --verbose -T --testdata-variable -e --environment-file'),
+            ('grizzly-cli local run ', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\ntest.feature\ntest-dir'),
+            ('grizzly-cli local run -', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file'),
+            ('grizzly-cli local run --', '--help\n--verbose\n--testdata-variable\n--yes\n--environment-file'),
+            ('grizzly-cli local run --yes', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file'),
             ('grizzly-cli local run --help --yes', ''),
             ('grizzly-cli local run --yes -T', ''),
-            ('grizzly-cli local run --yes -T key=value', '-h --help --verbose -T --testdata-variable -e --environment-file test.feature test-dir'),
+            ('grizzly-cli local run --yes -T key=value', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\ntest.feature\ntest-dir'),
             ('grizzly-cli local run --yes -T key=value --env', '--environment-file'),
-            ('grizzly-cli local run --yes -T key=value --environment-file', 'test.yaml test-dir'),
-            ('grizzly-cli local run --yes -T key=value --environment-file test', 'test.yaml test-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file', 'test.yaml\ntest\\ space.yaml\ntest-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test', 'test.yaml\ntest\\ space.yaml\ntest-dir'),
             ('grizzly-cli local run --yes -T key=value --environment-file test-', 'test-dir'),
-            ('grizzly-cli local run --yes -T key=value --environment-file test-dir', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test-dir', '-h\n--help\n--verbose\n-T\n--testdata-variable'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.', 'test.yaml'),
-            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml', '-h\n--help\n--verbose\n-T\n--testdata-variable'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --test', '--testdata-variable'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable', ''),
             (
                 'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value',
-                '-h --help --verbose -T --testdata-variable test.feature test-dir',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\ntest.feature\ntest-dir',
             ),
-            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature test-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature\ntest-dir'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
@@ -295,7 +290,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -307,27 +302,27 @@ class TestBashCompleteAction:
 
     @pytest.mark.parametrize(
         'input,expected', [
-            ('grizzly-cli dist run ', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file test.feature test-dir'),
-            ('grizzly-cli dist run -', '-h --help --verbose -T --testdata-variable -y --yes -e --environment-file'),
-            ('grizzly-cli dist run --', '--help --verbose --testdata-variable --yes --environment-file'),
-            ('grizzly-cli dist run --yes', '-h --help --verbose -T --testdata-variable -e --environment-file'),
+            ('grizzly-cli dist run ', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\ntest.feature\ntest-dir'),
+            ('grizzly-cli dist run -', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file'),
+            ('grizzly-cli dist run --', '--help\n--verbose\n--testdata-variable\n--yes\n--environment-file'),
+            ('grizzly-cli dist run --yes', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file'),
             ('grizzly-cli dist run --help --yes', ''),
             ('grizzly-cli dist run --yes -T', ''),
-            ('grizzly-cli dist run --yes -T key=value', '-h --help --verbose -T --testdata-variable -e --environment-file test.feature test-dir'),
+            ('grizzly-cli dist run --yes -T key=value', '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\ntest.feature\ntest-dir'),
             ('grizzly-cli dist run --yes -T key=value --env', '--environment-file'),
-            ('grizzly-cli dist run --yes -T key=value --environment-file', 'test.yaml test-dir'),
-            ('grizzly-cli dist run --yes -T key=value --environment-file test', 'test.yaml test-dir'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file', 'test.yaml\ntest\\ space.yaml\ntest-dir'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test', 'test.yaml\ntest\\ space.yaml\ntest-dir'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test-', 'test-dir'),
-            ('grizzly-cli dist run --yes -T key=value --environment-file test-dir', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test-dir', '-h\n--help\n--verbose\n-T\n--testdata-variable'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.', 'test.yaml'),
-            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml', '-h --help --verbose -T --testdata-variable'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml', '-h\n--help\n--verbose\n-T\n--testdata-variable'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --test', '--testdata-variable'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable', ''),
             (
                 'grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value',
-                '-h --help --verbose -T --testdata-variable test.feature test-dir',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\ntest.feature\ntest-dir',
             ),
-            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature test-dir'),
+            ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature\ntest-dir'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
@@ -363,7 +358,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -379,22 +374,22 @@ class TestBashCompleteAction:
             (
                 'grizzly-cli dist',
                 (
-                    '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --wait-for-worker --project-name --force-build --build --validate-config build clean run'
+                    '-h\n--help\n--workers\n--id\n--limit-nofile\n--health-retries\n--health-timeout\n--health-interval\n--registry\n'
+                    '--tty\n--wait-for-worker\n--project-name\n--force-build\n--build\n--validate-config\nbuild\nclean\nrun'
                 )
             ),
             (
                 'grizzly-cli dist -',
                 (
-                    '-h --help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --wait-for-worker --project-name --force-build --build --validate-config'
+                    '-h\n--help\n--workers\n--id\n--limit-nofile\n--health-retries\n--health-timeout\n--health-interval\n--registry\n'
+                    '--tty\n--wait-for-worker\n--project-name\n--force-build\n--build\n--validate-config'
                 ),
             ),
             (
                 'grizzly-cli dist --',
                 (
-                    '--help --workers --id --limit-nofile --health-retries --health-timeout --health-interval --registry '
-                    '--tty --wait-for-worker --project-name --force-build --build --validate-config'
+                    '--help\n--workers\n--id\n--limit-nofile\n--health-retries\n--health-timeout\n--health-interval\n--registry\n'
+                    '--tty\n--wait-for-worker\n--project-name\n--force-build\n--build\n--validate-config'
                 ),
             ),
             (
@@ -408,15 +403,15 @@ class TestBashCompleteAction:
             (
                 'grizzly-cli dist --workers 8',
                 (
-                    '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty '
-                    '--wait-for-worker --project-name --force-build --build --validate-config build clean run'
+                    '-h\n--help\n--id\n--limit-nofile\n--health-retries\n--health-timeout\n--health-interval\n--registry\n--tty\n'
+                    '--wait-for-worker\n--project-name\n--force-build\n--build\n--validate-config\nbuild\nclean\nrun'
                 ),
             ),
             (
                 'grizzly-cli dist --workers 8 --force-build',
                 (
-                    '-h --help --id --limit-nofile --health-retries --health-timeout --health-interval --registry --tty '
-                    '--wait-for-worker --project-name build clean run'
+                    '-h\n--help\n--id\n--limit-nofile\n--health-retries\n--health-timeout\n--health-interval\n--registry\n--tty\n'
+                    '--wait-for-worker\n--project-name\nbuild\nclean\nrun'
                 ),
             ),
         ],
@@ -441,7 +436,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -456,11 +451,11 @@ class TestBashCompleteAction:
         [
             (
                 'grizzly-cli dist build',
-                '-h --help --no-cache --registry',
+                '-h\n--help\n--no-cache\n--registry',
             ),
             (
                 'grizzly-cli dist build --',
-                '--help --no-cache --registry',
+                '--help\n--no-cache\n--registry',
             ),
             (
                 'grizzly-cli dist build --help',
@@ -468,7 +463,7 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli dist build --no-cache',
-                '-h --help --registry',
+                '-h\n--help\n--registry',
             ),
             (
                 'grizzly-cli dist build --no-cache --registry',
@@ -476,7 +471,7 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli dist build --no-cache --registry asdf',
-                '-h --help',
+                '-h\n--help',
             ),
         ],
     )
@@ -510,7 +505,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')
@@ -525,11 +520,11 @@ class TestBashCompleteAction:
         [
             (
                 'grizzly-cli dist clean',
-                '-h --help --no-images --no-networks',
+                '-h\n--help\n--no-images\n--no-networks',
             ),
             (
                 'grizzly-cli dist clean --no',
-                '--no-images --no-networks',
+                '--no-images\n--no-networks',
             ),
         ],
     )
@@ -563,7 +558,7 @@ class TestBashCompleteAction:
             with pytest.raises(SystemExit):
                 subparser.parse_args([f'--bash-complete={input}'])
             capture = capsys.readouterr()
-            assert capture.out == f'{expected}\n'
+            assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
             print(f'input={input}')
             print(f'expected={expected}')

@@ -87,6 +87,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         sys.argv = ['grizzly-cli', 'dist', '--workers', '3', '--tty', 'run', f'{test_context}/test.feature']
         arguments = parser.parse_args()
         setattr(arguments, 'container_system', 'docker')
+        setattr(arguments, 'file', ' '.join(arguments.file))
 
         # this is set in the devcontainer
         for key in environ.keys():
@@ -152,6 +153,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             f'{test_context}/test.feature',
         ])
         setattr(arguments, 'container_system', 'docker')
+        setattr(arguments, 'file', ' '.join(arguments.file))
 
         mocker.patch('grizzly_cli.distributed.is_docker_compose_v2', side_effect=[True, False])
 
@@ -269,6 +271,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             'run', f'{test_context}/test.feature',
         ])
         setattr(arguments, 'container_system', 'docker')
+        setattr(arguments, 'file', ' '.join(arguments.file))
 
         assert distributed_run(
             arguments,

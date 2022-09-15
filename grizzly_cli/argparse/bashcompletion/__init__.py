@@ -1,3 +1,5 @@
+import sys
+
 from typing import Any, Dict, List, Union, Sequence, Optional, cast
 from argparse import (
     ArgumentParser,
@@ -109,9 +111,9 @@ class BashCompleteAction(Action):
         options: List[str] = []
 
         if isinstance(values, str):
-            options = [value.strip() for value in values.replace(f'{prog}', '').strip().split(' ') if len(value.strip()) > 0]
+            options = [value for value in values.replace(f'{prog}', '').split(' ') if len(value.strip()) > 0]
         elif isinstance(values, Sequence):
-            options = [str(value).strip() for value in values if len(str(value).strip()) and prog not in value]
+            options = [str(value) for value in values if len(str(value).strip()) > 0 and prog not in value]
 
         return options
 
@@ -120,12 +122,16 @@ class BashCompleteAction(Action):
             return provided_options
 
         filtered_options: List[str] = []
-        skip = False
+        skip: bool = False
+        concat: bool = False
 
         for index, option in enumerate(provided_options):
-            option = option.strip()
             add_next = False
             remove_suggestion = False
+
+            if concat:
+                concat = False
+                option = '{} {}'.format(provided_options[index - 1], option)
 
             if len(option) < 1 or skip:
                 skip = False
@@ -152,18 +158,22 @@ class BashCompleteAction(Action):
 
                 if remove_suggestion and isinstance(suggestion, Action):
                     # remove all other, completed, options from suggestion
-                    for option in suggestion.option_strings:
-                        if option in suggestions:
-                            del suggestions[option]
+                    for suggestion_option in suggestion.option_strings:
+                        if suggestion_option in suggestions:
+                            del suggestions[suggestion_option]
 
                         # remove options that are mutually exclusive to completed option
-                        exclusive_removes = exclusive_suggestions.get(option, [])
+                        exclusive_removes = exclusive_suggestions.get(suggestion_option, [])
                         for exclusive_option in exclusive_removes:
                             if exclusive_option in suggestions:
                                 del suggestions[exclusive_option]
                     continue
             elif not any([suggested_option.startswith(option) for suggested_option in suggestions.keys()]):  # could be values for an option
                 remove = True
+                if option.endswith('\\') and sys.platform != 'win32':
+                    concat = True
+                    continue
+
                 for suggestion in suggestions.values():
                     if isinstance(suggestion, Action) and len(suggestion.option_strings) == 0:
                         if isinstance(suggestion.type, BashCompletionTypes.File):
@@ -291,7 +301,7 @@ class BashCompleteAction(Action):
                             suggestions = all_suggestions
                             del suggestions[suggestion.dest]
 
-        print(' '.join(suggestions.keys()))
+        print('\n'.join(suggestions.keys()))
         parser.exit()
 
 

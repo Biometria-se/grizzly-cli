@@ -50,6 +50,8 @@ def test_local_run(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> 
             'local', 'run', f'{test_context}/test.feature',
         ])
 
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
         assert local_run(
             arguments,
             {

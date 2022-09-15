@@ -1,3 +1,5 @@
+import sys
+
 from os import environ, path, getcwd, chdir
 from inspect import getfile
 from shutil import rmtree
@@ -211,6 +213,13 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         assert run_command.call_count == 1
         args, kwargs = run_command.call_args_list[-1]
 
+        container_file_actual = args[0].pop(14)
+        container_file_expected = f'{static_context}{path.sep}Containerfile'
+
+        if sys.platform == 'win32':
+            container_file_actual = container_file_actual.lower()
+            container_file_expected = container_file_expected.lower()
+
         assert args[0] == [
             'test',
             'image',
@@ -221,10 +230,12 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             '--build-arg', 'GRIZZLY_INSTALL_TYPE=remote',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
-            '-f', f'{static_context}/Containerfile',
+            '-f',
             '-t', 'grizzly-scenarios:test-user',
             str(test_context),
         ]
+
+        assert container_file_actual == container_file_expected
 
         actual_env = kwargs.get('env', None)
         assert actual_env is not None
@@ -238,6 +249,13 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         assert run_command.call_count == 2
         args, kwargs = run_command.call_args_list[-1]
 
+        container_file_actual = args[0].pop(14)
+        container_file_expected = f'{static_context}{path.sep}Containerfile'
+
+        if sys.platform == 'win32':
+            container_file_actual = container_file_actual.lower()
+            container_file_expected = container_file_expected.lower()
+
         assert args[0] == [
             'docker',
             'image',
@@ -248,11 +266,12 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             '--build-arg', 'GRIZZLY_INSTALL_TYPE=local',
             '--build-arg', 'GRIZZLY_UID=1337',
             '--build-arg', 'GRIZZLY_GID=2147483647',
-            '-f', f'{static_context}/Containerfile',
+            '-f',
             '-t', 'foobar:test-user',
             str(test_context),
             '--no-cache'
         ]
+        assert container_file_actual == container_file_expected
 
         capsys.readouterr()
 

@@ -16,7 +16,7 @@ from .argparse.bashcompletion import BashCompletionTypes
 
 
 def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
-    # grizzly-cli run ...
+    # grizzly-cli ... run ...
     run_parser = sub_parser.add_parser('run', description='execute load test scenarios specified in a feature file.')
     run_parser.add_argument(
         '--verbose',
@@ -52,7 +52,7 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
     )
     run_parser.add_argument(
         'file',
-        nargs=None,
+        nargs='+',
         type=BashCompletionTypes.File('*.feature'),
         help='path to feature file with one or more scenarios',
 
