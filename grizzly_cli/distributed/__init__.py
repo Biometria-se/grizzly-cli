@@ -1,12 +1,15 @@
 import os
 import sys
 import argparse
+import subprocess
 
 from typing import List, Dict, Any, cast
 from tempfile import NamedTemporaryFile
 from getpass import getuser
 from shutil import get_terminal_size
 from argparse import Namespace as Arguments
+from socket import gethostname
+from json import loads as jsonloads
 
 from .. import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
 from ..utils import (
@@ -194,6 +197,31 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
     os.environ['COLUMNS'] = str(columns)
     os.environ['LINES'] = str(lines)
 
+    grizzly_mount_context_path = ''
+
+    if is_docker_compose_v2():
+        name_template = '{project}{suffix}-{tag}-{node}-{index}'
+        start_index = 2
+    else:
+        name_template = '{project}{suffix}-{tag}_{node}_{index}'
+        start_index = 1
+
+    if EXECUTION_CONTEXT != MOUNT_CONTEXT:
+        hostname = gethostname()
+        output = subprocess.check_output(
+            [args.container_system, 'inspect', '-f', '{{ json .Mounts }}', hostname],
+            encoding='utf-8',
+        )
+        container_mounts = jsonloads(output)
+        for container_mount in container_mounts:
+            if container_mount['Source'] != MOUNT_CONTEXT:
+                continue
+
+            grizzly_mount_context_path = EXECUTION_CONTEXT.replace(container_mount['Destination'], '')[1:]
+            break
+
+    os.environ['GRIZZLY_MOUNT_PATH'] = grizzly_mount_context_path
+
     if len(run_arguments.get('master', [])) > 0:
         os.environ['GRIZZLY_MASTER_RUN_ARGS'] = ' '.join(run_arguments['master'])
 
@@ -260,10 +288,31 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
             'up',
             *compose_scale_argument,
             '--remove-orphans',
-            '--exit-code-from', 'master'
         ]
 
         rc = run_command(compose_command, verbose=args.verbose)
+
+        try:
+            output = subprocess.check_output(
+                [
+                    args.container_system,
+                    'inspect',
+                    '-f',
+                    '{{ .State.ExitCode }}',
+                    name_template.format(
+                        project=project_name,
+                        suffix=suffix,
+                        tag=tag,
+                        node='master',
+                        index=1,
+                    ),
+                ],
+                encoding='utf-8',
+            )
+            rc = int(output.strip())
+        except:
+            rc = 1
+
 
         # stop containers
         compose_command = [
@@ -276,31 +325,28 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
         if rc != 0:
             print('\n!! something went wrong, check container logs with:')
-            template = '{container_system} container logs '
-            if is_docker_compose_v2():
-                template += '{project}{suffix}-{tag}-{node}-{index}'
-                start_index = 2
-            else:
-                template += '{project}{suffix}-{tag}_{node}_{index}'
-                start_index = 1
-
+            template = '{container_system} container logs {name_template}'
             print(template.format(
                 container_system=args.container_system,
-                project=project_name,
-                suffix=suffix,
-                tag=tag,
-                node='master',
-                index=1
+                name_template=name_template.format(
+                    project=project_name,
+                    suffix=suffix,
+                    tag=tag,
+                    node='master',
+                    index=1,
+                ),
             ))
 
             for worker in range(start_index, args.workers + start_index):
                 print(template.format(
                     container_system=args.container_system,
-                    project=project_name,
-                    suffix=suffix,
-                    tag=tag,
-                    node='worker',
-                    index=worker
+                    name_template=name_template.format(
+                        project=project_name,
+                        suffix=suffix,
+                        tag=tag,
+                        node='worker',
+                        index=worker,
+                    ),
                 ))
 
         return rc

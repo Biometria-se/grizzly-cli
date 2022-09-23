@@ -1,21 +1,61 @@
+import subprocess
 import os
 import stat
 
-from typing import Callable, List
+from typing import Dict, Optional, Tuple, List, Callable
 from types import TracebackType
 
 from behave.model import Scenario, Step
 
 
+def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: Optional[str] = None) -> Tuple[int, List[str]]:
+    output: List[str] = []
+    if env is None:
+        env = os.environ.copy()
+
+    if cwd is None:
+        cwd = os.getcwd()
+
+    process = subprocess.Popen(
+        command,
+        env=env,
+        cwd=cwd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+    )
+
+    try:
+        while process.poll() is None:
+            stdout = process.stdout
+            if stdout is None:
+                break
+
+            buffer = stdout.readline()
+            if not buffer:
+                break
+
+            output.append(buffer.decode('utf-8'))
+
+        process.terminate()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            process.kill()
+        except Exception:
+            pass
+
+    process.wait()
+
+    return process.returncode, output
+
+
 def onerror(func: Callable, path: str, exc_info: TracebackType) -> None:
     '''
     Error handler for ``shutil.rmtree``.
-
     If the error is due to an access error (read only file)
     it attempts to add write permission and then retries.
-
     If the error is for another reason it re-raises the error.
-
     Usage : ``shutil.rmtree(path, onerror=onerror)``
     '''
     # Is the error an access error?

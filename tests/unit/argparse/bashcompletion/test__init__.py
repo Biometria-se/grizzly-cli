@@ -15,7 +15,7 @@ from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompleti
 from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.__main__ import _create_parser
 
-from ...helpers import onerror
+from ....helpers import onerror
 
 
 CWD = getcwd()

@@ -47,7 +47,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
                 break
 
             if not silent:
-                sys.stdout.write(output.decode('utf-8'))
+                sys.stdout.buffer.write(output)
                 sys.stdout.flush()
 
         process.terminate()
@@ -85,7 +85,7 @@ def is_docker_compose_v2() -> bool:
     return version[0] == 2
 
 
-def get_dependency_versions() -> Tuple[Tuple[str, Optional[List[str]]], str]:
+def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
     grizzly_requirement: Optional[str] = None
     grizzly_requirement_egg: str
     locust_version: Optional[str] = None
@@ -94,11 +94,14 @@ def get_dependency_versions() -> Tuple[Tuple[str, Optional[List[str]]], str]:
 
     project_requirements = path.join(grizzly_cli.EXECUTION_CONTEXT, 'requirements.txt')
 
-    with open(project_requirements, encoding='utf-8') as fd:
-        for line in fd.readlines():
-            if any([pkg in line for pkg in ['grizzly-loadtester', 'grizzly.git'] if not re.match(r'^([\s]+)?#', line)]):
-                grizzly_requirement = line.strip()
-                break
+    try:
+        with open(project_requirements, encoding='utf-8') as fd:
+            for line in fd.readlines():
+                if any([pkg in line for pkg in ['grizzly-loadtester', 'grizzly.git'] if not re.match(r'^([\s]+)?#', line)]):
+                    grizzly_requirement = line.strip()
+                    break
+    except:
+        return (None, None,), None
 
     if grizzly_requirement is None:
         print(f'!! unable to find grizzly dependency in {project_requirements}', file=sys.stderr)

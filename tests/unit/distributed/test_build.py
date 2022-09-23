@@ -13,7 +13,7 @@ from argparse import Namespace
 
 from grizzly_cli.distributed.build import _create_build_command, getgid, getuid, build
 
-from ..helpers import onerror
+from ...helpers import onerror
 
 
 CWD = getcwd()
