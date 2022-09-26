@@ -1,11 +1,12 @@
 import inspect
 import re
 import socket
+import sys
 
 from typing import Optional, Callable, Any, List, Tuple, Type, Dict, cast
 from typing_extensions import Literal
 from types import TracebackType
-from os import environ, getcwd
+from os import environ, getcwd, pathsep, linesep
 from shutil import rmtree
 from pathlib import Path
 from textwrap import dedent, indent
@@ -173,7 +174,7 @@ def step_start_webserver(context: Context) -> None:
 
         # create virtualenv
         rc, output = run_command(
-            ['python3', '-m', 'venv', virtual_env_path.name],
+            [sys.executable, '-m', 'venv', virtual_env_path.name],
             cwd=str(self.root),
         )
 
@@ -186,11 +187,25 @@ def step_start_webserver(context: Context) -> None:
 
         path = environ.get('PATH', '')
 
+        if sys.platform == 'win32':
+            virtual_env_bin_dir = 'Scripts'
+        else:
+            virtual_env_bin_dir = 'bin'
+
         self._env.update({
-            'PATH': f'{str(virtual_env_path)}/bin:{path}',
+            'PATH': f'{str(virtual_env_path / virtual_env_bin_dir)}{pathsep}{path}',
             'VIRTUAL_ENV': str(virtual_env_path),
             'PYTHONPATH': environ.get('PYTHONPATH', '.'),
         })
+
+        if sys.platform == 'win32':
+            self._env.update({
+                'SYSTEMROOT': environ['SYSTEMROOT'],
+                'SYSTEMDRIVE': environ['SYSTEMDRIVE'],
+                'USERPROFILE': environ['USERPROFILE'],
+                'PYTHONIOENCODING': 'utf-8',
+                'PYTHONUTF8': '1',
+            })
 
         for env_key in ['SSH_AUTH_SOCK', 'GRIZZLY_MOUNT_CONTEXT']:
             env_value = environ.get(env_key, None)
@@ -199,7 +214,7 @@ def step_start_webserver(context: Context) -> None:
 
         # python 3.6.x is vendord with pip 18.x, which is too old!
         rc, output = run_command(
-            ['python3', '-m', 'pip', 'install', '--upgrade', 'pip'],
+            ['python', '-m', 'pip', 'install', '--upgrade', 'pip'],
             cwd=str(Path.cwd()),
             env=self._env,
         )
@@ -211,7 +226,7 @@ def step_start_webserver(context: Context) -> None:
             raise
 
         rc, output = run_command(
-            ['python3', '-m', 'pip', 'install', '.'],
+            ['python', '-m', 'pip', 'install', '.'],
             cwd=str(Path.cwd()),
             env=self._env,
         )
@@ -405,6 +420,9 @@ def step_start_webserver(context: Context) -> None:
             env=self._env,
         )
 
+        if sys.platform == 'win32':
+            output = [line.replace(linesep, '\n') for line in output]
+
         if rc != 0:
             print(''.join(output))
 
@@ -412,7 +430,7 @@ def step_start_webserver(context: Context) -> None:
                 command = ['docker', 'container', 'logs', f'{self.root.name}-{getuser()}_{container}_1']
                 _, output = run_command(
                     command,
-                    cwd=str(self.mode_root),
+                    cwd=str(self.root),
                     env=self._env,
                 )
 

@@ -34,7 +34,11 @@ def test_e2e_init(arguments: List[str], expected: Dict[str, str], tmp_path_facto
             ['grizzly-cli', 'init', 'foobar', '--yes'] + arguments,
             cwd=str(test_context),
         )
-        assert rc == 0
+        try:
+            assert rc == 0
+        except AssertionError:
+            print(''.join(output))
+            raise
         assert ''.join(output) == f'''the following structure will be created:
 
     foobar

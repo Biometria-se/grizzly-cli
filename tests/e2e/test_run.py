@@ -16,7 +16,7 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
     if sys.version_info < (3, 8,) and not e2e_fixture._distributed:
         pytest.skip('grizzly-loadtester only supports python >= 3.8')
 
-    if sys.platform == 'win32' and e2e_fixture._distrbuted:
+    if sys.platform == 'win32' and e2e_fixture._distributed:
         pytest.skip('windows github runners do not support running linux containers')
 
     result: Optional[str] = None
@@ -60,15 +60,6 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
 
         example_root = example_root / 'example'
 
-        if not e2e_fixture._distributed:
-            rc, output = run_command(
-                ['python', '-m', 'pip', 'install', '-r', 'requirements.txt'],
-                env=e2e_fixture._env,
-                cwd=str(example_root),
-            )
-
-            assert rc == 0
-
         with open(example_root / 'features' / 'steps' / 'steps.py', 'a') as fd:
             fd.write(e2e_fixture.start_webserver_step_impl(e2e_fixture.webserver_port))
 
@@ -96,6 +87,22 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
             except AssertionError:
                 print(''.join(output))
                 raise
+        else:
+            command = ['python', '-m', 'pip', 'install', '--no-cache-dir', '-r', 'requirements.txt']
+            if sys.platform == 'win32':
+                command += ['--user']
+
+            rc, output = run_command(
+                command,
+                cwd=str(example_root),
+                env=e2e_fixture._env,
+            )
+
+            try:
+                assert rc == 0
+            except AssertionError:
+                print(''.join(output))
+                raise
 
         index = feature_file_contents.index('  Scenario: dog facts api')
         # should go last in "Background"-section
@@ -114,6 +121,10 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
                 env_conf_file.name.replace(f'{str(example_root)}{pathsep}', ''),
                 cwd=str(example_root),
             )
+
+            # problems with a DEBUG log message containing ERROR in the message on macos-latest
+            if sys.platform == 'darwin':
+                output = [line for line in output if 'ERROR' not in line and 'DEBUG' not in line]
 
             result = ''.join(output)
 

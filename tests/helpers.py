@@ -1,6 +1,7 @@
 import subprocess
 import os
 import stat
+import sys
 
 from typing import Dict, Optional, Tuple, List, Callable
 from types import TracebackType
@@ -34,7 +35,11 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: O
             if not buffer:
                 break
 
-            output.append(buffer.decode('utf-8'))
+            line = buffer.decode('utf-8')
+            if sys.platform == 'win32':
+                line = line.replace(os.linesep, '\n')
+
+            output.append(line)
 
         process.terminate()
     except KeyboardInterrupt:
