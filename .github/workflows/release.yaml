@@ -52,14 +52,14 @@ jobs:
         echo $HOME/.local/bin >> $GITHUB_PATH
 
     - name: checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
         ref: main
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.x'
 

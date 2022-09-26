@@ -7,6 +7,7 @@ from _pytest.tmpdir import TempPathFactory
 
 from ..helpers import run_command, onerror
 
+
 @pytest.mark.parametrize('arguments,expected', [
     (
         [],

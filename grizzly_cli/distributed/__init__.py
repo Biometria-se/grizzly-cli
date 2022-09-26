@@ -313,7 +313,6 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
         except:
             rc = 1
 
-
         # stop containers
         compose_command = [
             f'{args.container_system}-compose',

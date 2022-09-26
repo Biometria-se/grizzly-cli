@@ -17,6 +17,7 @@ logger = logging.getLogger('webserver')
 
 app = Flask('webserver')
 
+
 @app.route('/api/v1/resources/dogs')
 def app_get_dog_fact() -> FlaskResponse:
     _ = int(request.args.get('number', ''))

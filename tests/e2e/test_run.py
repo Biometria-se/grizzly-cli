@@ -14,7 +14,7 @@ from ..helpers import run_command, onerror
 
 def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
     if sys.version_info < (3, 8,) and not e2e_fixture._distributed:
-        pytest.skip(f'grizzly-loadtester only supports python >= 3.8')
+        pytest.skip('grizzly-loadtester only supports python >= 3.8')
 
     result: Optional[str] = None
 
