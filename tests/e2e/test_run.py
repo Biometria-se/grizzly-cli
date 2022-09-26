@@ -16,6 +16,9 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
     if sys.version_info < (3, 8,) and not e2e_fixture._distributed:
         pytest.skip('grizzly-loadtester only supports python >= 3.8')
 
+    if sys.platform == 'win32' and e2e_fixture._distrbuted:
+        pytest.skip('windows github runners do not support running linux containers')
+
     result: Optional[str] = None
 
     try:

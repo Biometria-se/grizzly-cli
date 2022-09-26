@@ -139,6 +139,10 @@ FROM base AS grizzly-base
 ARG GRIZZLY_UID
 ARG GRIZZLY_GID
 
+# remove group and user if UID/GID already exists
+RUN test "${GRIZZLY_GID}" != "0" && awk -F: '/:'"${GRIZZLY_GID}"':/ {print "groupdel -f "$1}' /etc/group | bash
+RUN test "${GRIZZLY_UID}" != "0" && awk -F: '/:x:'"${GRIZZLY_UID}"':/ {print "userdel -f "$1}' /etc/passwd | bash
+
 RUN groupadd \
         -g "${GRIZZLY_GID}" \
         grizzly \
