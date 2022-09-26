@@ -171,8 +171,5 @@ def main() -> int:
         if isinstance(e, ValueError):
             print(str(e))
 
-        import traceback
-        traceback.print_exc()
-
         print('\n!! aborted grizzly-cli')
         return 1

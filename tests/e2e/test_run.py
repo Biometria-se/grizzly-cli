@@ -122,7 +122,7 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
                 cwd=str(example_root),
             )
 
-            # problems with a DEBUG log message containing ERROR in the message on macos-latest
+            # problems with a locust DEBUG log message containing ERROR in the message on macos-latest
             if sys.platform == 'darwin':
                 output = [line for line in output if 'ERROR' not in line and 'DEBUG' not in line]
 
