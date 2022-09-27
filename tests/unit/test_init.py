@@ -9,7 +9,7 @@ from pytest_mock import MockerFixture
 from grizzly_cli.init import tree, init
 from grizzly_cli.__main__ import _parse_arguments
 
-from .helpers import onerror
+from ..helpers import onerror
 
 
 def test_tree(tmp_path_factory: TempPathFactory) -> None:

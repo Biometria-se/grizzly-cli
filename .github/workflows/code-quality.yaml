@@ -19,11 +19,11 @@ jobs:
     steps:
     - name: checkout
       id: checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.x'
 
@@ -55,6 +55,8 @@ jobs:
         include:
           - python-version: '3.10'
             runs-on: windows-latest
+          - python-version: '3.10'
+            runs-on: macos-latest
 
     env:
       PYTHONPATH: .
@@ -65,15 +67,16 @@ jobs:
       uses: szenius/set-timezone@v1.0
       with:
         timezoneLinux: "Europe/Stockholm"
+        timezoneMacos: "Europe/Stockholm"
         timezoneWindows: "W. Europe Standard Time"
 
     - name: checkout
       id: checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -81,13 +84,87 @@ jobs:
       id: pip
       run: python -m pip install .[dev]
 
-    - name: pytest
-      id: pytest
-      run: python -m pytest
+    - name: pytest (unit)
+      id: pytest-unit
+      run: python -m pytest tests/unit
 
     - name: coverage
       id: coverage
       run: python -m coverage report --fail-under=95
+
+  test-e2e:
+    name: "test-e2e / ${{ matrix.runs-on }} / python-${{ matrix.python-version }}"
+    runs-on: ${{ matrix.runs-on }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10']
+        runs-on: ['ubuntu-latest', 'windows-latest', 'macos-latest']
+
+    env:
+      PYTHONPATH: .
+
+    steps:
+    - name: timezone
+      id: timezone
+      uses: szenius/set-timezone@v1.0
+      with:
+        timezoneLinux: "Europe/Stockholm"
+        timezoneMacos: "Europe/Stockholm"
+        timezoneWindows: "W. Europe Standard Time"
+
+    - name: checkout
+      id: checkout
+      uses: actions/checkout@v3
+
+    - name: setup python
+      id: setup-python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: install python dependencies
+      id: pip
+      run: python -m pip install .[dev]
+
+    - name: setup docker (macos)
+      if: ${{ matrix.runs-on == 'macos-latest' }}
+      run: |
+        brew install docker docker-compose colima
+        colima start
+        echo $SHELL
+        sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
+
+    - name: install docker-compose (ubuntu)
+      id: install-docker-compose
+      if: ${{ matrix.runs-on == 'ubuntu-latest' }}
+      uses: KengoTODA/actions-setup-docker-compose@main
+      with:
+        version: '1.29.2'
+
+    - name: set shell encoding (windows)
+      if: ${{ matrix.runs-on == 'windows-latest' }}
+      run: |
+        if (!(Test-Path $profile))
+        {
+          New-Item -Path $profile -Type File -Force
+        }
+        # note that PYTHONUTF8=1 only works for python >= 3.7...
+        '$OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding' + [Environment]::Newline + (Get-Content -Raw $profile -ErrorAction SilentlyContinue) + [Environment]::Newline + '$env:PYTHONIOENCODING = "utf-8"' + [Environment]::Newline + '$env:PYTHONUTF8 = 1' + [Environment]::Newline | Set-Content -Encoding utf8 $profile
+
+    - name: ssh agent
+      id: ssh-agent
+      if: ${{ matrix.runs-on != 'windows-latest' }}
+      run: |
+        ssh-agent -a /tmp/ssh_auth_sock
+
+    - name: pytest (e2e)
+      id: pytest-unit
+      env:
+        E2E_RUN_DIST: True
+        SSH_AUTH_SOCK: /tmp/ssh_auth_sock
+      run: python -m pytest tests/e2e
 
   documentation-scripts:
     name: "documentation / ${{ matrix.script }}"
@@ -102,11 +179,11 @@ jobs:
     steps:
     - name: checkout
       id: checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.x'
 
@@ -122,3 +199,18 @@ jobs:
 
     - name: runnable
       run: ./${{ matrix.script }} 1> /dev/null
+
+  releaseable:
+    name: releasable
+    runs-on: 'ubuntu-latest'
+    if: always()
+    needs:
+      - linting
+      - test-and-coverage
+      - test-e2e
+      - documentation-scripts
+
+    steps:
+      - uses: technote-space/workflow-conclusion-action@v2
+      - run: |
+          [[ "${{ env.WORKFLOW_CONCLUSION }}" == "success" ]] || exit 1

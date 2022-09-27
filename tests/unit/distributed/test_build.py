@@ -13,7 +13,7 @@ from argparse import Namespace
 
 from grizzly_cli.distributed.build import _create_build_command, getgid, getuid, build
 
-from ..helpers import onerror
+from ...helpers import onerror
 
 
 CWD = getcwd()
@@ -208,7 +208,6 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         assert capture.out == (
             '!! created a default requirements.txt with one dependency:\n'
             'grizzly-loadtester\n\n'
-            'built image grizzly-scenarios:test-user\n'
         )
         assert run_command.call_count == 1
         args, kwargs = run_command.call_args_list[-1]
@@ -328,6 +327,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         assert capture.err == ''
         assert capture.out == (
             f'built image {image_name}\n'
+            f'tagged image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
             f'\n!! failed to push image ghcr.io/biometria-se/{image_name}\n'
         )
 
@@ -348,7 +348,11 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == f'built image {image_name}\n'
+        assert capture.out == (
+            f'built image {image_name}\n'
+            f'tagged image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
+            f'pushed image ghcr.io/biometria-se/{image_name}\n'
+        )
     finally:
         chdir(CWD)
         rmtree(test_context, onerror=onerror)

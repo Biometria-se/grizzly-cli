@@ -8,7 +8,7 @@ from _pytest.tmpdir import TempPathFactory
 
 from grizzly_cli.argparse.bashcompletion.types import BashCompletionTypes
 
-from ...helpers import onerror
+from ....helpers import onerror
 
 CWD = getcwd()
 

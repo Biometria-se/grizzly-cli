@@ -133,7 +133,8 @@ def build(args: Arguments) -> int:
 
     rc = run_command(build_command, env=build_env)
 
-    print(f'built image {image_name}')
+    if rc == 0:
+        print(f'built image {image_name}')
 
     if getattr(args, 'registry', None) is None or rc != 0:
         return rc
@@ -151,6 +152,8 @@ def build(args: Arguments) -> int:
     if rc != 0:
         print(f'\n!! failed to tag image {image_name} -> {args.registry}{image_name}')
         return rc
+    else:
+        print(f'tagged image {image_name} -> {args.registry}{image_name}')
 
     push_command = [
         f'{args.container_system}',
@@ -163,5 +166,7 @@ def build(args: Arguments) -> int:
 
     if rc != 0:
         print(f'\n!! failed to push image {args.registry}{image_name}')
+    else:
+        print(f'pushed image {args.registry}{image_name}')
 
     return rc

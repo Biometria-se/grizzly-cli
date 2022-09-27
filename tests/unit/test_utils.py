@@ -30,7 +30,7 @@ from grizzly_cli.utils import (
     get_dependency_versions,
 )
 
-from .helpers import onerror, create_scenario
+from ..helpers import onerror, create_scenario
 
 CWD = getcwd()
 
@@ -736,12 +736,10 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
     mocker.patch('grizzly_cli.EXECUTION_CONTEXT', str(test_context))
 
     try:
-        with pytest.raises(FileNotFoundError) as fne:
-            get_dependency_versions()
-        capsys.readouterr()
+        grizzly_versions, locust_version = get_dependency_versions()
 
-        assert fne.value.errno == 2
-        assert fne.value.strerror == 'No such file or directory'
+        assert grizzly_versions == (None, None,)
+        assert locust_version is None
 
         requirements_file.touch()
 
@@ -936,12 +934,10 @@ def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: T
     mocker.patch('grizzly_cli.EXECUTION_CONTEXT', str(test_context))
 
     try:
-        with pytest.raises(FileNotFoundError) as fne:
-            get_dependency_versions()
-        capsys.readouterr()
+        grizzly_versions, locust_version = get_dependency_versions()
 
-        assert fne.value.errno == 2
-        assert fne.value.strerror == 'No such file or directory'
+        assert grizzly_versions == (None, None,)
+        assert locust_version is None
 
         requirements_file.touch()
 

@@ -11,4 +11,6 @@ RUN curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo b
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends vim
 
+RUN python -m pip install --upgrade pip
+
 RUN rm -rf /etc/localtime || true

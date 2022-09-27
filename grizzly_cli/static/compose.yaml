@@ -9,7 +9,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/grizzly
+      - ${GRIZZLY_MOUNT_CONTEXT}/${GRIZZLY_MOUNT_PATH}:/srv/grizzly
     environment:
       - COLUMNS=${COLUMNS}
       - LINES=${LINES}
@@ -29,7 +29,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ${GRIZZLY_MOUNT_CONTEXT}/:/srv/grizzly
+      - ${GRIZZLY_MOUNT_CONTEXT}/${GRIZZLY_MOUNT_PATH}:/srv/grizzly
     environment:
       - COLUMNS=${COLUMNS}
       - LINES=${LINES}

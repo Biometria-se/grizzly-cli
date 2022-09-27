@@ -14,7 +14,7 @@ from pytest_mock import MockerFixture
 
 from grizzly_cli.__main__ import _create_parser, _parse_arguments, _inject_additional_arguments_from_metadata, main
 
-from .helpers import onerror
+from ..helpers import onerror
 
 CWD = getcwd()
 

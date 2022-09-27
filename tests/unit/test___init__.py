@@ -6,7 +6,7 @@ from importlib import reload
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
-from .helpers import onerror
+from ..helpers import onerror
 
 CWD = getcwd()
 

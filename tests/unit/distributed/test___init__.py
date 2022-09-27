@@ -1,4 +1,5 @@
 import sys
+import json
 
 from shutil import rmtree
 from os import getcwd, environ
@@ -13,7 +14,7 @@ from pytest_mock import MockerFixture
 
 from grizzly_cli.distributed import create_parser, distributed_run, distributed
 
-from ..helpers import onerror
+from ...helpers import onerror
 
 CWD = getcwd()
 
@@ -76,6 +77,9 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     mocker.patch('grizzly_cli.distributed.is_docker_compose_v2', return_value=False)
 
     run_command_mock = mocker.patch('grizzly_cli.distributed.run_command', side_effect=[111, 0, 0, 1, 0, 0, 1, 0, 13])
+    mocker.patch('grizzly_cli.distributed.subprocess.check_output', side_effect=[
+        '{}', '{}', '{}', '{}', '{}', 1, json.dumps([{'Source': '/tmp/mount-context', 'Destination': '/tmp'}]), 13,
+    ])
 
     parser = ArgumentParser()
 
@@ -132,6 +136,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '3'
         assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'true'
         assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) is None
+        assert environ.get('GRIZZLY_MOUNT_PATH', None) == ''
 
         # this is set in the devcontainer
         for key in environ.keys():
@@ -196,7 +201,6 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             'up',
             '--scale', 'worker=3',
             '--remove-orphans',
-            '--exit-code-from', 'master',
         ]
         args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
@@ -225,6 +229,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'gchr.io/biometria-se'
         assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'false'
         assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) == '10000'
+        assert environ.get('GRIZZLY_MOUNT_PATH', None) == ''
 
         arguments.project_name = None
 
@@ -315,6 +320,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
         assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) == '1.25 * WORKER_REPORT_INTERVAL'
+        assert environ.get('GRIZZLY_MOUNT_PATH', None) == 'execution-context'
 
     finally:
         rmtree(test_context, onerror=onerror)
