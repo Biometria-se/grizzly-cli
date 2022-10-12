@@ -42,6 +42,7 @@
 			"-o testpaths=tests",
 			"--cov=.",
 			"--cov-report=xml:coverage.xml",
+      "--cov-config=setup.cfg",
 			"tests/"
 		],
 		"coverage-gutters.xmlname": "coverage.xml",
@@ -82,8 +83,14 @@
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 	"features": {
-		"docker-from-docker": "latest",
-		"github-cli": "latest",
-		"git": "os-provided"
+		"ghcr.io/devcontainers/features/docker-from-docker:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/git:1": {
+			"version": "os-provided"
+		},
+		"ghcr.io/devcontainers/features/github-cli:1": {
+			"version": "latest"
+		}
 	}
 }

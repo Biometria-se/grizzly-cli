@@ -759,6 +759,7 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
                 mocker.patch.context_manager(subprocess, 'check_output', side_effect=[
                     subprocess.CalledProcessError(returncode=1, cmd=''),
                     'main\n',
+                    'branch\n',
                     'v1.5.3\n',
                 ]),
             )
@@ -809,7 +810,7 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
             assert capture.out == ''
 
             assert subprocess.check_call.call_count == 4  # type: ignore  # pylint: disable=no-member
-            assert subprocess.check_output.call_count == 2  # type: ignore  # pylint: disable=no-member
+            assert subprocess.check_output.call_count == 3  # type: ignore  # pylint: disable=no-member
 
             # git checkout...
             args, kwargs = subprocess.check_call.call_args_list[-1]  # type: ignore  # pylint: disable=no-member
@@ -830,7 +831,7 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
             assert capture.out == ''
 
             assert subprocess.check_call.call_count == 5  # type: ignore  # pylint: disable=no-member
-            assert subprocess.check_output.call_count == 3  # type: ignore  # pylint: disable=no-member
+            assert subprocess.check_output.call_count == 4  # type: ignore  # pylint: disable=no-member
 
         with ExitStack() as stack:
             stack.enter_context(mocker.patch.context_manager(subprocess, 'check_call', return_value=0))

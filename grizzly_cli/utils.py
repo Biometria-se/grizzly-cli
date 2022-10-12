@@ -3,6 +3,7 @@ import sys
 import subprocess
 
 from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, cast
+from types import TracebackType
 from os import path, environ
 from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
@@ -15,6 +16,7 @@ from hashlib import sha1
 from math import ceil
 
 import requests
+import tomli
 
 from behave.model import Scenario
 from jinja2 import Template
@@ -86,6 +88,23 @@ def is_docker_compose_v2() -> bool:
 
 
 def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
+    def onerror(func: Callable, path: str, exc_info: TracebackType) -> None:
+        import os
+        import stat
+        '''
+        Error handler for ``shutil.rmtree``.
+        If the error is due to an access error (read only file)
+        it attempts to add write permission and then retries.
+        If the error is for another reason it re-raises the error.
+        Usage : ``shutil.rmtree(path, onerror=onerror)``
+        '''
+        # Is the error an access error?
+        if not os.access(path, os.W_OK):
+            os.chmod(path, stat.S_IWUSR)
+            func(path)
+        else:
+            raise  # pylint: disable=misplaced-bare-raise
+
     grizzly_requirement: Optional[str] = None
     grizzly_requirement_egg: str
     locust_version: Optional[str] = None
@@ -155,21 +174,60 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
                 raise RuntimeError()  # abort
 
             if active_branch != branch:
-                rc += subprocess.check_call(
-                    [
-                        'git', 'checkout',
-                        '-b', branch,
-                        '--track', f'origin/{branch}',
-                    ],
+                git_object_type = subprocess.check_output(
+                    ['git', 'cat-file', '-t', branch],
                     cwd=repo_destination,
                     shell=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+                    universal_newlines=True,
+                ).strip()
 
-                if rc != 0:
-                    print(f'!! unable to checkout branch {branch} from git repo {url}', file=sys.stderr)
-                    raise RuntimeError()  # abort
+                if git_object_type == 'tag':
+                    rc += subprocess.check_call(
+                        [
+                            'git', 'checkout',
+                            f'tags/{branch}',
+                            '-b', branch,
+                        ],
+                        cwd=repo_destination,
+                        shell=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+
+                    if rc != 0:
+                        print(f'!! unable to checkout tag {branch} from git repo {url}', file=sys.stderr)
+                        raise RuntimeError()  # abort
+                elif git_object_type == 'commit':
+                    rc += subprocess.check_call(
+                        [
+                            'git', 'checkout',
+                            branch,
+                        ],
+                        cwd=repo_destination,
+                        shell=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+
+                    if rc != 0:
+                        print(f'!! unable to checkout commit {branch} from git repo {url}', file=sys.stderr)
+                        raise RuntimeError()  # abort
+                else:
+                    rc += subprocess.check_call(
+                        [
+                            'git', 'checkout',
+                            '-b', branch,
+                            '--track', f'origin/{branch}',
+                        ],
+                        cwd=repo_destination,
+                        shell=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+
+                    if rc != 0:
+                        print(f'!! unable to checkout branch {branch} from git repo {url}', file=sys.stderr)
+                        raise RuntimeError()  # abort
 
             if not path.exists(path.join(repo_destination, 'pyproject.toml')):
                 with open(path.join(repo_destination, 'grizzly', '__init__.py'), encoding='utf-8') as fd:
@@ -181,35 +239,74 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
 
                 _, grizzly_version, _ = version_raw[-1].split("'")
             else:
-                with open(path.join(repo_destination, 'setup.cfg'), encoding='utf-8') as fd:
-                    version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('version = ')]
+                try:
+                    with open(path.join(repo_destination, 'setup.cfg'), encoding='utf-8') as fd:
+                        version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('version = ')]
 
-                if len(version_raw) != 1:
-                    print(f'!! unable to find "version" declaration in setup.cfg from {url}', file=sys.stderr)
-                    raise RuntimeError()  # abort
+                    if len(version_raw) != 1:
+                        print(f'!! unable to find "version" declaration in setup.cfg from {url}', file=sys.stderr)
+                        raise RuntimeError()  # abort
 
-                _, grizzly_version = version_raw[-1].split(' = ')
+                    _, grizzly_version = version_raw[-1].split(' = ')
+                except FileNotFoundError:
+                    try:
+                        import setuptools_scm  # type: ignore  # pylint: disable=unused-import  # noqa: F401
+                    except ModuleNotFoundError:
+                        rc = subprocess.check_call([
+                            sys.executable,
+                            '-m',
+                            'pip',
+                            'install',
+                            'setuptools_scm',
+                        ])
+
+                    try:
+                        grizzly_version = subprocess.check_output(
+                            [
+                                sys.executable,
+                                '-m',
+                                'setuptools_scm',
+                            ],
+                            shell=False,
+                            universal_newlines=True,
+                            cwd=repo_destination,
+                        ).strip()
+                    except subprocess.CalledProcessError:
+                        print(f'!! unable to get setuptools_scm version from {url}', file=sys.stderr)
+                        raise RuntimeError()  # abort
 
             if grizzly_version == '0.0.0':
                 grizzly_version = '(development)'
 
-            with open(path.join(repo_destination, 'requirements.txt'), encoding='utf-8') as fd:
-                version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('locust')]
+            try:
+                with open(path.join(repo_destination, 'requirements.txt'), encoding='utf-8') as fd:
+                    version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('locust')]
 
-            if len(version_raw) != 1:
-                print(f'!! unable to find "locust" dependency in requirements.txt from {url}', file=sys.stderr)
-                raise RuntimeError()  # abort
+                if len(version_raw) != 1:
+                    print(f'!! unable to find "locust" dependency in requirements.txt from {url}', file=sys.stderr)
+                    raise RuntimeError()  # abort
 
-            match = re.match(r'^locust.{2}([^\s]+)\s+', version_raw[-1])
+                match = re.match(r'^locust.{2}(.*?)$', version_raw[-1].strip().split(' ')[0])
 
-            if not match:
-                print(f'!! unable to find locust version in "{version_raw[-1].strip()}" specified in requirements.txt from {url}', file=sys.stderr)
-            else:
-                locust_version = match.group(1)
+                if not match:
+                    print(f'!! unable to find locust version in "{version_raw[-1].strip()}" specified in requirements.txt from {url}', file=sys.stderr)
+                else:
+                    locust_version = match.group(1).strip()
+            except FileNotFoundError:
+                with open(path.join(repo_destination, 'pyproject.toml'), 'rb') as fdt:
+                    toml_dict = tomli.load(fdt)
+                    dependencies = toml_dict.get('project', {}).get('dependencies', [])
+                    for dependency in dependencies:
+                        if not dependency.startswith('locust'):
+                            continue
+
+                        _, locust_version = dependency.strip().split(' ', 1)
+
+                        break
         except RuntimeError:
             pass
         finally:
-            rmtree(tmp_workspace)
+            rmtree(tmp_workspace, onerror=onerror)
     else:
         response = requests.get(
             'https://pypi.org/pypi/grizzly-loadtester/json'
