@@ -76,8 +76,8 @@ RUN apt-get install -y --no-install-recommends \
     libssl-dev \
     python3-dev
 
-ENV LC_ALL=C
-ENV LANG=C
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 
 RUN mkdir -p -m 0600 /root/.ssh
 
@@ -161,8 +161,8 @@ RUN apt-get install -y --no-install-recommends \
 COPY --from=python --chown=grizzly:grizzly /venv /venv
 COPY --from=entrypoint /grizzly-entrypoint.sh /grizzly-entrypoint.sh
 
-ENV LC_ALL=C
-ENV LANG=C
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 ENV PATH="/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH="/srv/grizzly"

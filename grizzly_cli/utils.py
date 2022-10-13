@@ -379,7 +379,7 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
                         if not requires_dist.startswith('locust'):
                             continue
 
-                        match = re.match(r'^locust \([^0-9]{2}(.+)\)$', requires_dist.strip())
+                        match = re.match(r'^locust \((.*?)\)$', requires_dist.strip())
 
                         if not match:
                             print(f'!! unable to find locust version in "{requires_dist.strip()}" specified in pypi for grizzly-loadtester {grizzly_version}', file=sys.stderr)
@@ -387,6 +387,8 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
                             break
 
                         locust_version = match.group(1)
+                        if locust_version.startswith('=='):
+                            locust_version = locust_version[2:]
                         break
 
                     if locust_version is None:
