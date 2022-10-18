@@ -174,12 +174,20 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
                 raise RuntimeError()  # abort
 
             if active_branch != branch:
-                git_object_type = subprocess.check_output(
-                    ['git', 'cat-file', '-t', branch],
-                    cwd=repo_destination,
-                    shell=False,
-                    universal_newlines=True,
-                ).strip()
+                try:
+                    git_object_type = subprocess.check_output(
+                        ['git', 'cat-file', '-t', branch],
+                        cwd=repo_destination,
+                        shell=False,
+                        universal_newlines=True,
+                        stderr=subprocess.STDOUT,
+                    ).strip()
+                except subprocess.CalledProcessError as cpe:
+                    if 'Not a valid object name' in cpe.output:
+                        git_object_type = 'branch'  # assume remote branch
+                    else:
+                        print(f'!! unable to determine git object type for {branch}')
+                        raise RuntimeError()
 
                 if git_object_type == 'tag':
                     rc += subprocess.check_call(
