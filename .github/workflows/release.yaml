@@ -70,10 +70,10 @@ jobs:
         last_version=$(git tag | awk '$1 ~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ {print $1}' | sort -r --version-sort | head -1 | sed -r 's|^v||')
         if [[ -z "${last_version}" ]]; then
           last_version="0.0.0"
-          echo "::set-output name=level::major"
+          echo "level=major" >> $GITHUB_OUTPUT
         fi
 
-        echo "::set-output name=version::${last_version}"
+        echo "version=${last_version}" >> $GITHUB_OUTPUT
 
     - name: autobump version
       if: github.event.inputs.version == '0.0.0'
@@ -106,7 +106,7 @@ jobs:
           exit 1
         fi
 
-        echo "::set-output name=version::${next_version}"
+        echo "version=${next_version}" >> $GITHUB_OUTPUT
 
     - name: install python dependencies
       run: |
