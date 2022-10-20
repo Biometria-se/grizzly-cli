@@ -67,7 +67,7 @@ jobs:
       if: github.event.inputs.version == '0.0.0'
       id: last-version
       run: |
-        last_version=$(git tag | awk '$1 ~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ {print $1}' | sort -r | head -1 | sed -r 's|^v||')
+        last_version=$(git tag | awk '$1 ~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ {print $1}' | sort -r --version-sort | head -1 | sed -r 's|^v||')
         if [[ -z "${last_version}" ]]; then
           last_version="0.0.0"
           echo "::set-output name=level::major"
