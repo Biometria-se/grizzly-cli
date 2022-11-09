@@ -98,7 +98,7 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         TWINE_NON_INTERACTIVE: true
         VERSION: ${{ steps.next-version.outputs.new_version }}
-      run: python -m twine upload dist/grizzly?loadtester-${VERSION#v}*
+      run: python -m twine upload dist/grizzly?loadtester?cli-${VERSION#v}*
 
     - name: push release tag
       id: release-tag
