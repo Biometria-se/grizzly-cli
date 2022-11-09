@@ -19,3 +19,4 @@ grizzly-example/
 .dockerignore
 tmp/
 requirements.txt
+grizzly_cli/__version__.py

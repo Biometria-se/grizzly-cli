@@ -1,4 +1,10 @@
 recursive-include grizzly_cli *
 recursive-exclude tests *
+recursive-exclude .devcontainer *
+recursive-exclude .vscode *
+recursive-exclude .github *
+recursive-exclude .pytest_tmp *
 global-exclude __pycache__
 global-exclude *.py[co]
+global-exclude *.egg-info
+global-exclude .gitignore

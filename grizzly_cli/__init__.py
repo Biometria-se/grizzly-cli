@@ -2,21 +2,11 @@ import os
 
 from typing import Callable, List
 
-from .argparse import ArgumentSubParser
-
-# pyright: reportMissingImports=false
-try:
-    from importlib.metadata import version, PackageNotFoundError  # type: ignore[no-redef]  # pylint: disable=import-error
-except ImportError:
-    from importlib_metadata import version, PackageNotFoundError  # type: ignore[no-redef]  # pylint: disable=import-error
-
 from behave.model import Scenario
 
+from .argparse import ArgumentSubParser
+from .__version__ import __version__
 
-try:
-    __version__ = version('grizzly-loadtester-cli')
-except PackageNotFoundError:
-    __version__ = '0.0.0'
 
 EXECUTION_CONTEXT = os.getcwd()
 
@@ -39,3 +29,8 @@ class register_parser:
         register_parser.registered.insert(self.order, func)
 
         return func
+
+
+__all__ = [
+    '__version__',
+]
