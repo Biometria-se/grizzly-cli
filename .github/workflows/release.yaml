@@ -3,20 +3,20 @@ name: release
 on:
   workflow_dispatch:
       inputs:
-      level:
-        type: choice
-        description: 'Version level increment'
-        options:
-          - patch
-          - minor
-          - major
-        required: true
-        default: 'patch'
-      publish:
-        type: boolean
-        description: 'Publish package'
-        required: true
-        default: false
+        level:
+          type: choice
+          description: 'Version level increment'
+          options:
+            - patch
+            - minor
+            - major
+          required: true
+          default: 'patch'
+        publish:
+          type: boolean
+          description: 'Publish package'
+          required: true
+          default: false
 
 defaults:
   run:
