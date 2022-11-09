@@ -3,10 +3,13 @@ import os
 import stat
 import sys
 
-from typing import Dict, Optional, Tuple, List, Callable
+from typing import Dict, Optional, Tuple, List, Callable, cast
 from types import TracebackType
+from pathlib import Path
 
 from behave.model import Scenario, Step
+from setuptools_scm.config import Configuration as SetuptoolsScmConfiguration
+from setuptools_scm._cli import _get_version as setuptools_scm_get_version
 
 
 def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: Optional[str] = None) -> Tuple[int, List[str]]:
@@ -87,3 +90,13 @@ def create_scenario(name: str, background_steps: List[str], steps: List[str]) ->
         scenario.steps.append(step)
 
     return scenario
+
+
+def get_current_version() -> str:
+    root = (Path(__file__).parent / '..').resolve()
+
+    version = setuptools_scm_get_version(SetuptoolsScmConfiguration.from_file(str(root / 'pyproject.toml'), str(root)))
+
+    assert version is not None, f'setuptools-scm was not able to get current version for {str(root)}'
+
+    return cast(str, version)

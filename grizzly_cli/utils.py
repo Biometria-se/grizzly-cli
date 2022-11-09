@@ -258,7 +258,7 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
                     _, grizzly_version = version_raw[-1].split(' = ')
                 except FileNotFoundError:
                     try:
-                        import setuptools_scm  # type: ignore  # pylint: disable=unused-import  # noqa: F401
+                        import setuptools_scm  # pylint: disable=unused-import  # noqa: F401
                     except ModuleNotFoundError:
                         rc = subprocess.check_call([
                             sys.executable,
