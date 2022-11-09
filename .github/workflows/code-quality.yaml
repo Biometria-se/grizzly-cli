@@ -20,6 +20,8 @@ jobs:
     - name: checkout
       id: checkout
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: setup python
       id: setup-python
@@ -73,6 +75,8 @@ jobs:
     - name: checkout
       id: checkout
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: setup python
       id: setup-python
@@ -117,6 +121,8 @@ jobs:
     - name: checkout
       id: checkout
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: setup python
       id: setup-python
@@ -160,11 +166,11 @@ jobs:
         ssh-agent -a /tmp/ssh_auth_sock
 
     - name: pytest (e2e)
-      id: pytest-unit
+      id: pytest-e2e
       env:
         E2E_RUN_DIST: True
         SSH_AUTH_SOCK: /tmp/ssh_auth_sock
-      run: python -m pytest tests/e2e
+      run: python -m pytest --no-cov tests/e2e
 
   documentation-scripts:
     name: "documentation / ${{ matrix.script }}"
@@ -180,6 +186,8 @@ jobs:
     - name: checkout
       id: checkout
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: setup python
       id: setup-python
