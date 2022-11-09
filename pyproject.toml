@@ -179,6 +179,7 @@ omit = ["tests/*", "/tmp/*"]
 
 [tool.pytest.ini_options]
 addopts = [
+    "--cov-config=pyproject.toml",
     "--cov=.",
     "--cov-report=",
     "--no-cov-on-fail"
