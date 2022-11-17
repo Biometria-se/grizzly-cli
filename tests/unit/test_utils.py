@@ -185,24 +185,25 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     assert poll_mock.call_count == 1
     assert kill_mock.call_count == 1
 
-    def popen___init__(*args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:
-        setattr(args[0], 'returncode', 0)
+    def mock_command_output(output: List[str], returncode: int = 0) -> None:
+        output_buffer: List[Union[bytes, int]] = [f'{line}\n'.encode('utf-8') for line in output] + [0]
 
-        class Stdout:
-            def __init__(self) -> None:
-                self.output: List[Union[bytes, int]] = [
-                    b'first line\n',
-                    b'second line\n',
-                    0,
-                ]
+        def popen___init__(*args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:
+            setattr(args[0], 'returncode', returncode)
 
-            def readline(self) -> Union[bytes, int]:
-                return self.output.pop(0)
+            class Stdout:
+                def readline(self) -> Union[bytes, int]:
+                    return output_buffer.pop(0)
 
-        setattr(args[0], 'stdout', Stdout())
+            setattr(args[0], 'stdout', Stdout())
 
-    mocker.patch('grizzly_cli.utils.subprocess.Popen.terminate', side_effect=[KeyboardInterrupt])
-    mocker.patch('grizzly_cli.utils.subprocess.Popen.__init__', popen___init__)
+        mocker.patch('grizzly_cli.utils.subprocess.Popen.terminate', side_effect=[KeyboardInterrupt])
+        mocker.patch('grizzly_cli.utils.subprocess.Popen.__init__', popen___init__)
+
+    mock_command_output([
+        'first line',
+        'second line',
+    ])
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 3)
 
     assert run_command([], {}) == 0
@@ -217,6 +218,29 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     assert wait.call_count == 2
     assert poll_mock.call_count == 3
     assert kill_mock.call_count == 2
+
+    mock_command_output([
+        'hello world',
+        'foo bar',
+        'bar grizzly.returncode=1234 foo',
+        'grizzly.returncode=4321',
+        'world foo hello bar',
+    ], 0)
+    poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 6)
+
+    assert run_command([], {}) == 4321
+
+    capture = capsys.readouterr()
+    assert capture.err == ''
+    assert capture.out == (
+        'hello world\n'
+        'foo bar\n'
+        'world foo hello bar\n'
+    )
+
+    assert wait.call_count == 3
+    assert poll_mock.call_count == 6
+    assert kill_mock.call_count == 3
 
 
 def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -> None:

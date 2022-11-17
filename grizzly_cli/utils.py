@@ -24,7 +24,13 @@ from jinja2 import Template
 import grizzly_cli
 
 
+RETURNCODE_TOKEN = 'grizzly.returncode='
+
+RETURNCODE_PATTERN = re.compile(r'.*grizzly\.returncode=([-]?[0-9]+).*')
+
+
 def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> int:
+    returncode: Optional[int] = None
     if env is None:
         env = environ.copy()
 
@@ -48,6 +54,18 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
             if not output:
                 break
 
+            # Biometria-se/grizzly#160
+            line = output.decode('utf-8')
+            if RETURNCODE_TOKEN in line:
+                match = RETURNCODE_PATTERN.match(line)
+                if match:
+                    try:
+                        returncode = int(match.group(1))
+                    except ValueError:
+                        returncode = 123
+
+                continue  # hide from actual output
+
             if not silent:
                 sys.stdout.buffer.write(output)
                 sys.stdout.flush()
@@ -63,7 +81,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
 
     process.wait()
 
-    return process.returncode
+    return returncode or process.returncode
 
 
 def get_docker_compose_version() -> Tuple[int, int, int]:
