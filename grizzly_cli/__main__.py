@@ -127,7 +127,7 @@ def _parse_arguments() -> argparse.Namespace:
 
 def _inject_additional_arguments_from_metadata(args: argparse.Namespace) -> argparse.Namespace:
     with open(args.file) as fd:
-        file_metadata = [line.strip().replace('# grizzly-cli ', '').split(' ') for line in fd.readlines() if line.strip().startswith('# grizzly-cli')]
+        file_metadata = [line.strip().replace('# grizzly-cli ', '').split(' ') for line in fd.readlines() if line.strip().startswith('# grizzly-cli ')]
 
     if len(file_metadata) < 1:
         return args
