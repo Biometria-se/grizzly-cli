@@ -1,6 +1,6 @@
 import os
 
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 
@@ -10,6 +10,7 @@ from .utils import (
     ask_yes_no, get_input,
     distribution_of_users_per_scenario,
     requirements,
+    find_metadata_notices,
 )
 from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
@@ -95,6 +96,17 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
         if manual_input:
             ask_yes_no('continue?')
+
+    notices = find_metadata_notices(args.file)
+
+    if len(notices) > 0:
+        if args.yes:
+            output_func = cast(Callable[[str], None], print)
+        else:
+            output_func = ask_yes_no
+
+        for notice in notices:
+            output_func(notice)
 
     if args.environment_file is not None:
         environment_file = os.path.realpath(args.environment_file)

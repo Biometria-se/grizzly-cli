@@ -547,6 +547,11 @@ def parse_feature_file(file: str) -> None:
         grizzly_cli.SCENARIOS.append(scenario)
 
 
+def find_metadata_notices(file: str) -> List[str]:
+    with open(file) as fd:
+        return [line.strip().replace('# grizzly-cli:notice ', '') for line in fd.readlines() if line.strip().startswith('# grizzly-cli:notice ')]
+
+
 def find_variable_names_in_questions(file: str) -> List[str]:
     unique_variables: Set[str] = set()
 

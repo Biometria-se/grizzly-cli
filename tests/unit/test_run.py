@@ -32,7 +32,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
         mocker.patch('grizzly_cli.run.EXECUTION_CONTEXT', str(execution_context))
         mocker.patch('grizzly_cli.run.MOUNT_CONTEXT', str(mount_context))
         mocker.patch('grizzly_cli.run.get_hostname', side_effect=['localhost'] * 3)
-        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], []])
+        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], []])
+        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar']])
         mocker.patch('grizzly_cli.run.distribution_of_users_per_scenario', autospec=True)
         ask_yes_no_mock = mocker.patch('grizzly_cli.run.ask_yes_no', autospec=True)
         distributed_mock = mocker.MagicMock(return_value=0)
@@ -47,6 +48,7 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
             f'{execution_context}/test.feature',
         ])
         setattr(arguments, 'verbose', True)
+        setattr(arguments, 'file', ' '.join(arguments.file))
 
         assert run(arguments, distributed_mock) == 0
 
@@ -105,6 +107,7 @@ bar = foo
             '-e', f'{execution_context}/configuration.yaml',
             f'{execution_context}/test.feature',
         ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
 
         assert run(arguments, local_mock) == 0
 
@@ -131,7 +134,49 @@ bar = foo
             'common': ['--stop'],
         }
 
-        assert ask_yes_no_mock.call_count == 1
+        assert ask_yes_no_mock.call_count == 2
+        args, _ = ask_yes_no_mock.call_args_list[0]
+        assert args[0] == 'continue?'
+        args, _ = ask_yes_no_mock.call_args_list[1]
+        assert args[0] == 'is the event log cleared?'
+        assert get_input_mock.call_count == 2
+
+        assert capture.err == ''
+        assert capture.out == ''
+
+        # with --yes, notices should only be printed, and not needed to be confirmed via ask_yes_no
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/test.feature',
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, local_mock) == 0
+
+        assert local_mock.call_count == 2
+        assert distributed_mock.call_count == 1
+        args, _ = local_mock.call_args_list[-1]
+
+        assert args[0] is arguments
+
+        # windows hack... one place uses C:\ and getcwd uses c:\
+        args[1]['GRIZZLY_CONFIGURATION_FILE'] = args[1]['GRIZZLY_CONFIGURATION_FILE'].lower()
+
+        assert args[1] == {
+            'GRIZZLY_CLI_HOST': 'localhost',
+            'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
+            'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+            'GRIZZLY_CONFIGURATION_FILE': path.join(execution_context, 'configuration.yaml').lower(),
+        }
+        assert args[2] == {
+            'master': [],
+            'worker': [],
+            'common': ['--stop'],
+        }
+
+        assert ask_yes_no_mock.call_count == 2
         assert get_input_mock.call_count == 2
 
         assert capture.err == ''

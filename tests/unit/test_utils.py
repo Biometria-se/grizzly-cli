@@ -28,6 +28,7 @@ from grizzly_cli.utils import (
     distribution_of_users_per_scenario,
     ask_yes_no,
     get_dependency_versions,
+    find_metadata_notices,
 )
 
 from ..helpers import onerror, create_scenario
@@ -347,6 +348,39 @@ def test_find_variable_names_in_questions(mocker: MockerFixture) -> None:
     variables = find_variable_names_in_questions('test.feature')
     assert len(variables) == 4
     assert variables == ['bar', 'foo', 'test_variable_1', 'test_variable_2']
+
+
+def test_find_metadata_notices(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
+
+    try:
+        feature_file = test_context / 'test-1.feature'
+        feature_file.write_text('''Feature: test -1
+    Scenario: hello world
+        Given a feature file with a rich set of expressions
+''')
+        assert find_metadata_notices(str(feature_file)) == []
+
+        feature_file.write_text('''# grizzly-cli run --verbose
+# grizzly-cli:notice have you created testdata?
+Feature: test -1
+    Scenario: hello world
+        Given a feature file with a rich set of expressions
+''')
+
+        assert find_metadata_notices(str(feature_file)) == ['have you created testdata?']
+
+        feature_file.write_text('''# grizzly-cli run --verbose
+# grizzly-cli:notice have you created testdata?
+Feature: test -1
+    Scenario: hello world
+        # grizzly-cli:notice is the event log cleared?
+        Given a feature file with a rich set of expressions
+''')
+
+        assert find_metadata_notices(str(feature_file)) == ['have you created testdata?', 'is the event log cleared?']
+    finally:
+        rmtree(test_context, onerror=onerror)
 
 
 def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: MockerFixture) -> None:
