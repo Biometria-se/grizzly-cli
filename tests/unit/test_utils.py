@@ -63,7 +63,6 @@ def test_parse_feature_file(tmp_path_factory: TempPathFactory) -> None:
         reload(grizzly_cli.utils)
 
         assert len(grizzly_cli.SCENARIOS) == 0
-        print(id(grizzly_cli.SCENARIOS))
 
         parse_feature_file('test.feature')
 
@@ -432,6 +431,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         distribution_of_users_per_scenario(arguments, {})
     assert str(ve.value) == 'scenario-1 will have 5 users to run 1 iterations, increase iterations or lower user count'
 
+    capsys.readouterr()
+
     mocker.patch('grizzly_cli.SCENARIOS', [
         create_scenario(
             'scenario-1',
@@ -460,7 +461,6 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.err == ''
-    print(capture.out)
     assert capture.out == dedent('''
         feature file test.feature will execute in total 2 iterations
 
@@ -468,8 +468,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         ident   weight  #iter  #user  description
         ------|-------|------|------|-------------|
-        001        1.0      1      1  scenario-1
-        002        1.0      1      1  scenario-2
+        001          1      1      1  scenario-1
+        002          1      1      1  scenario-2
         ------|-------|------|------|-------------|
 
     ''')
@@ -509,7 +509,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
                 'Given "{{ users }}" users',
             ],
             [
-                'Given a user of type "RestApi" with weight "10" load testing "https://localhost"',
+                'Given a user of type "RestApi" with weight "{{ integer }}" load testing "https://localhost"',
                 'And repeat for "{{ integer * 0.10 }}" iterations'
                 'And ask for value of variable "test_variable_2"',
                 'And ask for value of variable "test_variable_1"',
@@ -545,7 +545,6 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.err == ''
-    print(capture.out)
     assert capture.out == dedent('''
         feature file test.feature will execute in total 55 iterations
 
@@ -553,8 +552,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         ident   weight  #iter  #user  description
         ------|-------|------|------|-------------|
-        001       10.0     50     36  scenario-1
-        002        1.0      5      4  scenario-2
+        001        500     50     39  scenario-1
+        002          1      5      1  scenario-2
         ------|-------|------|------|-------------|
 
     ''')
@@ -563,7 +562,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     args, _ = ask_yes_no.call_args_list[-1]
     assert args[0] == 'continue?'
 
-    assert render.call_count == 3
+    assert render.call_count == 5
     for _, kwargs in render.call_args_list:
         assert kwargs.get('boolean', None)
         assert kwargs.get('integer', None) == 500
@@ -613,7 +612,6 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.err == ''
-    print(capture.out)
     assert capture.out == dedent('''
         feature file integration.feature will execute in total 1260 iterations
 
@@ -621,114 +619,14 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         ident   weight  #iter  #user  description
         ------|-------|------|------|--------------------------------------------------------------------------------------|
-        001      100.0    500     46  scenario-1 testing a lot of stuff
-        002       50.0    750     23  scenario-2 testing a lot more of many different things that scenario-1 does not test
-        003        1.0     10      1  scenario-3
+        001        100    500     46  scenario-1 testing a lot of stuff
+        002         50    750     23  scenario-2 testing a lot more of many different things that scenario-1 does not test
+        003          1     10      1  scenario-3
         ------|-------|------|------|--------------------------------------------------------------------------------------|
 
     ''')
     capsys.readouterr()
     assert ask_yes_no.call_count == 2
-
-    # all scenarios in a feature file will, at this point, have all the background steps
-    # grizzly will later make sure that they are only run once
-    mocker.patch('grizzly_cli.SCENARIOS', [
-        create_scenario(
-            'scenario-1',
-            [
-                'Given "{{ users }}" users',
-                'And spawn rate is "{{ rate }}" users per second'
-            ],
-            [
-                'Given a user of type "RestApi" with weight "25" load testing "https://localhost"',
-                'And repeat for "{{ (leveranser * 0.25) | round | int }}" iterations'
-            ]
-        ),
-        create_scenario(
-            'scenario-2',
-            [
-                'Given "{{ users }}" users',
-                'And spawn rate is "{{ rate }}" users per second'
-            ],
-            [
-                'Given a user of type "RestApi" with weight "42" load testing "https://localhost"',
-                'And repeat for "{{ (leveranser * 0.42) | round | int }}" iterations'
-            ],
-        ),
-        create_scenario(
-            'scenario-3',
-            [
-                'Given "{{ users }}" users',
-                'And spawn rate is "{{ rate }}" users per second'
-            ],
-            [
-                'Given a user of type "RestApi" with weight "8" load testing "https://localhost"',
-                'And repeat for "{{ (leveranser * 0.08) | round | int }}" iterations'
-            ],
-        ),
-        create_scenario(
-            'scenario-4',
-            [
-                'Given "{{ users }}" users',
-                'And spawn rate is "{{ rate }}" users per second'
-            ],
-            [
-                'Given a user of type "RestApi" with weight "13" load testing "https://localhost"',
-                'And repeat for "{{ (leveranser * 0.13) | round | int }}" iterations'
-            ],
-        ),
-        create_scenario(
-            'scenario-5',
-            [
-                'Given "{{ users }}" users',
-                'And spawn rate is "{{ rate }}" users per second'
-            ],
-            [
-                'Given a user of type "RestApi" with weight "6" load testing "https://localhost"',
-                'And repeat for "{{ (leveranser * 0.06) | round | int }}" iterations'
-            ],
-        ),
-        create_scenario(
-            'scenario-6',
-            [
-                'Given "{{ users }}" users',
-                'And spawn rate is "{{ rate }}" users per second'
-            ],
-            [
-                'Given a user of type "RestApi" with weight "6" load testing "https://localhost"',
-                'And repeat for "{{ (leveranser * 0.06) | round | int }}" iterations'
-            ],
-        ),
-    ])
-
-    arguments = Namespace(file='integration.feature', yes=True)
-
-    distribution_of_users_per_scenario(arguments, {
-        'TESTDATA_VARIABLE_leveranser': '10',
-        'TESTDATA_VARIABLE_users': '6',
-        'TESTDATA_VARIABLE_rate': '6',
-    })
-    capture = capsys.readouterr()
-
-    assert capture.err == ''
-    print(capture.out)
-    assert capture.out == dedent('''
-        feature file integration.feature will execute in total 10 iterations
-
-        each scenario will execute accordingly:
-
-        ident   weight  #iter  #user  description
-        ------|-------|------|------|-------------|
-        001       25.0      2      1  scenario-1
-        002       42.0      4      1  scenario-2
-        003        8.0      1      1  scenario-3
-        004       13.0      1      1  scenario-4
-        005        6.0      1      1  scenario-5
-        006        6.0      1      1  scenario-6
-        ------|-------|------|------|-------------|
-
-    ''')
-    capsys.readouterr()
 
     mocker.patch('grizzly_cli.SCENARIOS', [
         create_scenario(
@@ -747,7 +645,6 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.err == ''
-    print(capture.out)
     assert capture.out == dedent('''
         feature file integration.feature will execute in total 1 iterations
 
@@ -755,10 +652,213 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
         ident   weight  #iter  #user  description
         ------|-------|------|------|-------------|
-        001       25.0      1      1  scenario-1
+        001         25      1      1  scenario-1
         ------|-------|------|------|-------------|
 
     ''')
+    capsys.readouterr()
+
+
+@pytest.mark.parametrize('users,iterations,output', [
+    (
+        6, 13,
+        dedent('''
+            feature file integration.feature will execute in total 28 iterations
+
+            each scenario will execute accordingly:
+
+            ident   weight  #iter  #user  description
+            ------|-------|------|------|-------------|
+            001         50     15      5  scenario-0
+            002         12      3      1  scenario-1
+            003         21      5      2  scenario-2
+            004          4      1      1  scenario-3
+            005          6      2      1  scenario-4
+            006          3      1      1  scenario-5
+            007          3      1      1  scenario-6
+            ------|-------|------|------|-------------|
+
+        '''),
+    ),
+    (
+        12, 20,
+        dedent('''
+            feature file integration.feature will execute in total 43 iterations
+
+            each scenario will execute accordingly:
+
+            ident   weight  #iter  #user  description
+            ------|-------|------|------|-------------|
+            001         33     23      6  scenario-0
+            002         16      5      2  scenario-1
+            003         28      8      5  scenario-2
+            004          5      2      1  scenario-3
+            005          8      3      2  scenario-4
+            006          4      1      1  scenario-5
+            007          4      1      1  scenario-6
+            ------|-------|------|------|-------------|
+
+        '''),
+    ),
+    (
+        18, 31,
+        dedent('''
+            feature file integration.feature will execute in total 66 iterations
+
+            each scenario will execute accordingly:
+
+            ident   weight  #iter  #user  description
+            ------|-------|------|------|-------------|
+            001         25     35      6  scenario-0
+            002         18      8      4  scenario-1
+            003         31     13      7  scenario-2
+            004          6      2      2  scenario-3
+            005          9      4      3  scenario-4
+            006          4      2      1  scenario-5
+            007          4      2      1  scenario-6
+            ------|-------|------|------|-------------|
+
+        '''),
+    ),
+    (
+        24, 49,
+        dedent('''
+            feature file integration.feature will execute in total 105 iterations
+
+            each scenario will execute accordingly:
+
+            ident   weight  #iter  #user  description
+            ------|-------|------|------|-------------|
+            001         20     56      6  scenario-0
+            002         20     12      6  scenario-1
+            003         33     21     10  scenario-2
+            004          6      4      1  scenario-3
+            005         10      6      3  scenario-4
+            006          4      3      2  scenario-5
+            007          4      3      2  scenario-6
+            ------|-------|------|------|-------------|
+
+        '''),
+    ),
+    (
+        30, 58,
+        dedent('''
+            feature file integration.feature will execute in total 124 iterations
+
+            each scenario will execute accordingly:
+
+            ident   weight  #iter  #user  description
+            ------|-------|------|------|-------------|
+            001         16     66      6  scenario-0
+            002         20     15      7  scenario-1
+            003         35     24     12  scenario-2
+            004          6      5      3  scenario-3
+            005         10      8      4  scenario-4
+            006          5      3      2  scenario-5
+            007          5      3      2  scenario-6
+            ------|-------|------|------|-------------|
+
+        '''),
+    ),
+    (
+        30, 21000,
+        dedent('''
+            feature file integration.feature will execute in total 44940 iterations
+
+            each scenario will execute accordingly:
+
+            ident   weight  #iter  #user  description
+            ------|-------|------|------|-------------|
+            001         16  23940      6  scenario-0
+            002         20   5250      7  scenario-1
+            003         35   8820     12  scenario-2
+            004          6   1680      3  scenario-3
+            005         10   2730      4  scenario-4
+            006          5   1260      2  scenario-5
+            007          5   1260      2  scenario-6
+            ------|-------|------|------|-------------|
+
+        '''),
+    ),
+])
+def test_distribution_of_users_per_scenario_advanced(capsys: CaptureFixture, mocker: MockerFixture, users: int, iterations: int, output: str) -> None:
+    # all scenarios in a feature file will, at this point, have all the background steps
+    # grizzly will later make sure that they are only run once
+    background_steps = [
+        'Given "{{ (users | int) + 6 }}" users',
+        'And spawn rate is "{{ rate }}" users per second'
+    ]
+
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-0',
+            background_steps,
+            [
+                'Given a user of type "RestApi" with weight "{{ (6 / ((users | int) + 6) + 0.5 | int) * 100 }}" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser | int) + ((((leveranser * 0.06) + 0.5) | int) or 1) + ((((leveranser * 0.08) + 0.5) | int) or 1) }}" iterations',
+            ],
+        ),
+        create_scenario(
+            'scenario-1',
+            background_steps,
+            [
+                'Given a user of type "RestApi" with weight "{{ (100 - ((6 / ((users | int) + 6) + 0.5 | int) * 100)) * 0.25 }}" load testing "https://localhost"',
+                'And repeat for "{{ ((leveranser * 0.25) + 0.5) | int }}" iterations',
+            ]
+        ),
+        create_scenario(
+            'scenario-2',
+            background_steps,
+            [
+                'Given a user of type "RestApi" with weight "{{ (100 - ((6 / ((users | int) + 6) + 0.5 | int) * 100)) * 0.42 }}" load testing "https://localhost"',
+                'And repeat for "{{ ((leveranser * 0.42) + 0.5) | int }}" iterations',
+            ],
+        ),
+        create_scenario(
+            'scenario-3',
+            background_steps,
+            [
+                'Given a user of type "RestApi" with weight "{{ (100 - ((6 / ((users | int) + 6) + 0.5 | int) * 100)) * 0.08 }}" load testing "https://localhost"',
+                'And repeat for "{{ ((leveranser * 0.08) + 0.5) | int }}" iterations',
+            ],
+        ),
+        create_scenario(
+            'scenario-4',
+            background_steps,
+            [
+                'Given a user of type "RestApi" with weight "{{ (100 - ((6 / ((users | int) + 6) + 0.5 | int) * 100)) * 0.13 }}" load testing "https://localhost"',
+                'And repeat for "{{ ((leveranser * 0.13) + 0.5) | int }}" iterations',
+            ],
+        ),
+        create_scenario(
+            'scenario-5',
+            background_steps,
+            [
+                'Given a user of type "RestApi" with weight "{{ (100 - ((6 / ((users | int) + 6) + 0.5 | int) * 100)) * 0.06 }}" load testing "https://localhost"',
+                'And repeat for "{{ ((leveranser * 0.06) + 0.5) | int }}" iterations',
+            ],
+        ),
+        create_scenario(
+            'scenario-6',
+            background_steps,
+            [
+                'Given a user of type "RestApi" with weight "{{ (100 - ((6 / ((users | int) + 6) + 0.5 | int) * 100)) * 0.06 }}" load testing "https://localhost"',
+                'And repeat for "{{ ((leveranser * 0.06) + 0.5) | int }}" iterations',
+            ],
+        ),
+    ])
+
+    arguments = Namespace(file='integration.feature', yes=True)
+
+    distribution_of_users_per_scenario(arguments, {
+        'TESTDATA_VARIABLE_leveranser': f'{iterations}',
+        'TESTDATA_VARIABLE_users': f'{users}',
+        'TESTDATA_VARIABLE_rate': f'{users}',
+    })
+    capture = capsys.readouterr()
+
+    assert capture.err == ''
+    assert capture.out == output
     capsys.readouterr()
 
 
