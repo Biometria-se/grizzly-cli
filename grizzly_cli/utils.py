@@ -651,9 +651,9 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 match = re.match(r'a user of type "([^"]*)" (with weight "([^"]*)")?.*', step.name)
                 if match:
                     distribution[scenario.name].user = match.group(1)
-                    distribution[scenario.name].weight = float(match.group(3) or '1.0')
+                    distribution[scenario.name].weight = int(float(Template(match.group(3) or '1.0').render(**variables)))
             elif step.name.startswith('repeat for'):
-                match = re.match(r'repeat for "([^"]*)" iteration.*', step.name)
+                match = re.match(r'repeat for "([^"]*)" iteration[s]?', step.name)
                 if match:
                     distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
 
@@ -688,10 +688,6 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             if user_overflow < 1:
                 break
 
-    for scenario in distribution.values():
-        if scenario.iterations < scenario.user_count:
-            raise ValueError(f'{scenario.name} will have {scenario.user_count} users to run {scenario.iterations} iterations, increase iterations or lower user count')
-
     def print_table_lines(max_length_iterations: int, max_length_users: int, max_length_description: int) -> None:
         sys.stdout.write('-' * 5)
         sys.stdout.write('-|-')
@@ -717,7 +713,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         max_length_users = max(len(str(scenario.user_count)), max_length_users)
 
     for scenario in distribution.values():
-        row = '{:5}   {:>6.1f}  {:>{}}  {:>{}}  {}'.format(
+        row = '{:5}   {:>6d}  {:>{}}  {:>{}}  {}'.format(
             scenario.identifier,
             scenario.weight,
             scenario.iterations,
@@ -742,6 +738,10 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     print_table_lines(max_length_iterations, max_length_users, max_length_description)
 
     print('')
+
+    for scenario in distribution.values():
+        if scenario.iterations < scenario.user_count:
+            raise ValueError(f'{scenario.name} will have {scenario.user_count} users to run {scenario.iterations} iterations, increase iterations or lower user count')
 
     if not args.yes:
         ask_yes_no('continue?')
