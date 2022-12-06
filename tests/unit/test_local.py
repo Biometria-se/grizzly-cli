@@ -33,7 +33,7 @@ def test_local(mocker: MockerFixture) -> None:
 
 
 def test_local_run(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
-    run_command = mocker.patch('grizzly_cli.local.run_command', side_effect=[0])
+    run_command = mocker.patch('grizzly_cli.local.run_command', return_value=0)
     test_context = tmp_path_factory.mktemp('test_context')
     (test_context / 'test.feature').write_text('Feature:')
 
@@ -72,6 +72,31 @@ def test_local_run(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> 
             '--foo', 'bar', '--master',
             '--bar', 'foo', '--worker',
             '--common', 'true',
+        ]
+
+        assert environ.get('GRIZZLY_TEST_VAR', None) == 'True'
+
+        assert local_run(
+            arguments,
+            {
+                'GRIZZLY_TEST_VAR': 'True',
+            },
+            {
+                'master': ['--foo', 'bar', '--master'],
+                'worker': ['--bar', 'foo', '--worker'],
+                'common': ['--common', 'true', '-Dcsv-prefix="cool beans"'],
+            },
+        ) == 0
+
+        assert run_command.call_count == 2
+        args, _ = run_command.call_args_list[-1]
+        assert args[0] == [
+            'behave',
+            f'{test_context}/test.feature',
+            '--foo', 'bar', '--master',
+            '--bar', 'foo', '--worker',
+            '--common', 'true',
+            '-Dcsv-prefix="cool beans"',
         ]
 
         assert environ.get('GRIZZLY_TEST_VAR', None) == 'True'

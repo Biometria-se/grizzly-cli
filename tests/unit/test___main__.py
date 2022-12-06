@@ -125,6 +125,7 @@ def test__create_parser() -> None:
             '-T', '--testdata-variable',
             '-y', '--yes',
             '-e', '--environment-file',
+            '--csv-prefix', '--csv-interval', '--csv-flush-interval',
         ])
         assert sorted([action.dest for action in run_parser._actions if len(action.option_strings) == 0]) == ['file']
 
@@ -376,6 +377,51 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert capture.out == ''
         assert capture.err == 'grizzly-cli: error: "behave" not found in PATH, needed when running local mode\n'
 
+        # csv logging
+        sys.argv = ['grizzly-cli', 'local', 'run', '--csv-interval', '20', 'test.feature']
+        mocker.patch('grizzly_cli.__main__.which', side_effect=['behave'])
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 2
+
+        capture = capsys.readouterr()
+        assert capture.out == ''
+        assert capture.err == 'grizzly-cli: error: --csv-interval can only be used in combination with --csv-prefix\n'
+
+        sys.argv = ['grizzly-cli', 'dist', 'run', '--csv-flush-interval', '60', 'test.feature']
+        mocker.patch('grizzly_cli.__main__.get_distributed_system', side_effect=['docker'])
+
+        with pytest.raises(SystemExit) as se:
+            _parse_arguments()
+        assert se.type == SystemExit
+        assert se.value.code == 2
+
+        capture = capsys.readouterr()
+        assert capture.out == ''
+        assert capture.err == 'grizzly-cli: error: --csv-flush-interval can only be used in combination with --csv-prefix\n'
+
+        sys.argv = ['grizzly-cli', 'local', 'run', '--csv-prefix', '--csv-interval', '20', '--csv-flush-interval', '60', 'test.feature']
+        mocker.patch('grizzly_cli.__main__.which', side_effect=['behave'])
+
+        parsed_args = _parse_arguments()
+
+        assert getattr(parsed_args, 'csv_prefix', False)
+        assert getattr(parsed_args, 'csv_interval', None) == 20
+        assert getattr(parsed_args, 'csv_flush_interval', None) == 60
+
+        sys.argv = ['grizzly-cli', 'local', 'run', '--csv-prefix', 'static csv prefix', 'test.feature']
+        mocker.patch('grizzly_cli.__main__.which', side_effect=['behave'])
+
+        parsed_args = _parse_arguments()
+
+        assert getattr(parsed_args, 'csv_prefix', None) == 'static csv prefix'
+        assert getattr(parsed_args, 'csv_interval', None) is None
+        assert getattr(parsed_args, 'csv_flush_interval', None) is None
+        # // csv logging
+
+        # -T/--testdata-variable
         sys.argv = ['grizzly-cli', 'local', 'run', '-T', 'variable', 'test.feature']
         mocker.patch('grizzly_cli.__main__.which', side_effect=['behave'])
 
@@ -399,6 +445,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert arguments.file == 'test.feature'
 
         assert environ.get('TESTDATA_VARIABLE_key', None) == 'value'
+        # // -T/--testdata-variable
 
         mocker.patch('grizzly_cli.__main__.get_distributed_system', side_effect=['docker'] * 3)
 

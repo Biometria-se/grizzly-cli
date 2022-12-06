@@ -3,14 +3,16 @@ import os
 from typing import List, Dict, Any, Callable, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
+from datetime import datetime
 
-from . import EXECUTION_CONTEXT, MOUNT_CONTEXT
+import grizzly_cli
 from .utils import (
     find_variable_names_in_questions,
     ask_yes_no, get_input,
     distribution_of_users_per_scenario,
     requirements,
     find_metadata_notices,
+    parse_feature_file,
 )
 from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
@@ -52,6 +54,27 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
     )
     run_parser.add_argument(
+        '--csv-prefix',
+        nargs='?',
+        const=True,
+        default=None,
+        help='write log statistics to CSV files with specified prefix, if no value is specified the description of the gherkin Feature tag will be used, suffixed with timestamp',
+    )
+    run_parser.add_argument(
+        '--csv-interval',
+        type=int,
+        default=None,
+        required=False,
+        help='interval that statistics is collected for CSV files, can only be used in combination with `--csv-prefix`',
+    )
+    run_parser.add_argument(
+        '--csv-flush-interval',
+        type=int,
+        default=None,
+        required=False,
+        help='interval that CSV statistics is flushed to disk, can only be used in combination with `--csv-prefix`',
+    )
+    run_parser.add_argument(
         'file',
         nargs='+',
         type=BashCompletionTypes.File('*.feature'),
@@ -63,13 +86,13 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         run_parser.prog = f'grizzly-cli {parent} run'
 
 
-@requirements(EXECUTION_CONTEXT)
+@requirements(grizzly_cli.EXECUTION_CONTEXT)
 def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str, List[str]]], int]) -> int:
     # always set hostname of host where grizzly-cli was executed, could be useful
     environ: Dict[str, Any] = {
         'GRIZZLY_CLI_HOST': get_hostname(),
-        'GRIZZLY_EXECUTION_CONTEXT': EXECUTION_CONTEXT,
-        'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
+        'GRIZZLY_EXECUTION_CONTEXT': grizzly_cli.EXECUTION_CONTEXT,
+        'GRIZZLY_MOUNT_CONTEXT': grizzly_cli.MOUNT_CONTEXT,
     }
 
     variables = find_variable_names_in_questions(args.file)
@@ -123,5 +146,23 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
     if args.verbose:
         run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
+
+    if args.csv_prefix is not None:
+        if args.csv_prefix is True:
+            parse_feature_file(args.file)
+            if grizzly_cli.FEATURE_DESCRIPTION is None:
+                raise ValueError('feature file does not seem to have a `Feature:` description to use as --csv-prefix')
+
+            csv_prefix = grizzly_cli.FEATURE_DESCRIPTION.replace(' ', '_')
+            timestamp = datetime.now().astimezone().strftime('%Y%m%dT%H%M%S')
+            setattr(args, 'csv_prefix', f'{csv_prefix}_{timestamp}')
+
+        run_arguments['common'] += [f'-Dcsv-prefix="{args.csv_prefix}"']
+
+        if args.csv_interval is not None:
+            run_arguments['common'] += [f'-Dcsv-interval={args.csv_interval}']
+
+        if args.csv_flush_interval is not None:
+            run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
 
     return run_func(args, environ, run_arguments)

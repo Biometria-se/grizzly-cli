@@ -1,6 +1,7 @@
 from shutil import rmtree
 from os import getcwd, path
 from argparse import ArgumentParser
+from datetime import datetime
 
 from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
@@ -19,7 +20,7 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
     execution_context.mkdir()
     mount_context = test_context / 'mount-context'
     mount_context.mkdir()
-    (execution_context / 'test.feature').write_text('Feature:')
+    (execution_context / 'test.feature').write_text('Feature: this feature is testing something')
     (execution_context / 'configuration.yaml').write_text('configuration:')
 
     parser = ArgumentParser()
@@ -29,11 +30,11 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
     create_parser(sub_parsers, parent='local')
 
     try:
-        mocker.patch('grizzly_cli.run.EXECUTION_CONTEXT', str(execution_context))
-        mocker.patch('grizzly_cli.run.MOUNT_CONTEXT', str(mount_context))
-        mocker.patch('grizzly_cli.run.get_hostname', side_effect=['localhost'] * 3)
-        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], []])
-        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar']])
+        mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', str(execution_context))
+        mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', str(mount_context))
+        mocker.patch('grizzly_cli.run.get_hostname', return_value='localhost')
+        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], []])
+        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], []])
         mocker.patch('grizzly_cli.run.distribution_of_users_per_scenario', autospec=True)
         ask_yes_no_mock = mocker.patch('grizzly_cli.run.ask_yes_no', autospec=True)
         distributed_mock = mocker.MagicMock(return_value=0)
@@ -181,5 +182,62 @@ bar = foo
 
         assert capture.err == ''
         assert capture.out == ''
+
+        # no `csv_prefix` nothing should be added
+        setattr(arguments, 'csv_interval', 20)
+
+        assert run(arguments, local_mock) == 0
+
+        assert local_mock.call_count == 3
+        assert distributed_mock.call_count == 1
+        args, _ = local_mock.call_args_list[-1]
+
+        assert args[0] is arguments
+
+        assert args[2] == {
+            'master': [],
+            'worker': [],
+            'common': ['--stop'],
+        }
+
+        # static csv-prefix
+        setattr(arguments, 'csv_prefix', 'test test')
+
+        assert run(arguments, local_mock) == 0
+
+        assert local_mock.call_count == 4
+        assert distributed_mock.call_count == 1
+        args, _ = local_mock.call_args_list[-1]
+
+        assert args[0] is arguments
+
+        assert args[2] == {
+            'master': [],
+            'worker': [],
+            'common': ['--stop', '-Dcsv-prefix="test test"', '-Dcsv-interval=20'],
+        }
+
+        # dynamic csv-prefix
+        datetime_mock = mocker.patch(
+            'grizzly_cli.run.datetime',
+            side_effect=lambda *args, **kwargs: datetime(*args, **kwargs)
+        )
+        datetime_mock.now.return_value = datetime(2022, 12, 6, 13, 1, 13)
+        setattr(arguments, 'csv_prefix', True)
+        setattr(arguments, 'csv_flush_interval', 60)
+
+        assert run(arguments, distributed_mock) == 0
+
+        assert local_mock.call_count == 4
+        assert distributed_mock.call_count == 2
+        args, _ = distributed_mock.call_args_list[-1]
+
+        assert args[0] is arguments
+
+        assert args[2] == {
+            'master': [],
+            'worker': [],
+            'common': ['--stop', '-Dcsv-prefix="this_feature_is_testing_something_20221206T130113"', '-Dcsv-interval=20', '-Dcsv-flush-interval=60'],
+        }
     finally:
         rmtree(test_context, onerror=onerror)

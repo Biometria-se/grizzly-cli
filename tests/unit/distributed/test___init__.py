@@ -172,7 +172,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             {
                 'master': ['--foo', 'bar', '--master'],
                 'worker': ['--bar', 'foo', '--worker'],
-                'common': ['--common', 'true'],
+                'common': ['--common', 'true', '-Dcsv-prefix=asdf'],
             },
         ) == 1
         capture = capsys.readouterr()
@@ -220,7 +220,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '3'
         assert environ.get('GRIZZLY_MASTER_RUN_ARGS', None) == '--foo bar --master'
         assert environ.get('GRIZZLY_WORKER_RUN_ARGS', None) == '--bar foo --worker'
-        assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) == '--common true'
+        assert environ.get('GRIZZLY_COMMON_RUN_ARGS', None) == '--common true -Dcsv-prefix=asdf'
         assert environ.get('GRIZZLY_ENVIRONMENT_FILE', '').startswith(gettempdir())
         assert environ.get('GRIZZLY_LIMIT_NOFILE', None) == '133700'
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
