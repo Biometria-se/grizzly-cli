@@ -118,6 +118,13 @@ def _parse_arguments() -> argparse.Namespace:
                     os.environ[f'TESTDATA_VARIABLE_{name}'] = value
                 except ValueError:
                     parser.error_no_help('-T/--testdata-variable needs to be in the format NAME=VALUE')
+
+        if args.csv_prefix is None:
+            if args.csv_interval is not None:
+                parser.error_no_help('--csv-interval can only be used in combination with --csv-prefix')
+
+            if args.csv_flush_interval is not None:
+                parser.error_no_help('--csv-flush-interval can only be used in combination with --csv-prefix')
     elif args.command == 'dist' and args.subcommand == 'build':
         setattr(args, 'force_build', args.no_cache)
         setattr(args, 'build', not args.no_cache)

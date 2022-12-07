@@ -543,6 +543,8 @@ def parse_feature_file(file: str) -> None:
 
     feature = feature_file_parser(file)
 
+    grizzly_cli.FEATURE_DESCRIPTION = feature.name
+
     for scenario in feature.scenarios:
         grizzly_cli.SCENARIOS.append(scenario)
 

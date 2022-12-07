@@ -1,6 +1,6 @@
 import os
 
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 from behave.model import Scenario
 
@@ -17,6 +17,8 @@ MOUNT_CONTEXT = os.environ.get('GRIZZLY_MOUNT_CONTEXT', EXECUTION_CONTEXT)
 PROJECT_NAME = os.path.basename(EXECUTION_CONTEXT)
 
 SCENARIOS: List[Scenario] = []
+
+FEATURE_DESCRIPTION: Optional[str] = None
 
 
 class register_parser:

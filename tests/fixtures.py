@@ -394,11 +394,21 @@ def step_start_webserver(context: Context) -> None:
 
         return feature_file_name
 
-    def execute(self, feature_file: str, env_conf_file: Optional[str] = None, testdata: Optional[Dict[str, str]] = None, cwd: Optional[str] = None) -> Tuple[int, List[str]]:
+    def execute(
+        self,
+        feature_file: str,
+        env_conf_file: Optional[str] = None,
+        testdata: Optional[Dict[str, str]] = None,
+        cwd: Optional[str] = None,
+        arguments: Optional[List[str]] = None,
+    ) -> Tuple[int, List[str]]:
+        if arguments is None:
+            arguments = []
         command = [
             'grizzly-cli',
             self.mode,
             'run',
+            *arguments,
             '--yes',
             '--verbose',
             feature_file,
