@@ -2,6 +2,7 @@ from shutil import rmtree
 from os import getcwd, path
 from argparse import ArgumentParser
 from datetime import datetime
+from pathlib import Path
 
 from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
@@ -15,6 +16,8 @@ CWD = getcwd()
 
 
 def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
+    original_tmp_path = tmp_path_factory._basetemp
+    tmp_path_factory._basetemp = Path.cwd() / '.pytest_tmp'
     test_context = tmp_path_factory.mktemp('test_context')
     execution_context = test_context / 'execution-context'
     execution_context.mkdir()
@@ -240,4 +243,5 @@ bar = foo
             'common': ['--stop', '-Dcsv-prefix="this_feature_is_testing_something_20221206T130113"', '-Dcsv-interval=20', '-Dcsv-flush-interval=60'],
         }
     finally:
+        tmp_path_factory._basetemp = original_tmp_path
         rmtree(test_context, onerror=onerror)
