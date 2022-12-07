@@ -49,7 +49,7 @@ jobs:
         python-version: '3.10'
 
     - name: get latest tag
-      uses: actions-ecosystem/action-get-latest-tag@v1
+      uses: mgor/action-get-latest-tag@v1.1.0
       id: get-latest-tag
       with:
         semver_only: true
@@ -57,7 +57,7 @@ jobs:
         with_initial_version: true
 
     - name: next version
-      uses: actions-ecosystem/action-bump-semver@v1
+      uses: mgor/action-bump-semver@v1.0.0
       id: next-version
       with:
         current_version: ${{ steps.get-latest-tag.outputs.tag }}
