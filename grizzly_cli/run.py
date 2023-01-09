@@ -51,7 +51,7 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         type=BashCompletionTypes.File('*.yaml', '*.yml'),
         required=False,
         default=None,
-        help='configuration file with [environment specific information](/grizzly/usage/variables/environment-configuration/)',
+        help='configuration file with [environment specific information](/grizzly/framework/usage/variables/environment-configuration/)',
     )
     run_parser.add_argument(
         '--csv-prefix',
