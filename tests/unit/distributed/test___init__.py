@@ -151,7 +151,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '--health-interval', '10',
             '--health-timeout', '8',
             '--health-retries', '30',
-            '--registry', 'gchr.io/biometria-se',
+            '--registry', 'ghcr.io/biometria-se',
             '--wait-for-worker', '10000',
             '--project-name', 'foobar',
             'run',
@@ -226,7 +226,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_HEALTH_CHECK_INTERVAL', None) == '10'
         assert environ.get('GRIZZLY_HEALTH_CHECK_TIMEOUT', None) == '8'
         assert environ.get('GRIZZLY_HEALTH_CHECK_RETRIES', None) == '30'
-        assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'gchr.io/biometria-se'
+        assert environ.get('GRIZZLY_IMAGE_REGISTRY', None) == 'ghcr.io/biometria-se'
         assert environ.get('GRIZZLY_CONTAINER_TTY', None) == 'false'
         assert environ.get('LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP', None) == '10000'
         assert environ.get('GRIZZLY_MOUNT_PATH', None) == ''
