@@ -1164,20 +1164,6 @@ def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: T
         assert capture.out == ''
 
         requirements_file.unlink()
-        requirements_file.write_text('grizzly-loadtester[mq]==foobar')
-
-        requests_mock.register_uri('GET', 'https://pypi.org/pypi/grizzly-loadtester/json', status_code=200, text='{"releases": {"1.3.0": [], "1.5.0": []}}')
-
-        assert (('(unknown)', None, ), '(unknown)',) == get_dependency_versions()
-
-        capture = capsys.readouterr()
-        assert capture.err == (
-            '!! ==foobar is a LegacyVersion, expected Version\n'
-            '!! could not resolve grizzly-loadtester[mq]==foobar to one specific version available at pypi\n'
-        )
-        assert capture.out == ''
-
-        requirements_file.unlink()
         requirements_file.write_text('grizzly-loadtester[mq]>1.3.0,<1.5.0')
 
         requests_mock.register_uri(
@@ -1188,7 +1174,7 @@ def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: T
         assert (('1.4.0', ['mq'], ), '1.0.0',) == get_dependency_versions()
 
         capture = capsys.readouterr()
-        assert capture.err == '!! foobar is a LegacyVersion, expected Version\n'
+        assert capture.err == ''
         assert capture.out == ''
 
         requirements_file.unlink()

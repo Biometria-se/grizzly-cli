@@ -1,10 +1,12 @@
 import sys
+import re
 
 from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from typing import Optional
 from os import path, pathsep
 from datetime import datetime
+from packaging.version import Version
 
 import pytest
 import yaml
@@ -75,6 +77,18 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
         feature_file = path.join('features', 'example.feature')
         feature_file_path = example_root / 'features' / 'example.feature'
         feature_file_contents = feature_file_path.read_text().split('\n')
+
+        # @TODO: needed until grizzly-loadtester>=2.6.0 is released
+        rc, output = run_command(['grizzly-cli', '--version', 'all'], cwd=str(example_root), env=e2e_fixture._env)
+
+        matches = re.match(r'.*grizzly ([0-9]+\.[0-9]+\.[0-9]+).*', output[1], re.MULTILINE)
+
+        if matches:
+            version = Version(matches.group(1))
+            if version < Version('2.6.0'):
+                environment_file_path = example_root / 'features' / 'environment.py'
+                environment_content = environment_file_path.read_text().replace('from grizzly.behave', 'from grizzly.environment')
+                environment_file_path.write_text(environment_content)
 
         if e2e_fixture._distributed:
             command = ['grizzly-cli', 'dist', '--project-name', e2e_fixture.root.name, 'build', '--no-cache']

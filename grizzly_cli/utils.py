@@ -349,7 +349,6 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
             if re.match(r'^grizzly-loadtester(\[[^\]]*\])?$', grizzly_requirement):  # latest
                 grizzly_version = pypi.get('info', {}).get('version', None)
             else:
-                available_versions = [versioning.parse(available_version) for available_version in pypi.get('releases', {}).keys()]
                 conditions: List[Callable[[versioning.Version], bool]] = []
 
                 match = re.match(r'^(grizzly-loadtester(\[[^\]]*\])?)(.*?)$', grizzly_requirement)
@@ -362,10 +361,6 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
                         version_string = re.sub(r'^[^0-9]{1,2}', '', condition)
                         condition_version = versioning.parse(version_string)
 
-                        if not isinstance(condition_version, versioning.Version):
-                            print(f'!! {condition} is a {condition_version.__class__.__name__}, expected Version', file=sys.stderr)
-                            break
-
                         if '>' in condition:
                             compare = condition_version.__le__ if '=' in condition else condition_version.__lt__
                         elif '<' in condition:
@@ -377,13 +372,13 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
 
                 matched_version = None
 
-                for available_version in available_versions:
-                    if not isinstance(available_version, versioning.Version):
-                        print(f'!! {str(available_version)} is a {available_version.__class__.__name__}, expected Version', file=sys.stderr)
-                        break
-
-                    if len(conditions) > 0 and all([compare(available_version) for compare in conditions]):
-                        matched_version = available_version
+                for available_version in pypi.get('releases', {}).keys():
+                    try:
+                        version = versioning.parse(available_version)
+                        if len(conditions) > 0 and all([compare(version) for compare in conditions]):
+                            matched_version = version
+                    except versioning.InvalidVersion:
+                        pass
 
                 if matched_version is None:
                     print(f'!! could not resolve {grizzly_requirement} to one specific version available at pypi', file=sys.stderr)
