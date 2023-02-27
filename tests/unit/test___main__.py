@@ -457,13 +457,13 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert arguments.build
         assert arguments.registry is None
 
-        sys.argv = ['grizzly-cli', 'dist', 'build', '--no-cache', '--registry', 'gchr.io/biometria-se']
+        sys.argv = ['grizzly-cli', 'dist', 'build', '--no-cache', '--registry', 'registry.example.com/biometria-se']
         arguments = _parse_arguments()
 
         assert arguments.no_cache
         assert arguments.force_build
         assert not arguments.build
-        assert arguments.registry == 'gchr.io/biometria-se/'
+        assert arguments.registry == 'registry.example.com/biometria-se/'
 
         sys.argv = ['grizzly-cli', 'init', 'test-project']
         arguments = _parse_arguments()
