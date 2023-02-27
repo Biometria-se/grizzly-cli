@@ -2,7 +2,7 @@ from typing import Generator
 from argparse import Namespace as Arguments
 from os import path
 from pathlib import Path
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 from .utils import ask_yes_no
 from . import EXECUTION_CONTEXT, register_parser
@@ -145,8 +145,8 @@ def init(args: Arguments) -> int:
 
     # create features/environment.py
     if args.grizzly_version is not None:
-        version = StrictVersion(args.grizzly_version)
-        if version < StrictVersion('2.6.0'):
+        version = Version(args.grizzly_version)
+        if version < Version('2.6.0'):
             grizzly_behave_module = 'environment'
     else:
         grizzly_behave_module = 'behave'

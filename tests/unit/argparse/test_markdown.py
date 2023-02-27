@@ -53,14 +53,14 @@ class TestMarkdownHelpAction:
         action.print_help(parser)
 
         assert print_help.call_count == 4
-        assert parser.formatter_class == MarkdownFormatter
+        assert parser.formatter_class == MarkdownFormatter  # type: ignore
         assert parser._subparsers is not None
 
         _subparsers = getattr(parser, '_subparsers', None)
         assert _subparsers is not None
         for subparsers in _subparsers._group_actions:
             for name, subparser in subparsers.choices.items():
-                assert subparser.formatter_class == MarkdownFormatter
+                assert subparser.formatter_class == MarkdownFormatter  # type: ignore
                 if name == 'a':
                     _subsubparsers = getattr(subparser, '_subparsers', None)
                     assert _subsubparsers is not None

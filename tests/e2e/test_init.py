@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional
 from shutil import rmtree
-from distutils.version import StrictVersion
+from packaging.version import Version
 
 import pytest
 
@@ -30,14 +30,14 @@ from ..helpers import run_command, onerror
 def test_e2e_init(arguments: List[str], expected: Dict[str, str], tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
 
-    grizzly_version: Optional[StrictVersion] = None
+    grizzly_version: Optional[Version] = None
     try:
         grizzly_version_index = arguments.index('--grizzly-version') + 1
-        grizzly_version = StrictVersion(arguments[grizzly_version_index])
+        grizzly_version = Version(arguments[grizzly_version_index])
     except ValueError:
         grizzly_version = None
 
-    if grizzly_version is None or grizzly_version >= StrictVersion('2.6.0'):
+    if grizzly_version is None or grizzly_version >= Version('2.6.0'):
         grizzly_behave_module = 'behave'
     else:
         grizzly_behave_module = 'environment'
