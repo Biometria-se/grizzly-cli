@@ -15,49 +15,53 @@
     }
   },
   // Set *default* container specific settings.json values on container create.
-  "settings": {
-    "python.pythonPath": "/usr/local/bin/python",
-    "python.defaultInterpreterPath": "/usr/local/bin/python",
-    "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true,
-    "python.linting.flake8Enabled": true,
-    "python.linting.mypyEnabled": false,
-    "python.linting.pycodestyleEnabled": false,
-    "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
-    "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
-    "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
-    "python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
-    "python.linting.flake8Path": "flake8",
-    "python.linting.mypyPath": "mypy",
-    "python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
-    "python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
-    "python.linting.pylintPath": "pylint",
-    "mypy.targets": [
-      "grizzly_cli/",
-      "tests/"
-    ],
-    "python.testing.pytestEnabled": true,
-    "python.testing.pytestArgs": [
-      "--cov-reset",
-      "-o testpaths=tests",
-      "--cov=.",
-      "--cov-report=xml:coverage.xml",
-      "--cov-config=pyproject.toml",
-      "tests/"
-    ],
-    "coverage-gutters.xmlname": "coverage.xml",
-    "coverage-gutters.ignoredPathGlobs": "**/tests/**"
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.pythonPath": "/usr/local/bin/python",
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.linting.flake8Enabled": true,
+        "python.linting.mypyEnabled": false,
+        "python.linting.pycodestyleEnabled": false,
+        "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
+        "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
+        "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
+        "python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
+        "python.linting.flake8Path": "flake8",
+        "python.linting.mypyPath": "mypy",
+        "python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
+        "python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
+        "python.linting.pylintPath": "pylint",
+        "mypy.targets": [
+          "grizzly_cli/",
+          "tests/"
+        ],
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": [
+          "--cov-reset",
+          "-o testpaths=tests",
+          "--cov=.",
+          "--cov-report=xml:coverage.xml",
+          "--cov-config=pyproject.toml",
+          "tests/"
+        ],
+        "coverage-gutters.xmlname": "coverage.xml",
+        "coverage-gutters.ignoredPathGlobs": "**/tests/**"
+      },
+      // Add the IDs of extensions you want installed when the container is created.
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "editorconfig.editorconfig",
+        "eamodio.gitlens",
+        "ryanluker.vscode-coverage-gutters",
+        "matangover.mypy",
+        "oderwat.indent-rainbow"
+      ]
+    }
   },
-  // Add the IDs of extensions you want installed when the container is created.
-  "extensions": [
-    "ms-python.python",
-    "ms-python.vscode-pylance",
-    "editorconfig.editorconfig",
-    "eamodio.gitlens",
-    "ryanluker.vscode-coverage-gutters",
-    "matangover.mypy",
-    "oderwat.indent-rainbow"
-  ],
   "containerEnv": {
     "PYTHONPATH": "${containerWorkspaceFolder}"
   },

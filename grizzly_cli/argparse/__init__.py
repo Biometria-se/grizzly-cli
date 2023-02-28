@@ -37,7 +37,7 @@ class ArgumentParser(CoreArgumentParser):
             super().print_help(file)
             return
 
-        if self.formatter_class is not MarkdownFormatter:
+        if self.formatter_class is not MarkdownFormatter:  # type: ignore
             original_description = self.description
             original_actions = self._actions
 
@@ -53,7 +53,7 @@ class ArgumentParser(CoreArgumentParser):
 
         super().print_help(file)
 
-        if self.formatter_class is not MarkdownFormatter:
+        if self.formatter_class is not MarkdownFormatter:  # type: ignore
             self.description = original_description
             self._actions = original_actions
 

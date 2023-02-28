@@ -1,5 +1,6 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from shutil import rmtree
+from packaging.version import Version
 
 import pytest
 
@@ -28,6 +29,18 @@ from ..helpers import run_command, onerror
 ])
 def test_e2e_init(arguments: List[str], expected: Dict[str, str], tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
+
+    grizzly_version: Optional[Version] = None
+    try:
+        grizzly_version_index = arguments.index('--grizzly-version') + 1
+        grizzly_version = Version(arguments[grizzly_version_index])
+    except ValueError:
+        grizzly_version = None
+
+    if grizzly_version is None or grizzly_version >= Version('2.6.0'):
+        grizzly_behave_module = 'behave'
+    else:
+        grizzly_behave_module = 'environment'
 
     try:
         rc, output = run_command(
@@ -83,7 +96,7 @@ successfully created project "foobar", with the following options:
 
         environment_file = features_dir / 'environment.py'
         assert environment_file.is_file()
-        assert environment_file.read_text() == 'from grizzly.environment import *\n\n'
+        assert environment_file.read_text() == f'from grizzly.{grizzly_behave_module} import *\n\n'
 
         feature_file = features_dir / 'foobar.feature'
         assert feature_file.is_file()

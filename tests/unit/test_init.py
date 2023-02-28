@@ -128,7 +128,7 @@ do you want to create grizzly project "foobar"?'''
 
         environment_file = template_root / 'features' / 'environment.py'
         assert environment_file.is_file()
-        assert environment_file.read_text() == 'from grizzly.environment import *\n\n'
+        assert environment_file.read_text() == 'from grizzly.behave import *\n\n'
 
         assert (template_root / 'features' / 'requests').is_dir()
 
@@ -188,6 +188,18 @@ do you want to create grizzly project "foobar"?'''
         requirements_file = template_root / 'requirements.txt'
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester==1.2.4\n'
+
+        assert (template_root / 'features').is_dir()
+        feature_file = template_root / 'features' / 'foobar.feature'
+        assert feature_file.is_file()
+        assert feature_file.read_text() == '''Feature: Template feature file
+  Scenario: Template scenario
+    Given a user of type "RestApi" with weight "1" load testing "$conf::template.host"
+'''
+
+        environment_file = template_root / 'features' / 'environment.py'
+        assert environment_file.is_file()
+        assert environment_file.read_text() == 'from grizzly.environment import *\n\n'
 
         rmtree(template_root, onerror=onerror)
 
