@@ -70,7 +70,8 @@
   },
   "mounts": [
     "source=/etc/timezone,target=/etc/timezone,type=bind",
-    "source=/etc/localtime,target=/etc/localtime,type=bind"
+    "source=/etc/localtime,target=/etc/localtime,type=bind",
+    "source=grizzly-cli-bashhistory,target=/commandhistory,type=volume"
   ],
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   // "forwardPorts": [],
