@@ -188,14 +188,14 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert run_command_mock.call_count == 5
         args, _ = run_command_mock.call_args_list[-3]
         assert args[0] == [
-            'docker-compose',
+            'docker', 'compose',
             '-p', 'foobar-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'config',
         ]
         args, _ = run_command_mock.call_args_list[-2]
         assert args[0] == [
-            'docker-compose',
+            'docker', 'compose',
             '-p', 'foobar-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'up',
@@ -204,7 +204,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         ]
         args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
-            'docker-compose',
+            'docker', 'compose',
             '-p', 'foobar-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'stop',
@@ -297,7 +297,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert run_command_mock.call_count == 9
         args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
-            'docker-compose',
+            'docker', 'compose',
             '-p', 'grizzly-cli-test-project-suffix-test-user',
             '-f', '/tmp/static-context/compose.yaml',
             'config',

@@ -180,7 +180,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
     columns, lines = get_terminal_size()
 
-    # set environment variables needed by compose files, when *-compose executes
+    # set environment variables needed by compose files, when * compose executes
     os.environ['GRIZZLY_MTU'] = cast(str, mtu)
     os.environ['GRIZZLY_EXECUTION_CONTEXT'] = EXECUTION_CONTEXT
     os.environ['GRIZZLY_STATIC_CONTEXT'] = STATIC_CONTEXT
@@ -257,7 +257,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
         validate_config = getattr(args, 'validate_config', False)
 
         compose_command = [
-            f'{args.container_system}-compose',
+            args.container_system, 'compose',
             *compose_args,
             'config',
         ]
@@ -283,7 +283,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
         # bring up containers
         compose_command = [
-            f'{args.container_system}-compose',
+            args.container_system, 'compose',
             *compose_args,
             'up',
             *compose_scale_argument,
@@ -315,7 +315,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
         # stop containers
         compose_command = [
-            f'{args.container_system}-compose',
+            args.container_system, 'compose',
             *compose_args,
             'stop',
         ]

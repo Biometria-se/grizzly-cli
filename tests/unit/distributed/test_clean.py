@@ -22,7 +22,7 @@ def test_clean(mocker: MockerFixture) -> None:
 
     args, kwargs = run_command_spy.call_args_list[0]
     assert args[0] == [
-        'docker-compose',
+        'docker', 'compose',
         '-f', '/tmp/static-context/compose.yaml',
         '-p', 'foobar-root',
         'rm', '-f', '-s', '-v',
@@ -68,7 +68,7 @@ def test_clean(mocker: MockerFixture) -> None:
 
     args, kwargs = run_command_spy.call_args_list[0]
     assert args[0] == [
-        'docker-compose',
+        'docker', 'compose',
         '-f', '/tmp/static-context/compose.yaml',
         '-p', 'grizzly-cli-test-project-foobar-root',
         'rm', '-f', '-s', '-v',
@@ -97,7 +97,7 @@ def test_clean(mocker: MockerFixture) -> None:
 
     args, kwargs = run_command_spy.call_args_list[0]
     assert args[0] == [
-        'docker-compose',
+        'docker', 'compose',
         '-f', '/tmp/static-context/compose.yaml',
         '-p', 'grizzly-cli-test-project-root',
         'rm', '-f', '-s', '-v',

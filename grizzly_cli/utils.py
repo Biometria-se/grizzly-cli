@@ -85,7 +85,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
 
 
 def get_docker_compose_version() -> Tuple[int, int, int]:
-    output = subprocess.getoutput('docker-compose version')
+    output = subprocess.getoutput('docker compose version')
 
     version_line = output.splitlines()[0]
 
@@ -510,8 +510,10 @@ def get_distributed_system() -> Optional[str]:
         print('neither "podman" nor "docker" found in PATH')
         return None
 
-    if which(f'{container_system}-compose') is None:
-        print(f'"{container_system}-compose" not found in PATH')
+    rc, _ = subprocess.getstatusoutput(f'{container_system} compose version')
+
+    if rc != 0:
+        print(f'"{container_system} compose" not found in PATH')
         return None
 
     return container_system
