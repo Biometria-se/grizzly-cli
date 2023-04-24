@@ -58,10 +58,7 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == '''!! created a default requirements.txt with one dependency:
-grizzly-loadtester
-
-feature file requires values for 2 variables
+        assert capture.out == '''feature file requires values for 2 variables
 the following values was provided:
 foo = bar
 bar = foo
@@ -98,8 +95,6 @@ bar = foo
 
         assert capture.err == ''
         assert capture.out == (
-            '!! created a default requirements.txt with one dependency:\n'
-            'grizzly-loadtester\n\n'
             'feature file requires values for 2 variables\n'
             'the following values was provided:\n'
             'foo = bar\n'

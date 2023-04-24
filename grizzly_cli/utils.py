@@ -481,14 +481,6 @@ def requirements(execution_context: str) -> Callable[[Callable[..., int]], Calla
     def wrapper(func: Callable[..., int]) -> Callable[..., int]:
         @wraps(func)
         def _wrapper(*args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> int:
-            requirements_file = path.join(getattr(func, '__value__'), 'requirements.txt')
-            if not path.exists(requirements_file):
-                with open(requirements_file, 'w+') as fd:
-                    fd.write('grizzly-loadtester\n')
-
-                print('!! created a default requirements.txt with one dependency:')
-                print('grizzly-loadtester\n')
-
             return func(*args, **kwargs)
 
         # a bit ugly, but needed for testability

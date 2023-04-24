@@ -1218,11 +1218,8 @@ def test_requirements(capsys: CaptureFixture, tmp_path_factory: TempPathFactory)
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == (
-            '!! created a default requirements.txt with one dependency:\n'
-            'grizzly-loadtester\n\n'
-        )
-        assert requirements_file.exists()
+        assert capture.out == ''
+        assert not requirements_file.exists()
 
     finally:
         rmtree(test_context, onerror=onerror)
