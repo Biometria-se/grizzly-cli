@@ -244,60 +244,66 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
 
 
 def test_get_distributed_system(capsys: CaptureFixture, mocker: MockerFixture) -> None:
-    which = mocker.patch('grizzly_cli.utils.which', side_effect=[
-        None,               # test 1
-        None,               # - " -
-        None,
-        'podman',           # test 2
-        None,               # - " -
-        None,
-        'podman',           # test 3
-        'podman-compose',   # - " -
-        'docker',           # test 4
-        None,
-        'docker',           # test 5
-        'docker-compose',   # - " -
-    ])
+    which = mocker.patch('grizzly_cli.utils.which')
+    getstatusoutput = mocker.patch('grizzly_cli.utils.subprocess.getstatusoutput')
 
     # test 1
+    which.side_effect = [None, None]
+    getstatusoutput.return_value = (1, 'foobar',)
     assert get_distributed_system() is None  # neither
     capture = capsys.readouterr()
     assert capture.out == 'neither "podman" nor "docker" found in PATH\n'
     assert which.call_count == 2
+    getstatusoutput.assert_not_called()
     which.reset_mock()
 
     # test 2
+    which.side_effect = [None, 'podman']
+    getstatusoutput.return_value = (1, 'foobar')
     assert get_distributed_system() is None
     capture = capsys.readouterr()
-    assert which.call_count == 3
+    assert which.call_count == 2
+    getstatusoutput.assert_called_once_with('podman compose version')
     assert capture.out == (
         '!! podman might not work due to buildah missing support for `RUN --mount=type=ssh`: https://github.com/containers/buildah/issues/2835\n'
-        '"podman-compose" not found in PATH\n'
+        '"podman compose" not found in PATH\n'
     )
     which.reset_mock()
+    getstatusoutput.reset_mock()
 
     # test 3
+    which.side_effect = [None, 'podman']
+    getstatusoutput.return_value = (0, 'foobar',)
     assert get_distributed_system() == 'podman'
     capture = capsys.readouterr()
-    assert which.call_count == 3
+    assert which.call_count == 2
+    getstatusoutput.assert_called_once_with('podman compose version')
     assert capture.out == (
         '!! podman might not work due to buildah missing support for `RUN --mount=type=ssh`: https://github.com/containers/buildah/issues/2835\n'
     )
     which.reset_mock()
+    getstatusoutput.reset_mock()
 
     # test 4
+    which.side_effect = ['docker']
+    getstatusoutput.return_value = (1, 'foobar',)
     assert get_distributed_system() is None
     capture = capsys.readouterr()
-    assert which.call_count == 2
+    assert which.call_count == 1
+    getstatusoutput.assert_called_once_with('docker compose version')
     assert capture.out == (
-        '"docker-compose" not found in PATH\n'
+        '"docker compose" not found in PATH\n'
     )
     which.reset_mock()
+    getstatusoutput.reset_mock()
 
     # test 5
+    which.side_effect = ['docker']
+    getstatusoutput.return_value = (0, 'foobar',)
     assert get_distributed_system() == 'docker'
     capture = capsys.readouterr()
-    assert which.call_count == 2
+    assert which.call_count == 1
+    getstatusoutput.assert_called_once_with('docker compose version')
     assert capture.out == ''
     which.reset_mock()
 

@@ -61,7 +61,7 @@ def clean(args: Arguments) -> int:
         })
 
         compose_command = [
-            f'{args.container_system}-compose',
+            args.container_system, 'compose',
             '-f', f'{STATIC_CONTEXT}/compose.yaml',
             '-p', f'{project_name}{suffix}-{tag}',
             'rm', '-f', '-s', '-v',
