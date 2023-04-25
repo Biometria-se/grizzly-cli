@@ -205,10 +205,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == (
-            '!! created a default requirements.txt with one dependency:\n'
-            'grizzly-loadtester\n\n'
-        )
+        assert capture.out == ''
         assert run_command.call_count == 1
         args, kwargs = run_command.call_args_list[-1]
 

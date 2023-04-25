@@ -13,6 +13,7 @@ from textwrap import dedent, indent
 from hashlib import sha1
 from getpass import getuser
 from contextlib import closing
+from cProfile import Profile
 
 from _pytest.tmpdir import TempPathFactory
 from behave.runner import Context
@@ -84,6 +85,8 @@ class End2EndFixture:
     cwd: Path
     _tmp_path_factory_basetemp: Optional[Path]
 
+    profile: Optional[Profile]
+
     def __init__(self, tmp_path_factory: TempPathFactory, distributed: bool) -> None:
         self._tmp_path_factory = tmp_path_factory
         self.cwd = Path(getcwd())
@@ -93,6 +96,7 @@ class End2EndFixture:
         self._after_features = {}
         self._before_features = {}
         self._distributed = distributed
+        self.profile = None
 
     @property
     def mode_root(self) -> Path:
@@ -165,6 +169,11 @@ def step_start_webserver(context: Context) -> None:
 '''
 
     def __enter__(self) -> 'End2EndFixture':
+        if environ.get('PROFILE', None) is not None:
+            self.profile = Profile()
+            self.profile.enable()
+            self._env.update({'PROFILE': 'true'})
+
         self._tmp_path_factory_basetemp = self._tmp_path_factory._basetemp
         self._tmp_path_factory._basetemp = (Path(__file__) / '..' / '..' / '.pytest_tmp').resolve()
 
@@ -256,6 +265,10 @@ def step_start_webserver(context: Context) -> None:
                     pass
             else:
                 print(self._root)
+
+        if self.profile is not None:
+            self.profile.disable()
+            self.profile.dump_stats('grizzly-cli-e2e-tests.hprof')
 
         return True
 

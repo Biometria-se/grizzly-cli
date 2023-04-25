@@ -16,7 +16,7 @@ features/
 grizzly-example/
 *.event
 *.tar.gz
-.dockerignore
+*.hprof
 tmp/
 requirements.txt
 grizzly_cli/__version__.py
