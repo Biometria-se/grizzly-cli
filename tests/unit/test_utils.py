@@ -1087,6 +1087,39 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
                 assert capture.err == ''
                 assert capture.out == ''
                 assert open_mock.call_count == 3
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='grizzly-loadtester @ git+https://github.com/Biometria-se/grizzly.git@main\n').return_value,
+                mock_open(read_data='').return_value,
+            ]) as open_mock:
+                assert (('(unknown)', None, ), '(unknown)',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == '!! unable to find "version" declaration in setup.cfg from https://github.com/Biometria-se/grizzly.git\n'
+                assert capture.out == ''
+                assert open_mock.call_count == 2
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='grizzly-loadtester[mq] @ git+https://github.com/Biometria-se/grizzly.git@main\n').return_value,
+                mock_open(read_data='name = grizzly-loadtester\nversion = 2.0.0').return_value,
+                mock_open(read_data='locust==2.8.4 \\ ').return_value,
+            ]) as open_mock:
+                assert (('2.0.0', ['mq'], ), '2.8.4',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == ''
+                assert capture.out == ''
+                assert open_mock.call_count == 3
+
+            with unittest_patch('builtins.open', side_effect=[
+                mock_open(read_data='grizzly-loadtester[mq] % git+https://github.com/Biometria-se/grizzly.git@main\n').return_value,
+            ]) as open_mock:
+                assert (('(unknown)', None, ), '(unknown)',) == get_dependency_versions()
+
+                capture = capsys.readouterr()
+                assert capture.err == f'!! unable to find properly formatted grizzly dependency in {requirements_file}\n'
+                assert capture.out == ''
+                assert open_mock.call_count == 1
     finally:
         rmtree(test_context, onerror=onerror)
 

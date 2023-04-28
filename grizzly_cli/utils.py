@@ -145,12 +145,21 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
         return ('(unknown)', None, ), '(unknown)'
 
     # check if it's a repo or not
-    if grizzly_requirement.startswith('git+'):
-        suffix = sha1(grizzly_requirement.encode('utf-8')).hexdigest()
-        url, egg_part = grizzly_requirement.rsplit('#', 1)
+    if 'git+' in grizzly_requirement:
+        if grizzly_requirement.startswith('git+'):
+            url, egg_part = grizzly_requirement.rsplit('#', 1)
+            _, grizzly_requirement_egg = egg_part.split('=', 1)
+        elif grizzly_requirement.index('@') < grizzly_requirement.index('git+'):
+            grizzly_requirement_egg, url = grizzly_requirement.split('@', 1)
+            grizzly_requirement_egg = grizzly_requirement_egg.strip()
+            url = url.strip()
+        else:
+            print(f'!! unable to find properly formatted grizzly dependency in {project_requirements}', file=sys.stderr)
+            return ('(unknown)', None, ), '(unknown)'
+
         url, branch = url.rsplit('@', 1)
         url = url[4:]  # remove git+
-        _, grizzly_requirement_egg = egg_part.split('=', 1)
+        suffix = sha1(grizzly_requirement.encode('utf-8')).hexdigest()
 
         # extras_requirement normalization
         egg = grizzly_requirement_egg.replace('[', '__').replace(']', '__').replace(',', '_')
