@@ -18,6 +18,7 @@ CURRENT_VERSION = get_current_version()
     ('git+https://git@github.com/biometria-se/grizzly.git@v1.4.1#egg=grizzly-loadtester', '(development)', '2.2.1',),
     ('git+https://git@github.com/biometria-se/grizzly.git@v2.4.6#egg=grizzly-loadtester', '(development)', '2.9.0',),
     ('git+https://git@github.com/biometria-se/grizzly.git@7285294b#egg=grizzly-loadtester', '2.4.7.dev7', '>=2.12.0,<2.13',),
+    ('grizzly-loadtester[mq] @ git+https://git@github.com/biometria-se/grizzly.git@7285294b', '2.4.7.dev7 ── extras: mq', '>=2.12.0,<2.13',),
 ])
 def test_e2e_version(pip_module: str, grizzly_version: str, locust_version: str, tmp_path_factory: TempPathFactory, mocker: MockerFixture) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
