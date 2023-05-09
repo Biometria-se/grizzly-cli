@@ -1,9 +1,10 @@
 import re
 import sys
 import subprocess
+import signal
 
 from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, cast
-from types import TracebackType
+from types import TracebackType, FrameType
 from os import path, environ
 from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
@@ -44,6 +45,15 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
         stdout=subprocess.PIPE,
     )
 
+    def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:
+        process.terminate()
+
+    original_sigint = signal.getsignal(signal.SIGINT)
+    original_sigterm = signal.getsignal(signal.SIGTERM)
+
+    signal.signal(signal.SIGINT, sig_handler)
+    signal.signal(signal.SIGTERM, sig_handler)
+
     try:
         while process.poll() is None:
             stdout = process.stdout
@@ -78,6 +88,9 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
             process.kill()
         except Exception:
             pass
+
+        signal.signal(signal.SIGINT, original_sigint)
+        signal.signal(signal.SIGTERM, original_sigterm)
 
     process.wait()
 

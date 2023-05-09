@@ -4,6 +4,7 @@
 **/*.prof
 **/*.lprof
 **/*.svg
+**/.env
 *.egg-info/
 build/
 dist/
@@ -14,6 +15,7 @@ features/
 !.github/**/*.yaml
 .venv/
 grizzly-example/
+tests/manual
 *.event
 *.tar.gz
 *.hprof
