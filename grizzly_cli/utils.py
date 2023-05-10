@@ -1,9 +1,9 @@
 import re
 import sys
 import subprocess
-import signal
+import signal as psignal
 
-from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, cast
+from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, cast
 from types import TracebackType, FrameType
 from os import path, environ
 from shutil import which, rmtree
@@ -30,6 +30,29 @@ RETURNCODE_TOKEN = 'grizzly.returncode='
 RETURNCODE_PATTERN = re.compile(r'.*grizzly\.returncode=([-]?[0-9]+).*')
 
 
+class SignalHandler:
+    handler: Callable[[int, Optional[FrameType]], None]
+    signals: Dict[int, Union[Callable[[int, Optional[FrameType]], Any], int, None]]
+
+    def __init__(self, handler: Callable[[int, Optional[FrameType]], None], signal: int, *signals: int) -> None:
+        self.handler = handler
+        self.signals = {signal: None}
+
+        if signals is not None and len(signals) > 0:
+            for sig in signals:
+                self.signals.update({sig: None})
+
+    def __enter__(self) -> None:
+        for signal in self.signals.keys():
+            self.signals.update({signal: psignal.getsignal(signal)})
+            psignal.signal(signal, self.handler)
+
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Optional[TracebackType]) -> bool:
+        for signal, handler in self.signals.items():
+            psignal.signal(signal, handler)
+
+        return exc is None
+
 def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> int:
     returncode: Optional[int] = None
     if env is None:
@@ -48,49 +71,41 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
     def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:
         process.terminate()
 
-    original_sigint = signal.getsignal(signal.SIGINT)
-    original_sigterm = signal.getsignal(signal.SIGTERM)
-
-    signal.signal(signal.SIGINT, sig_handler)
-    signal.signal(signal.SIGTERM, sig_handler)
-
-    try:
-        while process.poll() is None:
-            stdout = process.stdout
-            if stdout is None:
-                break
-
-            output = stdout.readline()
-            if not output:
-                break
-
-            # Biometria-se/grizzly#160
-            line = output.decode('utf-8')
-            if RETURNCODE_TOKEN in line:
-                match = RETURNCODE_PATTERN.match(line)
-                if match:
-                    try:
-                        returncode = int(match.group(1))
-                    except ValueError:
-                        returncode = 123
-
-                continue  # hide from actual output
-
-            if not silent:
-                sys.stdout.buffer.write(output)
-                sys.stdout.flush()
-
-        process.terminate()
-    except KeyboardInterrupt:
-        pass
-    finally:
+    with SignalHandler(sig_handler, psignal.SIGINT, psignal.SIGTERM):
         try:
-            process.kill()
-        except Exception:
-            pass
+            while process.poll() is None:
+                stdout = process.stdout
+                if stdout is None:
+                    break
 
-        signal.signal(signal.SIGINT, original_sigint)
-        signal.signal(signal.SIGTERM, original_sigterm)
+                output = stdout.readline()
+                if not output:
+                    break
+
+                # Biometria-se/grizzly#160
+                line = output.decode('utf-8')
+                if RETURNCODE_TOKEN in line:
+                    match = RETURNCODE_PATTERN.match(line)
+                    if match:
+                        try:
+                            returncode = int(match.group(1))
+                        except ValueError:
+                            returncode = 123
+
+                    continue  # hide from actual output
+
+                if not silent:
+                    sys.stdout.buffer.write(output)
+                    sys.stdout.flush()
+
+            process.terminate()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            try:
+                process.kill()
+            except Exception:
+                pass
 
     process.wait()
 
