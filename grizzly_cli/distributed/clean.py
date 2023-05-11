@@ -67,7 +67,7 @@ def clean(args: Arguments) -> int:
             'rm', '-f', '-s', '-v',
         ]
 
-        rc = run_command(compose_command, env=env)
+        result = run_command(compose_command, env=env)
 
     if args.images:
         command = [
@@ -85,4 +85,4 @@ def clean(args: Arguments) -> int:
 
         run_command(command)
 
-    return rc
+    return result.return_code

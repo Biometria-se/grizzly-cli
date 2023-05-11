@@ -8,6 +8,7 @@ import pytest
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
+from grizzly_cli.utils import RunCommandResult
 from grizzly_cli.local import create_parser, local_run, local
 
 from ..helpers import onerror
@@ -33,7 +34,7 @@ def test_local(mocker: MockerFixture) -> None:
 
 
 def test_local_run(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
-    run_command = mocker.patch('grizzly_cli.local.run_command', return_value=0)
+    run_command = mocker.patch('grizzly_cli.local.run_command', return_value=RunCommandResult(return_code=0))
     test_context = tmp_path_factory.mktemp('test_context')
     (test_context / 'test.feature').write_text('Feature:')
 

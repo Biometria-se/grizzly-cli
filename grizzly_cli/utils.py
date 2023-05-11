@@ -15,6 +15,8 @@ from packaging import version as versioning
 from tempfile import mkdtemp
 from hashlib import sha1
 from math import ceil
+from datetime import datetime
+from dataclasses import dataclass, field
 
 import requests
 import tomli
@@ -53,7 +55,15 @@ class SignalHandler:
 
         return exc is None
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> int:
+
+@dataclass
+class RunCommandResult:
+    return_code: int
+    abort_timestamp: Optional[datetime] = field(init=False, default=None)
+    output: Optional[List[bytes]] = field(init=False, default=None)
+
+
+def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> RunCommandResult:
     returncode: Optional[int] = None
     if env is None:
         env = environ.copy()
@@ -68,8 +78,15 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
         stdout=subprocess.PIPE,
     )
 
+    result = RunCommandResult(return_code=-1)
+
+    if silent:
+        result.output = []
+
     def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:
-        process.terminate()
+        if result.abort_timestamp is None:
+            result.abort_timestamp = datetime.utcnow()
+            process.terminate()
 
     with SignalHandler(sig_handler, psignal.SIGINT, psignal.SIGTERM):
         try:
@@ -94,9 +111,11 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
 
                     continue  # hide from actual output
 
-                if not silent:
+                if result.output is None:
                     sys.stdout.buffer.write(output)
                     sys.stdout.flush()
+                else:
+                    result.output.append(output)
 
             process.terminate()
         except KeyboardInterrupt:
@@ -109,7 +128,9 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
 
     process.wait()
 
-    return returncode or process.returncode
+    result.return_code = returncode or process.returncode
+
+    return result
 
 
 def get_docker_compose_version() -> Tuple[int, int, int]:

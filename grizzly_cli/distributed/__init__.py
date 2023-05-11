@@ -2,7 +2,6 @@ import os
 import sys
 import argparse
 import subprocess
-import re
 
 from typing import List, Dict, Any, cast
 from tempfile import NamedTemporaryFile
@@ -263,16 +262,16 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
             'config',
         ]
 
-        rc = run_command(compose_command, silent=not validate_config)
+        result = run_command(compose_command, silent=not validate_config)
 
-        if validate_config or rc != 0:
-            if rc != 0 and not validate_config:
+        if validate_config or result.return_code != 0:
+            if result.return_code != 0 and not validate_config:
                 print('!! something in the compose project is not valid, check with:')
                 argv = sys.argv[:]
                 argv.insert(argv.index('dist') + 1, '--validate-config')
                 print(f'grizzly-cli {" ".join(argv[1:])}')
 
-            return rc
+            return result.return_code
 
         if images.get(project_name, {}).get(tag, None) is None or args.force_build or args.build:
             rc = do_build(args)
@@ -291,7 +290,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
             '--remove-orphans',
         ]
 
-        rc = run_command(compose_command, verbose=args.verbose)
+        result = run_command(compose_command, verbose=args.verbose)
 
         try:
             output = subprocess.check_output(
@@ -310,9 +309,9 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                 ],
                 encoding='utf-8',
             )
-            rc = int(output.strip())
+            result.return_code = int(output.strip())
         except:
-            rc = 1
+            result.return_code = 1
 
         # stop containers
         compose_command = [
@@ -323,25 +322,28 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
         run_command(compose_command)
 
-        if rc != 0:
-            master_node_name = name_template.format(
-                project=project_name,
-                suffix=suffix,
-                tag=tag,
-                node='master',
-                index=1,
-            )
+        if result.return_code != 0:
+            if result.abort_timestamp is not None:
+                master_node_name = name_template.format(
+                    project=project_name,
+                    suffix=suffix,
+                    tag=tag,
+                    node='master',
+                    index=1,
+                )
 
-            all_output = subprocess.check_output([args.container_system, 'container', 'logs', master_node_name], encoding='utf-8').split('\n')
+                since_timestamp = result.abort_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                command = [args.container_system, 'container', 'logs', '--since', since_timestamp, master_node_name]
 
-            for index, line in enumerate(reversed(all_output), start=1):
-                if re.match(r'^ident\s+iter\s+status\s+description$', line.strip()):
-                    index += 1
-                    break
+                missed_output = subprocess.check_output(
+                    command,
+                    encoding='utf-8',
+                    shell=False,
+                    universal_newlines=True,
+                    stderr=subprocess.STDOUT,
+                )
 
-            missed_output = all_output[-index:]
-
-            print('\n'.join(missed_output))
+                print(missed_output)
 
             print('\n!! something went wrong, check full container logs with:')
             template = '{container_system} container logs {name_template}'
@@ -368,4 +370,4 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                     ),
                 ))
 
-        return rc
+        return result.return_code

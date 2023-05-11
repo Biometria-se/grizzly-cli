@@ -174,7 +174,7 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None])
     kill_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.kill', side_effect=[RuntimeError, None])
 
-    assert run_command(['hello', 'world'], verbose=True) == 133
+    assert run_command(['hello', 'world'], verbose=True).return_code == 133
 
     capture = capsys.readouterr()
     assert capture.err == ''
@@ -206,7 +206,7 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     ])
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 3)
 
-    assert run_command([], {}) == 0
+    assert run_command([], {}).return_code == 0
 
     capture = capsys.readouterr()
     assert capture.err == ''
@@ -228,7 +228,7 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     ], 0)
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 6)
 
-    assert run_command([], {}) == 4321
+    assert run_command([], {}).return_code == 4321
 
     capture = capsys.readouterr()
     assert capture.err == ''

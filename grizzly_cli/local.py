@@ -45,4 +45,4 @@ def local_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[str,
     if len(run_arguments.get('master', [])) > 0 or len(run_arguments.get('worker', [])) > 0 or len(run_arguments.get('common', [])) > 0:
         command += run_arguments['master'] + run_arguments['worker'] + run_arguments['common']
 
-    return run_command(command)
+    return run_command(command).return_code

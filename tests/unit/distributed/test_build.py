@@ -11,6 +11,7 @@ from pytest_mock import MockerFixture
 
 from argparse import Namespace
 
+from grizzly_cli.utils import RunCommandResult
 from grizzly_cli.distributed.build import _create_build_command, getgid, getuid, build
 
 from ...helpers import onerror
@@ -194,7 +195,18 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         mocker.patch('grizzly_cli.distributed.build.getuser', return_value='test-user')
         mocker.patch('grizzly_cli.distributed.build.getuid', return_value=1337)
         mocker.patch('grizzly_cli.distributed.build.getgid', return_value=2147483647)
-        run_command = mocker.patch('grizzly_cli.distributed.build.run_command', side_effect=[254, 133, 0, 1, 0, 0, 2, 0, 0, 0])
+        run_command = mocker.patch('grizzly_cli.distributed.build.run_command', side_effect=[
+            RunCommandResult(return_code=254),
+            RunCommandResult(return_code=133),
+            RunCommandResult(return_code=0),
+            RunCommandResult(return_code=1),
+            RunCommandResult(return_code=0),
+            RunCommandResult(return_code=0),
+            RunCommandResult(return_code=2),
+            RunCommandResult(return_code=0),
+            RunCommandResult(return_code=0),
+            RunCommandResult(return_code=0),
+        ])
         setattr(getattr(build, '__wrapped__'), '__value__', str(test_context))
 
         test_args = Namespace(container_system='test', force_build=False, project_name=None, local_install=False)

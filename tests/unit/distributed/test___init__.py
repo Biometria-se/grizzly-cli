@@ -5,6 +5,7 @@ from shutil import rmtree
 from os import getcwd, environ
 from tempfile import gettempdir
 from argparse import ArgumentParser, Namespace
+from datetime import datetime
 
 import pytest
 
@@ -12,6 +13,7 @@ from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
+from grizzly_cli.utils import RunCommandResult
 from grizzly_cli.distributed import create_parser, distributed_run, distributed
 
 from ...helpers import onerror
@@ -75,10 +77,22 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     mocker.patch.object(grizzly_cli.distributed, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
     mocker.patch('grizzly_cli.distributed.is_docker_compose_v2', return_value=False)
+    run_command_result = RunCommandResult(return_code=1)
+    run_command_result.abort_timestamp = datetime.utcnow()
 
-    run_command_mock = mocker.patch('grizzly_cli.distributed.run_command', side_effect=[111, 0, 0, 1, 0, 0, 1, 0, 13])
+    run_command_mock = mocker.patch('grizzly_cli.distributed.run_command', side_effect=[
+        RunCommandResult(return_code=111),
+        RunCommandResult(return_code=0),
+        RunCommandResult(return_code=0),
+        run_command_result,
+        RunCommandResult(return_code=0),
+        RunCommandResult(return_code=0),
+        RunCommandResult(return_code=1),
+        RunCommandResult(return_code=0),
+        RunCommandResult(return_code=13),
+    ])
     mocker.patch('grizzly_cli.distributed.subprocess.check_output', side_effect=[
-        '{}', '{}', '{}', '{}', '{}', 1, json.dumps([{'Source': '/tmp/mount-context', 'Destination': '/tmp'}]), 13,
+        '{}', '{}', '{}', '{}', '<!-- here is the missing logs -->', '{}', 1, json.dumps([{'Source': '/tmp/mount-context', 'Destination': '/tmp'}]), 13,
     ])
 
     parser = ArgumentParser()
@@ -178,7 +192,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
-            '\n!! something went wrong, check container logs with:\n'
+            '<!-- here is the missing logs -->\n'
+            '\n!! something went wrong, check full container logs with:\n'
             'docker container logs foobar-test-user-master-1\n'
             'docker container logs foobar-test-user-worker-2\n'
             'docker container logs foobar-test-user-worker-3\n'
@@ -249,7 +264,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
-            '\n!! something went wrong, check container logs with:\n'
+            '\n!! something went wrong, check full container logs with:\n'
             'docker container logs grizzly-cli-test-project-test-user_master_1\n'
             'docker container logs grizzly-cli-test-project-test-user_worker_1\n'
             'docker container logs grizzly-cli-test-project-test-user_worker_2\n'
