@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import subprocess
+import re
 
 from typing import List, Dict, Any, cast
 from tempfile import NamedTemporaryFile
@@ -323,7 +324,26 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
         run_command(compose_command)
 
         if rc != 0:
-            print('\n!! something went wrong, check container logs with:')
+            master_node_name = name_template.format(
+                project=project_name,
+                suffix=suffix,
+                tag=tag,
+                node='master',
+                index=1,
+            )
+
+            all_output = subprocess.check_output([args.container_system, 'container', 'logs', master_node_name], encoding='utf-8').split('\n')
+
+            for index, line in enumerate(reversed(all_output), start=1):
+                if re.match(r'^ident\s+iter\s+status\s+description$', line.strip()):
+                    index += 1
+                    break
+
+            missed_output = all_output[-index:]
+
+            print('\n'.join(missed_output))
+
+            print('\n!! something went wrong, check full container logs with:')
             template = '{container_system} container logs {name_template}'
             print(template.format(
                 container_system=args.container_system,
