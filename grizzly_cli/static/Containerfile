@@ -85,6 +85,7 @@ RUN python -m venv /venv
 
 ENV PATH="/venv/bin:$PATH"
 
+RUN python -m pip install wheel
 # python-venv -->
 
 # <!-- python-venv-base-local (no mq extras, local install)

@@ -192,7 +192,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
-            '<!-- here is the missing logs -->\n'
+            'foobar-test-user-master-1  | <!-- here is the missing logs -->\n'
             '\n!! something went wrong, check full container logs with:\n'
             'docker container logs foobar-test-user-master-1\n'
             'docker container logs foobar-test-user-worker-2\n'
