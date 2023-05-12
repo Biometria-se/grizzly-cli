@@ -341,9 +341,10 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                     shell=False,
                     universal_newlines=True,
                     stderr=subprocess.STDOUT,
-                )
+                ).split('\n')
 
-                print(missed_output)
+                for line in missed_output:
+                    print(f'{master_node_name}  | {line}')
 
             print('\n!! something went wrong, check full container logs with:')
             template = '{container_system} container logs {name_template}'
