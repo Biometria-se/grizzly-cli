@@ -206,7 +206,10 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     ])
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 3)
 
-    assert run_command([], {}).return_code == 0
+    result = run_command([], {})
+    assert result.return_code == 0
+    assert result.output is None
+    assert result.abort_timestamp is None
 
     capture = capsys.readouterr()
     assert capture.err == ''
@@ -225,18 +228,22 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         'bar grizzly.returncode=1234 foo',
         'grizzly.returncode=4321',
         'world foo hello bar',
-    ], 0)
+    ], 4321)
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 6)
 
-    assert run_command([], {}).return_code == 4321
+    result = run_command([], {}, silent=True)
+    assert result.return_code == 4321
+    assert result.output == [
+        b'hello world\n',
+        b'foo bar\n',
+        b'bar grizzly.returncode=1234 foo\n',
+        b'grizzly.returncode=4321\n',
+        b'world foo hello bar\n',
+    ]
 
     capture = capsys.readouterr()
     assert capture.err == ''
-    assert capture.out == (
-        'hello world\n'
-        'foo bar\n'
-        'world foo hello bar\n'
-    )
+    assert capture.out == ''
 
     assert wait.call_count == 3
     assert poll_mock.call_count == 6
