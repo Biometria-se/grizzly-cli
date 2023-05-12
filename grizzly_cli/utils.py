@@ -130,12 +130,6 @@ def get_docker_compose_version() -> Tuple[int, int, int]:
     return version
 
 
-def is_docker_compose_v2() -> bool:
-    version = get_docker_compose_version()
-
-    return version[0] == 2
-
-
 def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
     def onerror(func: Callable, path: str, exc_info: TracebackType) -> None:
         import os

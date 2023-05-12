@@ -13,7 +13,6 @@ from json import loads as jsonloads
 
 from .. import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
 from ..utils import (
-    is_docker_compose_v2,
     run_command,
     get_default_mtu,
     list_images,
@@ -199,17 +198,12 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
     grizzly_mount_context_path = ''
 
-    if is_docker_compose_v2():
-        name_template = '{project}{suffix}-{tag}-{node}-{index}'
-        start_index = 2
-    else:
-        name_template = '{project}{suffix}-{tag}_{node}_{index}'
-        start_index = 1
+    name_template = '{project}{suffix}-{tag}-{node}-{index}'
 
     if EXECUTION_CONTEXT != MOUNT_CONTEXT:
         hostname = gethostname()
         output = subprocess.check_output(
-            [args.container_system, 'inspect', '-f', '{{ json .Mounts }}', hostname],
+            [args.container_system, 'container', 'inspect', '-f', '{{ json .Mounts }}', hostname],
             encoding='utf-8',
         )
         container_mounts = jsonloads(output)
@@ -359,7 +353,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                 ),
             ))
 
-            for worker in range(start_index, args.workers + start_index):
+            for worker in range(1, args.workers + 1):
                 print(template.format(
                     container_system=args.container_system,
                     name_template=name_template.format(

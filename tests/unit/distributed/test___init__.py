@@ -66,9 +66,9 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     (test_context / 'test.feature').write_text('Feature:')
 
     mocker.patch('grizzly_cli.distributed.getuser', return_value='test-user')
-    mocker.patch('grizzly_cli.distributed.get_default_mtu', side_effect=['1500', None, '1400', '1330', '1800'])
-    mocker.patch('grizzly_cli.distributed.do_build', side_effect=[255, 0, 0])
-    mocker.patch('grizzly_cli.distributed.list_images', side_effect=[{}, {}, {}, {'grizzly-cli-test-project': {'test-user': {}}}, {'grizzly-cli-test-project': {'test-user': {}}}])
+    get_default_mtu_mock = mocker.patch('grizzly_cli.distributed.get_default_mtu', return_value=None)
+    do_build_mock = mocker.patch('grizzly_cli.distributed.do_build', return_value=None)
+    list_images_mock = mocker.patch('grizzly_cli.distributed.list_images', return_value=None)
 
     import grizzly_cli.distributed
     mocker.patch.object(grizzly_cli.distributed, 'EXECUTION_CONTEXT', '/tmp/execution-context')
@@ -76,24 +76,11 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     mocker.patch.object(grizzly_cli.distributed, 'MOUNT_CONTEXT', '/tmp/mount-context')
     mocker.patch.object(grizzly_cli.distributed, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
-    mocker.patch('grizzly_cli.distributed.is_docker_compose_v2', return_value=False)
     run_command_result = RunCommandResult(return_code=1)
     run_command_result.abort_timestamp = datetime.utcnow()
 
-    run_command_mock = mocker.patch('grizzly_cli.distributed.run_command', side_effect=[
-        RunCommandResult(return_code=111),
-        RunCommandResult(return_code=0),
-        RunCommandResult(return_code=0),
-        run_command_result,
-        RunCommandResult(return_code=0),
-        RunCommandResult(return_code=0),
-        RunCommandResult(return_code=1),
-        RunCommandResult(return_code=0),
-        RunCommandResult(return_code=13),
-    ])
-    mocker.patch('grizzly_cli.distributed.subprocess.check_output', side_effect=[
-        '{}', '{}', '{}', '{}', '<!-- here is the missing logs -->', '{}', 1, json.dumps([{'Source': '/tmp/mount-context', 'Destination': '/tmp'}]), 13,
-    ])
+    run_command_mock = mocker.patch('grizzly_cli.distributed.run_command', return_value=None)
+    check_output_mock = mocker.patch('grizzly_cli.distributed.subprocess.check_output', return_value=None)
 
     parser = ArgumentParser()
 
@@ -102,6 +89,9 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     create_parser(sub_parsers)
 
     try:
+        run_command_mock.return_value = RunCommandResult(return_code=111)
+        check_output_mock.return_value = '{}'
+        get_default_mtu_mock.return_value = '1500'
         sys.argv = ['grizzly-cli', 'dist', '--workers', '3', '--tty', 'run', f'{test_context}/test.feature']
         arguments = parser.parse_args()
         setattr(arguments, 'container_system', 'docker')
@@ -124,6 +114,12 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             del environ['GRIZZLY_MTU']
         except KeyError:
             pass
+
+        run_command_mock.return_value = RunCommandResult(return_code=0)
+        do_build_mock.return_value = 255
+        check_output_mock.return_value = '{}'
+        get_default_mtu_mock.return_value = None
+        list_images_mock.return_value = {}
 
         assert distributed_run(arguments, {}, {}) == 255
         capture = capsys.readouterr()
@@ -174,9 +170,17 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         setattr(arguments, 'container_system', 'docker')
         setattr(arguments, 'file', ' '.join(arguments.file))
 
-        mocker.patch('grizzly_cli.distributed.is_docker_compose_v2', side_effect=[True, False])
-
         # docker-compose v2
+        rcr = RunCommandResult(return_code=1)
+        rcr.abort_timestamp = datetime.utcnow()
+        run_command_mock.return_value = None
+        run_command_mock.side_effect = [RunCommandResult(return_code=0), rcr, RunCommandResult(return_code=0)]
+        do_build_mock.return_value = 0
+        check_output_mock.return_value = None
+        check_output_mock.side_effect = ['{}', '{}', '<!-- here is the missing logs -->']
+        get_default_mtu_mock.return_value = '1400'
+        list_images_mock.return_value = {'grizzly-cli-test-project': {'test-user': {}}}
+
         assert distributed_run(
             arguments,
             {
@@ -195,9 +199,9 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             'foobar-test-user-master-1  | <!-- here is the missing logs -->\n'
             '\n!! something went wrong, check full container logs with:\n'
             'docker container logs foobar-test-user-master-1\n'
+            'docker container logs foobar-test-user-worker-1\n'
             'docker container logs foobar-test-user-worker-2\n'
             'docker container logs foobar-test-user-worker-3\n'
-            'docker container logs foobar-test-user-worker-4\n'
         )
 
         assert run_command_mock.call_count == 5
@@ -248,31 +252,6 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 
         arguments.project_name = None
 
-        # docker-compose v1
-        assert distributed_run(
-            arguments,
-            {
-                'GRIZZLY_CONFIGURATION_FILE': '/tmp/execution-context/configuration.yaml',
-                'GRIZZLY_TEST_VAR': 'True',
-            },
-            {
-                'master': ['--foo', 'bar', '--master'],
-                'worker': ['--bar', 'foo', '--worker'],
-                'common': ['--common', 'true'],
-            },
-        ) == 1
-        capture = capsys.readouterr()
-        assert capture.err == ''
-        assert capture.out == (
-            '\n!! something went wrong, check full container logs with:\n'
-            'docker container logs grizzly-cli-test-project-test-user_master_1\n'
-            'docker container logs grizzly-cli-test-project-test-user_worker_1\n'
-            'docker container logs grizzly-cli-test-project-test-user_worker_2\n'
-            'docker container logs grizzly-cli-test-project-test-user_worker_3\n'
-        )
-
-        mocker.patch('grizzly_cli.distributed.is_docker_compose_v2', return_value=False)
-
         # this is set in the devcontainer
         for key in environ.keys():
             if key.startswith('GRIZZLY_') or key.startswith('LOCUST_'):
@@ -293,6 +272,14 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         setattr(arguments, 'container_system', 'docker')
         setattr(arguments, 'file', ' '.join(arguments.file))
 
+        run_command_mock.return_value = None
+        run_command_mock.side_effect = [RunCommandResult(return_code=13)]
+        do_build_mock.return_value = 0
+        check_output_mock.return_value = None
+        check_output_mock.side_effect = [json.dumps([{'Source': '/tmp/mount-context', 'Destination': '/tmp'}]), '13']
+        get_default_mtu_mock.return_value = '1800'
+        list_images_mock.return_value = {'grizzly-cli-test-project': {'test-user': {}}}
+
         assert distributed_run(
             arguments,
             {
@@ -309,7 +296,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert capture.err == ''
         assert capture.out == ''
 
-        assert run_command_mock.call_count == 9
+        assert run_command_mock.call_count == 6
         args, _ = run_command_mock.call_args_list[-1]
         assert args[0] == [
             'docker', 'compose',

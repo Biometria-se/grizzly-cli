@@ -16,8 +16,6 @@ from unittest.mock import mock_open, patch as unittest_patch
 from requests_mock import Mocker as RequestsMocker
 
 from grizzly_cli.utils import (
-    get_docker_compose_version,
-    is_docker_compose_v2,
     parse_feature_file,
     list_images,
     get_default_mtu,
@@ -1263,31 +1261,3 @@ def test_requirements(capsys: CaptureFixture, tmp_path_factory: TempPathFactory)
 
     finally:
         rmtree(test_context, onerror=onerror)
-
-
-def test_get_docker_compose_version(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.utils.subprocess.getoutput', side_effect=[
-        '''docker-compose version 1.29.2, build 5becea4c
-docker-py version: 5.0.0
-CPython version: 3.7.10
-OpenSSL version: OpenSSL 1.1.0l 10 Sep 2019''',
-        'Docker Compose version v2.1.0',
-        'Foo bar',
-    ])
-
-    assert get_docker_compose_version() == (1, 29, 2,)
-    assert get_docker_compose_version() == (2, 1, 0,)
-    assert get_docker_compose_version() == (0, 0, 0,)
-
-
-def test_is_docker_compose_v2(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.utils.subprocess.getoutput', side_effect=[
-        '''docker-compose version 1.29.2, build 5becea4c
-docker-py version: 5.0.0
-CPython version: 3.7.10
-OpenSSL version: OpenSSL 1.1.0l 10 Sep 2019''',
-        'Docker Compose version v2.1.0',
-    ])
-
-    assert not is_docker_compose_v2()
-    assert is_docker_compose_v2()
