@@ -2,6 +2,7 @@ from argparse import Namespace
 
 from pytest_mock import MockerFixture
 
+from grizzly_cli.utils import RunCommandResult
 from grizzly_cli.distributed.clean import clean
 
 
@@ -14,7 +15,16 @@ def test_clean(mocker: MockerFixture) -> None:
     mocker.patch('grizzly_cli.distributed.clean.getuser', return_value='root')
     mocker.patch('grizzly_cli.distributed.clean.get_terminal_size', return_value=(1024, 1024,))
 
-    run_command_spy = mocker.patch('grizzly_cli.distributed.clean.run_command', side_effect=[0, 1, 2, 3, 4, 5, 6, 7])
+    run_command_spy = mocker.patch('grizzly_cli.distributed.clean.run_command', side_effect=[
+        RunCommandResult(return_code=0),
+        RunCommandResult(return_code=1),
+        RunCommandResult(return_code=2),
+        RunCommandResult(return_code=3),
+        RunCommandResult(return_code=4),
+        RunCommandResult(return_code=5),
+        RunCommandResult(return_code=6),
+        RunCommandResult(return_code=7),
+    ])
 
     assert clean(arguments) == 0
 

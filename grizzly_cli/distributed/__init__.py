@@ -13,7 +13,6 @@ from json import loads as jsonloads
 
 from .. import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
 from ..utils import (
-    is_docker_compose_v2,
     run_command,
     get_default_mtu,
     list_images,
@@ -199,17 +198,12 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
     grizzly_mount_context_path = ''
 
-    if is_docker_compose_v2():
-        name_template = '{project}{suffix}-{tag}-{node}-{index}'
-        start_index = 2
-    else:
-        name_template = '{project}{suffix}-{tag}_{node}_{index}'
-        start_index = 1
+    name_template = '{project}{suffix}-{tag}-{node}-{index}'
 
     if EXECUTION_CONTEXT != MOUNT_CONTEXT:
         hostname = gethostname()
         output = subprocess.check_output(
-            [args.container_system, 'inspect', '-f', '{{ json .Mounts }}', hostname],
+            [args.container_system, 'container', 'inspect', '-f', '{{ json .Mounts }}', hostname],
             encoding='utf-8',
         )
         container_mounts = jsonloads(output)
@@ -262,16 +256,16 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
             'config',
         ]
 
-        rc = run_command(compose_command, silent=not validate_config)
+        result = run_command(compose_command, silent=not validate_config)
 
-        if validate_config or rc != 0:
-            if rc != 0 and not validate_config:
+        if validate_config or result.return_code != 0:
+            if result.return_code != 0 and not validate_config:
                 print('!! something in the compose project is not valid, check with:')
                 argv = sys.argv[:]
                 argv.insert(argv.index('dist') + 1, '--validate-config')
                 print(f'grizzly-cli {" ".join(argv[1:])}')
 
-            return rc
+            return result.return_code
 
         if images.get(project_name, {}).get(tag, None) is None or args.force_build or args.build:
             rc = do_build(args)
@@ -290,7 +284,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
             '--remove-orphans',
         ]
 
-        rc = run_command(compose_command, verbose=args.verbose)
+        result = run_command(compose_command, verbose=args.verbose)
 
         try:
             output = subprocess.check_output(
@@ -309,9 +303,9 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                 ],
                 encoding='utf-8',
             )
-            rc = int(output.strip())
+            result.return_code = int(output.strip())
         except:
-            rc = 1
+            result.return_code = 1
 
         # stop containers
         compose_command = [
@@ -322,8 +316,31 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
 
         run_command(compose_command)
 
-        if rc != 0:
-            print('\n!! something went wrong, check container logs with:')
+        if result.return_code != 0:
+            if result.abort_timestamp is not None:
+                master_node_name = name_template.format(
+                    project=project_name,
+                    suffix=suffix,
+                    tag=tag,
+                    node='master',
+                    index=1,
+                )
+
+                since_timestamp = result.abort_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+                command = [args.container_system, 'container', 'logs', '--since', since_timestamp, master_node_name]
+
+                missed_output = subprocess.check_output(
+                    command,
+                    encoding='utf-8',
+                    shell=False,
+                    universal_newlines=True,
+                    stderr=subprocess.STDOUT,
+                ).split('\n')
+
+                for line in missed_output:
+                    print(f'{master_node_name}  | {line}')
+
+            print('\n!! something went wrong, check full container logs with:')
             template = '{container_system} container logs {name_template}'
             print(template.format(
                 container_system=args.container_system,
@@ -336,7 +353,7 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                 ),
             ))
 
-            for worker in range(start_index, args.workers + start_index):
+            for worker in range(1, args.workers + 1):
                 print(template.format(
                     container_system=args.container_system,
                     name_template=name_template.format(
@@ -348,4 +365,4 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                     ),
                 ))
 
-        return rc
+        return result.return_code

@@ -16,8 +16,6 @@ from unittest.mock import mock_open, patch as unittest_patch
 from requests_mock import Mocker as RequestsMocker
 
 from grizzly_cli.utils import (
-    get_docker_compose_version,
-    is_docker_compose_v2,
     parse_feature_file,
     list_images,
     get_default_mtu,
@@ -174,7 +172,7 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None])
     kill_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.kill', side_effect=[RuntimeError, None])
 
-    assert run_command(['hello', 'world'], verbose=True) == 133
+    assert run_command(['hello', 'world'], verbose=True).return_code == 133
 
     capture = capsys.readouterr()
     assert capture.err == ''
@@ -206,7 +204,10 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     ])
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 3)
 
-    assert run_command([], {}) == 0
+    result = run_command([], {})
+    assert result.return_code == 0
+    assert result.output is None
+    assert result.abort_timestamp is None
 
     capture = capsys.readouterr()
     assert capture.err == ''
@@ -225,18 +226,22 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         'bar grizzly.returncode=1234 foo',
         'grizzly.returncode=4321',
         'world foo hello bar',
-    ], 0)
+    ], 4321)
     poll_mock = mocker.patch('grizzly_cli.utils.subprocess.Popen.poll', side_effect=[None] * 6)
 
-    assert run_command([], {}) == 4321
+    result = run_command([], {}, silent=True)
+    assert result.return_code == 4321
+    assert result.output == [
+        b'hello world\n',
+        b'foo bar\n',
+        b'bar grizzly.returncode=1234 foo\n',
+        b'grizzly.returncode=4321\n',
+        b'world foo hello bar\n',
+    ]
 
     capture = capsys.readouterr()
     assert capture.err == ''
-    assert capture.out == (
-        'hello world\n'
-        'foo bar\n'
-        'world foo hello bar\n'
-    )
+    assert capture.out == ''
 
     assert wait.call_count == 3
     assert poll_mock.call_count == 6
@@ -1256,31 +1261,3 @@ def test_requirements(capsys: CaptureFixture, tmp_path_factory: TempPathFactory)
 
     finally:
         rmtree(test_context, onerror=onerror)
-
-
-def test_get_docker_compose_version(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.utils.subprocess.getoutput', side_effect=[
-        '''docker-compose version 1.29.2, build 5becea4c
-docker-py version: 5.0.0
-CPython version: 3.7.10
-OpenSSL version: OpenSSL 1.1.0l 10 Sep 2019''',
-        'Docker Compose version v2.1.0',
-        'Foo bar',
-    ])
-
-    assert get_docker_compose_version() == (1, 29, 2,)
-    assert get_docker_compose_version() == (2, 1, 0,)
-    assert get_docker_compose_version() == (0, 0, 0,)
-
-
-def test_is_docker_compose_v2(mocker: MockerFixture) -> None:
-    mocker.patch('grizzly_cli.utils.subprocess.getoutput', side_effect=[
-        '''docker-compose version 1.29.2, build 5becea4c
-docker-py version: 5.0.0
-CPython version: 3.7.10
-OpenSSL version: OpenSSL 1.1.0l 10 Sep 2019''',
-        'Docker Compose version v2.1.0',
-    ])
-
-    assert not is_docker_compose_v2()
-    assert is_docker_compose_v2()

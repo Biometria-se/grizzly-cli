@@ -1,9 +1,10 @@
 import re
 import sys
 import subprocess
+import signal as psignal
 
-from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, cast
-from types import TracebackType
+from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, cast
+from types import TracebackType, FrameType
 from os import path, environ
 from shutil import which, rmtree
 from behave.parser import parse_file as feature_file_parser
@@ -14,6 +15,8 @@ from packaging import version as versioning
 from tempfile import mkdtemp
 from hashlib import sha1
 from math import ceil
+from datetime import datetime
+from dataclasses import dataclass, field
 
 import requests
 import tomli
@@ -24,13 +27,38 @@ from jinja2 import Template
 import grizzly_cli
 
 
-RETURNCODE_TOKEN = 'grizzly.returncode='
+class SignalHandler:
+    handler: Callable[[int, Optional[FrameType]], None]
+    signals: Dict[int, Union[Callable[[int, Optional[FrameType]], Any], int, None]]
 
-RETURNCODE_PATTERN = re.compile(r'.*grizzly\.returncode=([-]?[0-9]+).*')
+    def __init__(self, handler: Callable[[int, Optional[FrameType]], None], signal: int, *signals: int) -> None:
+        self.handler = handler
+        self.signals = {signal: None}
+
+        if signals is not None and len(signals) > 0:
+            for sig in signals:
+                self.signals.update({sig: None})
+
+    def __enter__(self) -> None:
+        for signal in self.signals.keys():
+            self.signals.update({signal: psignal.getsignal(signal)})
+            psignal.signal(signal, self.handler)
+
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Optional[TracebackType]) -> bool:
+        for signal, handler in self.signals.items():
+            psignal.signal(signal, handler)
+
+        return exc is None
 
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> int:
-    returncode: Optional[int] = None
+@dataclass
+class RunCommandResult:
+    return_code: int
+    abort_timestamp: Optional[datetime] = field(init=False, default=None)
+    output: Optional[List[bytes]] = field(init=False, default=None)
+
+
+def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> RunCommandResult:
     if env is None:
         env = environ.copy()
 
@@ -44,44 +72,47 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
         stdout=subprocess.PIPE,
     )
 
-    try:
-        while process.poll() is None:
-            stdout = process.stdout
-            if stdout is None:
-                break
+    result = RunCommandResult(return_code=-1)
 
-            output = stdout.readline()
-            if not output:
-                break
+    if silent:
+        result.output = []
 
-            # Biometria-se/grizzly#160
-            line = output.decode('utf-8')
-            if RETURNCODE_TOKEN in line:
-                match = RETURNCODE_PATTERN.match(line)
-                if match:
-                    try:
-                        returncode = int(match.group(1))
-                    except ValueError:
-                        returncode = 123
+    def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:
+        if result.abort_timestamp is None:
+            result.abort_timestamp = datetime.utcnow()
+            process.terminate()
 
-                continue  # hide from actual output
-
-            if not silent:
-                sys.stdout.buffer.write(output)
-                sys.stdout.flush()
-
-        process.terminate()
-    except KeyboardInterrupt:
-        pass
-    finally:
+    with SignalHandler(sig_handler, psignal.SIGINT, psignal.SIGTERM):
         try:
-            process.kill()
-        except Exception:
+            while process.poll() is None:
+                stdout = process.stdout
+                if stdout is None:
+                    break
+
+                output = stdout.readline()
+                if not output:
+                    break
+
+                if result.output is None:
+                    sys.stdout.buffer.write(output)
+                    sys.stdout.flush()
+                else:
+                    result.output.append(output)
+
+            process.terminate()
+        except KeyboardInterrupt:
             pass
+        finally:
+            try:
+                process.kill()
+            except Exception:
+                pass
 
     process.wait()
 
-    return returncode or process.returncode
+    result.return_code = process.returncode
+
+    return result
 
 
 def get_docker_compose_version() -> Tuple[int, int, int]:
@@ -97,12 +128,6 @@ def get_docker_compose_version() -> Tuple[int, int, int]:
         version = (0, 0, 0,)
 
     return version
-
-
-def is_docker_compose_v2() -> bool:
-    version = get_docker_compose_version()
-
-    return version[0] == 2
 
 
 def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
