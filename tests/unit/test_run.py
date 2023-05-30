@@ -9,6 +9,7 @@ from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
 from grizzly_cli.run import run, create_parser
+from grizzly_cli.utils import setup_logging
 
 from ..helpers import onerror
 
@@ -16,6 +17,8 @@ CWD = getcwd()
 
 
 def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
+    setup_logging()
+
     original_tmp_path = tmp_path_factory._basetemp
     tmp_path_factory._basetemp = Path.cwd() / '.pytest_tmp'
     test_context = tmp_path_factory.mktemp('test_context')
@@ -57,8 +60,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
         assert run(arguments, distributed_mock) == 0
 
         capture = capsys.readouterr()
-        assert capture.err == ''
-        assert capture.out == '''feature file requires values for 2 variables
+        assert capture.out == ''
+        assert capture.err == '''feature file requires values for 2 variables
 the following values was provided:
 foo = bar
 bar = foo
@@ -93,8 +96,8 @@ bar = foo
         args, _ = get_input_mock.call_args_list[1]
         assert args[0] == 'initial value for "bar": '
 
-        assert capture.err == ''
-        assert capture.out == (
+        assert capture.out == ''
+        assert capture.err == (
             'feature file requires values for 2 variables\n'
             'the following values was provided:\n'
             'foo = bar\n'

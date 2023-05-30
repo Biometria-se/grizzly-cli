@@ -126,6 +126,7 @@ def test__create_parser() -> None:
             '-y', '--yes',
             '-e', '--environment-file',
             '--csv-prefix', '--csv-interval', '--csv-flush-interval',
+            '-l', '--log-file',
         ])
         assert sorted([action.dest for action in run_parser._actions if len(action.option_strings) == 0]) == ['file']
 

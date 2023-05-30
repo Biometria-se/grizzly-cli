@@ -6,7 +6,7 @@ from shutil import which
 from typing import Tuple, Optional, List
 
 from .argparse import ArgumentParser
-from .utils import ask_yes_no, get_distributed_system, get_dependency_versions
+from .utils import ask_yes_no, get_distributed_system, get_dependency_versions, setup_logging
 from .init import init
 from .local import local
 from .distributed import distributed
@@ -128,6 +128,9 @@ def _parse_arguments() -> argparse.Namespace:
     elif args.command == 'dist' and args.subcommand == 'build':
         setattr(args, 'force_build', args.no_cache)
         setattr(args, 'build', not args.no_cache)
+
+    if hasattr(args, 'log_file'):
+        setup_logging(args.log_file)
 
     return args
 
