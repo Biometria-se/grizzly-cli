@@ -176,6 +176,11 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
 
             log_file_result = (example_root / 'test_run.log').read_text()
 
+            # problems with a locust DEBUG log message containing ERROR in the message on macos-latest
+            if sys.platform == 'darwin':
+                output = [line for line in log_file_result.split('\n') if 'ERROR' not in line and 'DEBUG' not in line]
+                log_file_result = '\n'.join(output)
+
             assert log_file_result == result
     except:
         if result is not None:
