@@ -13,6 +13,7 @@ from .utils import (
     requirements,
     find_metadata_notices,
     parse_feature_file,
+    logger,
 )
 from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
@@ -75,6 +76,13 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         help='interval that CSV statistics is flushed to disk, can only be used in combination with `--csv-prefix`',
     )
     run_parser.add_argument(
+        '-l', '--log-file',
+        type=str,
+        default=None,
+        required=False,
+        help='save all run output in specified log file',
+    )
+    run_parser.add_argument(
         'file',
         nargs='+',
         type=BashCompletionTypes.File('*.feature'),
@@ -100,7 +108,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
     manual_input = False
 
     if questions > 0 and not getattr(args, 'validate_config', False):
-        print(f'feature file requires values for {questions} variables')
+        logger.info(f'feature file requires values for {questions} variables')
 
         for variable in variables:
             name = f'TESTDATA_VARIABLE_{variable}'
@@ -111,11 +119,11 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
             environ[name] = value
 
-        print('the following values was provided:')
+        logger.info('the following values was provided:')
         for key, value in environ.items():
             if not key.startswith('TESTDATA_VARIABLE_'):
                 continue
-            print(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+            logger.info(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
 
         if manual_input:
             ask_yes_no('continue?')
@@ -124,7 +132,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
     if len(notices) > 0:
         if args.yes:
-            output_func = cast(Callable[[str], None], print)
+            output_func = cast(Callable[[str], None], logger.info)
         else:
             output_func = ask_yes_no
 

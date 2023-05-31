@@ -27,6 +27,7 @@ from grizzly_cli.utils import (
     ask_yes_no,
     get_dependency_versions,
     find_metadata_notices,
+    setup_logging,
 )
 
 from ..helpers import onerror, create_scenario
@@ -161,6 +162,8 @@ def test_get_default_mtu(mocker: MockerFixture) -> None:
 
 
 def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+    setup_logging()
+
     terminate = mocker.patch('grizzly_cli.utils.subprocess.Popen.terminate', autospec=True)
     wait = mocker.patch('grizzly_cli.utils.subprocess.Popen.wait', autospec=True)
 
@@ -175,8 +178,8 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     assert run_command(['hello', 'world'], verbose=True).return_code == 133
 
     capture = capsys.readouterr()
-    assert capture.err == ''
-    assert capture.out == 'run_command: hello world\n'
+    assert capture.out == ''
+    assert capture.err == 'run_command: hello world\n'
 
     assert terminate.call_count == 1
     assert wait.call_count == 1
@@ -210,8 +213,8 @@ def test_run_command(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     assert result.abort_timestamp is None
 
     capture = capsys.readouterr()
-    assert capture.err == ''
-    assert capture.out == (
+    assert capture.out == ''
+    assert capture.err == (
         'first line\n'
         'second line\n'
     )
@@ -394,6 +397,8 @@ Feature: test -1
 
 
 def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+    setup_logging()
+
     arguments = Namespace(file='test.feature', yes=False)
 
     ask_yes_no = mocker.patch('grizzly_cli.utils.ask_yes_no', autospec=True)
@@ -471,8 +476,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     distribution_of_users_per_scenario(arguments, {})
     capture = capsys.readouterr()
 
-    assert capture.err == ''
-    assert capture.out == dedent('''
+    assert capture.out == ''
+    assert capture.err == dedent('''
         feature file test.feature will execute in total 2 iterations
 
         each scenario will execute accordingly:
@@ -555,8 +560,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     })
     capture = capsys.readouterr()
 
-    assert capture.err == ''
-    assert capture.out == dedent('''
+    assert capture.out == ''
+    assert capture.err == dedent('''
         feature file test.feature will execute in total 55 iterations
 
         each scenario will execute accordingly:
@@ -622,8 +627,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     distribution_of_users_per_scenario(arguments, {})
     capture = capsys.readouterr()
 
-    assert capture.err == ''
-    assert capture.out == dedent('''
+    assert capture.out == ''
+    assert capture.err == dedent('''
         feature file integration.feature will execute in total 1260 iterations
 
         each scenario will execute accordingly:
@@ -655,8 +660,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     distribution_of_users_per_scenario(arguments, {})
     capture = capsys.readouterr()
 
-    assert capture.err == ''
-    assert capture.out == dedent('''
+    assert capture.out == ''
+    assert capture.err == dedent('''
         feature file integration.feature will execute in total 1 iterations
 
         each scenario will execute accordingly:
@@ -793,6 +798,8 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     ),
 ])
 def test_distribution_of_users_per_scenario_advanced(capsys: CaptureFixture, mocker: MockerFixture, users: int, iterations: int, output: str) -> None:
+    setup_logging()
+
     # all scenarios in a feature file will, at this point, have all the background steps
     # grizzly will later make sure that they are only run once
     background_steps = [
@@ -868,8 +875,8 @@ def test_distribution_of_users_per_scenario_advanced(capsys: CaptureFixture, moc
     })
     capture = capsys.readouterr()
 
-    assert capture.err == ''
-    assert capture.out == output
+    assert capture.out == ''
+    assert capture.err == output
     capsys.readouterr()
 
 

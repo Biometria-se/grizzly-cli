@@ -2,6 +2,8 @@ import re
 import sys
 import subprocess
 import signal as psignal
+import logging
+import logging.config
 
 from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, cast
 from types import TracebackType, FrameType
@@ -25,6 +27,9 @@ from behave.model import Scenario
 from jinja2 import Template
 
 import grizzly_cli
+
+
+logger = logging.getLogger('grizzly-cli')
 
 
 class SignalHandler:
@@ -63,7 +68,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
         env = environ.copy()
 
     if verbose:
-        print(f'run_command: {" ".join(command)}')
+        logger.info(f'run_command: {" ".join(command)}')
 
     process = subprocess.Popen(
         command,
@@ -94,8 +99,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
                     break
 
                 if result.output is None:
-                    sys.stdout.buffer.write(output)
-                    sys.stdout.flush()
+                    logger.info(output.decode().rstrip())
                 else:
                     result.output.append(output)
 
@@ -714,23 +718,15 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 break
 
     def print_table_lines(max_length_iterations: int, max_length_users: int, max_length_description: int) -> None:
-        sys.stdout.write('-' * 5)
-        sys.stdout.write('-|-')
-        sys.stdout.write('-' * 6)
-        sys.stdout.write('|-')
-        sys.stdout.write('-' * max_length_iterations)
-        sys.stdout.write('|-')
-        sys.stdout.write('-' * max_length_users)
-        sys.stdout.write('|-')
-        sys.stdout.write('-' * max_length_description)
-        sys.stdout.write('-|\n')
+        line = ['-' * 5, '-|-', '-' * 6, '|-', '-' * max_length_iterations, '|-', '-' * max_length_users, '|-', '-' * max_length_description, '-|']
+        logger.info(''.join(line))
 
     rows: List[str] = []
     max_length_description = len('description')
     max_length_iterations = len('#iter')
     max_length_users = len('#user')
 
-    print(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
+    logger.info(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
 
     for scenario in distribution.values():
         max_length_description = max(len(scenario.name), max_length_description)
@@ -749,8 +745,8 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         )
         rows.append(row)
 
-    print('each scenario will execute accordingly:\n')
-    print('{:5}   {:>6}  {:>{}}  {:>{}}  {}'.format(
+    logger.info('each scenario will execute accordingly:\n')
+    logger.info('{:5}   {:>6}  {:>{}}  {:>{}}  {}'.format(
         'ident',
         'weight',
         '#iter', max_length_iterations,
@@ -759,10 +755,10 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     ))
     print_table_lines(max_length_iterations, max_length_users, max_length_description)
     for row in rows:
-        print(row)
+        logger.info(row)
     print_table_lines(max_length_iterations, max_length_users, max_length_description)
 
-    print('')
+    logger.info('')
 
     for scenario in distribution.values():
         if scenario.iterations < scenario.user_count:
@@ -770,3 +766,44 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
     if not args.yes:
         ask_yes_no('continue?')
+
+
+def setup_logging(logfile: Optional[str] = None) -> None:
+    logging_config: dict = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'plain': {
+                'format': '%(message)s',
+            },
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'plain',
+            },
+        },
+        'loggers': {
+            'grizzly-cli': {
+                'handlers': ['console'],
+                'level': 'INFO',
+                'propagate': False,
+            }
+        },
+        'root': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        }
+    }
+
+    if logfile is not None:
+        logging_config['handlers']['file'] = {
+            'class': 'logging.FileHandler',
+            'filename': logfile,
+            'formatter': 'plain',
+        }
+
+        logging_config['loggers']['grizzly-cli']['handlers'].append('file')
+        logging_config['root']['handlers'].append('file')
+
+    logging.config.dictConfig(logging_config)
