@@ -20,20 +20,15 @@
       "settings": {
         "python.pythonPath": "/usr/local/bin/python",
         "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": true,
-        "python.linting.flake8Enabled": true,
-        "python.linting.mypyEnabled": false,
-        "python.linting.pycodestyleEnabled": false,
-        "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
-        "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
-        "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
-        "python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
-        "python.linting.flake8Path": "flake8",
-        "python.linting.mypyPath": "mypy",
-        "python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
-        "python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
-        "python.linting.pylintPath": "pylint",
+        "pylint.path": [
+          "pylint"
+        ],
+        "flake8.path": [
+          "flake8"
+        ],
+        "mypy-type-checker.path": [
+          "mypy"
+        ],
         "mypy.targets": [
           "grizzly_cli/",
           "tests/"
@@ -54,6 +49,10 @@
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
+        "ms-python.pylint",
+        "ms-python.flake8",
+        "ms-python.mypy-type-checker",
+        "editorconfig.editorconfig",
         "editorconfig.editorconfig",
         "eamodio.gitlens",
         "ryanluker.vscode-coverage-gutters",
