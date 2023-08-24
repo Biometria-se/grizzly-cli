@@ -238,17 +238,20 @@ class TestBashCompleteAction:
                 'grizzly-cli local run ',
                 (
                     '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n'
-                    '--csv-flush-interval\n-l\n--log-file\ntest.feature\ntest-dir'
+                    '--csv-flush-interval\n-l\n--log-dir\n--log-file\ntest.feature\ntest-dir'
                 ),
             ),
             (
                 'grizzly-cli local run -',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
-            ('grizzly-cli local run --', '--help\n--verbose\n--testdata-variable\n--yes\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n--log-file'),
+            (
+                'grizzly-cli local run --',
+                '--help\n--verbose\n--testdata-variable\n--yes\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n--log-dir\n--log-file',
+            ),
             (
                 'grizzly-cli local run --yes',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
             ('grizzly-cli local run --help --yes', ''),
             ('grizzly-cli local run --yes -T', ''),
@@ -256,7 +259,7 @@ class TestBashCompleteAction:
                 'grizzly-cli local run --yes -T key=value',
                 (
                     '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n'
-                    '--csv-flush-interval\n-l\n--log-file\ntest.feature\ntest-dir'
+                    '--csv-flush-interval\n-l\n--log-dir\n--log-file\ntest.feature\ntest-dir'
                 ),
             ),
             ('grizzly-cli local run --yes -T key=value --env', '--environment-file'),
@@ -265,18 +268,18 @@ class TestBashCompleteAction:
             ('grizzly-cli local run --yes -T key=value --environment-file test-', 'test-dir'),
             (
                 'grizzly-cli local run --yes -T key=value --environment-file test-dir',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
             ('grizzly-cli local run --yes -T key=value --environment-file test.', 'test.yaml'),
             (
                 'grizzly-cli local run --yes -T key=value --environment-file test.yaml',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --test', '--testdata-variable'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable', ''),
             (
                 'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file\ntest.feature\ntest-dir',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file\ntest.feature\ntest-dir',
             ),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature\ntest-dir'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
@@ -330,20 +333,20 @@ class TestBashCompleteAction:
                 'grizzly-cli dist run ',
                 (
                     '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\n'
-                    '--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file\ntest.feature\ntest-dir'
+                    '--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file\ntest.feature\ntest-dir'
                 ),
             ),
             (
                 'grizzly-cli dist run -',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-y\n--yes\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
             (
                 'grizzly-cli dist run --',
-                '--help\n--verbose\n--testdata-variable\n--yes\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n--log-file',
+                '--help\n--verbose\n--testdata-variable\n--yes\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n--log-dir\n--log-file',
             ),
             (
                 'grizzly-cli dist run --yes',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
             ('grizzly-cli dist run --help --yes', ''),
             ('grizzly-cli dist run --yes -T', ''),
@@ -351,7 +354,7 @@ class TestBashCompleteAction:
                 'grizzly-cli dist run --yes -T key=value',
                 (
                     '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n'
-                    '--csv-flush-interval\n-l\n--log-file\ntest.feature\ntest-dir'
+                    '--csv-flush-interval\n-l\n--log-dir\n--log-file\ntest.feature\ntest-dir'
                 ),
             ),
             ('grizzly-cli dist run --yes -T key=value --env', '--environment-file'),
@@ -360,18 +363,18 @@ class TestBashCompleteAction:
             ('grizzly-cli dist run --yes -T key=value --environment-file test-', 'test-dir'),
             (
                 'grizzly-cli dist run --yes -T key=value --environment-file test-dir',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.', 'test.yaml'),
             (
                 'grizzly-cli dist run --yes -T key=value --environment-file test.yaml',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file',
             ),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --test', '--testdata-variable'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable', ''),
             (
                 'grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value',
-                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\ntest.feature\ntest-dir\n-l\n--log-file',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\ntest.feature\ntest-dir\n-l\n--log-dir\n--log-file',
             ),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature\ntest-dir'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),

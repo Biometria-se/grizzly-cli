@@ -39,8 +39,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
         mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', str(execution_context))
         mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', str(mount_context))
         mocker.patch('grizzly_cli.run.get_hostname', return_value='localhost')
-        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], []])
-        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], []])
+        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], [], []])
+        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], [], []])
         mocker.patch('grizzly_cli.run.distribution_of_users_per_scenario', autospec=True)
         ask_yes_no_mock = mocker.patch('grizzly_cli.run.ask_yes_no', autospec=True)
         distributed_mock = mocker.MagicMock(return_value=0)
@@ -231,15 +231,28 @@ bar = foo
 
         assert local_mock.call_count == 4
         assert distributed_mock.call_count == 2
-        args, _ = distributed_mock.call_args_list[-1]
+        args, kwargs = distributed_mock.call_args_list[-1]
 
+        assert kwargs == {}
         assert args[0] is arguments
-
         assert args[2] == {
             'master': [],
             'worker': [],
             'common': ['--stop', '-Dcsv-prefix="this_feature_is_testing_something_20221206T130113"', '-Dcsv-interval=20', '-Dcsv-flush-interval=60'],
         }
+
+        setattr(arguments, 'csv_prefix', None)
+        setattr(arguments, 'csv_flush_interval', None)
+
+        # --log-dir
+        setattr(arguments, 'log_dir', 'foobar')
+
+        assert run(arguments, distributed_mock) == 0
+
+        args, kwargs = distributed_mock.call_args_list[-1]
+        assert kwargs == {}
+        assert args[0] is arguments
+        assert args[1].get('GRIZZLY_LOG_DIR', None) == 'foobar'
     finally:
         tmp_path_factory._basetemp = original_tmp_path
         rmtree(test_context, onerror=onerror)
