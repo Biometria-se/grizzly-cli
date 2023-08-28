@@ -80,7 +80,14 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         type=str,
         default=None,
         required=False,
-        help='save all run output in specified log file',
+        help='save all `grizzly-cli` run output in specified log file',
+    )
+    run_parser.add_argument(
+        '--log-dir',
+        type=str,
+        default=None,
+        required=False,
+        help='log directory suffix (relative to `requests/logs`) to save log files generated in a scenario',
     )
     run_parser.add_argument(
         'file',
@@ -141,7 +148,10 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
     if args.environment_file is not None:
         environment_file = os.path.realpath(args.environment_file)
-        environ['GRIZZLY_CONFIGURATION_FILE'] = environment_file
+        environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_file})
+
+    if args.log_dir is not None:
+        environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
 
     if not getattr(args, 'validate_config', False):
         distribution_of_users_per_scenario(args, environ)
