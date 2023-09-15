@@ -205,6 +205,7 @@ def step_start_webserver(context: Context) -> None:
             'PATH': f'{str(virtual_env_path / virtual_env_bin_dir)}{pathsep}{path}',
             'VIRTUAL_ENV': str(virtual_env_path),
             'PYTHONPATH': environ.get('PYTHONPATH', '.'),
+            'HOME': environ.get('HOME', '/'),
         })
 
         if sys.platform == 'win32':

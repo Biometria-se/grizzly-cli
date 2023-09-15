@@ -12,7 +12,7 @@ from setuptools_scm.config import Configuration as SetuptoolsScmConfiguration
 from setuptools_scm._cli import _get_version as setuptools_scm_get_version
 
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: Optional[str] = None) -> Tuple[int, List[str]]:
+def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: Optional[str] = None, stdin: Optional[str] = None) -> Tuple[int, List[str]]:
     output: List[str] = []
     if env is None:
         env = os.environ.copy()
@@ -26,7 +26,13 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: O
         cwd=cwd,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
     )
+
+    if stdin is not None:
+        assert process.stdin is not None
+        process.stdin.write(f'{stdin}\n'.encode('utf-8'))
+        process.stdin.close()
 
     try:
         while process.poll() is None:
