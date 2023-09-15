@@ -38,7 +38,7 @@ def test__create_parser() -> None:
     subparser = parser._subparsers._group_actions[0]
     assert subparser is not None
     assert subparser.choices is not None
-    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 3
+    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 4
 
     init_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('init', None)
     assert init_parser is not None
@@ -49,6 +49,14 @@ def test__create_parser() -> None:
         '-y', '--yes',
         '--with-mq',
         '--grizzly-version',
+    ])
+
+    auth_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('auth', None)
+    assert auth_parser is not None
+    assert auth_parser._subparsers is None
+    assert getattr(auth_parser, 'prog', None) == 'grizzly-cli auth'
+    assert sorted([option_string for action in auth_parser._actions for option_string in action.option_strings]) == sorted([
+        '-h', '--help',
     ])
 
     local_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('local', None)

@@ -217,7 +217,7 @@ class TestBashCompleteAction:
     @pytest.mark.parametrize(
         'input,expected',
         [
-            ('grizzly-cli ', '-h\n--help\n--version\ninit\nlocal\ndist',),
+            ('grizzly-cli ', '-h\n--help\n--version\ninit\nlocal\ndist\nauth',),
             ('grizzly-cli -', '-h\n--help\n--version'),
             ('grizzly-cli --', '--help\n--version'),
             ('grizzly-cli lo', 'local'),

@@ -23,12 +23,16 @@ FEATURE_DESCRIPTION: Optional[str] = None
 
 class register_parser:
     registered: List[Callable[[ArgumentSubParser], None]] = []
+    order: Optional[int]
 
-    def __init__(self, order: int = 1) -> None:
-        self.order = order - 1
+    def __init__(self, order: Optional[int] = None) -> None:
+        self.order = order
 
     def __call__(self, func: Callable[[ArgumentSubParser], None]) -> Callable[[ArgumentSubParser], None]:
-        register_parser.registered.insert(self.order, func)
+        if self.order is not None:
+            self.registered.insert(self.order - 1, func)
+        else:
+            self.registered.append(func)
 
         return func
 

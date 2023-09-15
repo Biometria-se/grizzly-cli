@@ -10,6 +10,7 @@ from .utils import ask_yes_no, get_distributed_system, get_dependency_versions, 
 from .init import init
 from .local import local
 from .distributed import distributed
+from .auth import auth
 from . import __version__, register_parser
 
 
@@ -88,7 +89,7 @@ def _parse_arguments() -> argparse.Namespace:
     if args.command is None:
         parser.error('no command specified')
 
-    if getattr(args, 'subcommand', None) is None and args.command not in ['init']:
+    if getattr(args, 'subcommand', None) is None and args.command not in ['init', 'auth']:
         parser.error_no_help(f'no subcommand for {args.command} specified')
 
     if args.command == 'dist':
@@ -99,7 +100,7 @@ def _parse_arguments() -> argparse.Namespace:
 
         if args.registry is not None and not args.registry.endswith('/'):
             setattr(args, 'registry', f'{args.registry}/')
-    elif args.command == 'init':
+    elif args.command in ['init', 'auth']:
         setattr(args, 'subcommand', None)
 
     if args.subcommand == 'run':
@@ -172,6 +173,8 @@ def main() -> int:
             rc = distributed(args)
         elif args.command == 'init':
             rc = init(args)
+        elif args.command == 'auth':
+            rc = auth(args)
         else:
             raise ValueError(f'unknown command {args.command}')
 
