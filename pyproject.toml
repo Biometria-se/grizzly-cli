@@ -68,13 +68,15 @@ dev = [
     "pytablewriter >=0.64.1",
     "line-profiler >=3.5.1",
     "gevent >=23.7.0",
-    "flask ==2.0.3",
+    "flask <3.0.0",
+    "Werkzeug >=2.2,<3.0",
     "PyYAML >=6.0.1,<7.0.0",
     "types-requests >=2.27.13,<3.0.0",
     "types-pyyaml",
     "setuptools-scm >= 7.0.3",
     "wheel >= 0.37.0",
-    "snakeviz"
+    "snakeviz",
+    "setuptools >= 60.10.0"
 ]
 ci = [
     "build >=0.7.0",
