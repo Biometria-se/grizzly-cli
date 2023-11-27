@@ -10,6 +10,8 @@ from shutil import get_terminal_size
 from argparse import Namespace as Arguments
 from socket import gethostname
 from json import loads as jsonloads
+from io import StringIO
+from pathlib import Path
 
 from .. import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
 from ..utils import (
@@ -337,8 +339,17 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                     stderr=subprocess.STDOUT,
                 ).split('\n')
 
-                for line in missed_output:
-                    print(f'{master_node_name}  | {line}')
+                log_file = Path(args.log_file).open('a+') if args.log_file is not None else StringIO()
+
+                try:
+                    for line in missed_output:
+                        formatted_line = f'{master_node_name}  | {line}'
+                        print(formatted_line)
+                        log_file.write(f'{formatted_line}\n')
+                except:
+                    pass
+                finally:
+                    log_file.close()
 
             print('\n!! something went wrong, check full container logs with:')
             template = '{container_system} container logs {name_template}'

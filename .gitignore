@@ -22,3 +22,4 @@ tests/manual
 tmp/
 requirements.txt
 grizzly_cli/__version__.py
+tests/e2e/example

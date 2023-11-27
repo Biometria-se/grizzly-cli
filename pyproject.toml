@@ -18,7 +18,8 @@ dependencies = [
     "packaging >=21.3",
     "chardet >=3.0.2,<5.0.0",
     "tomli >=2.0.0,<3.0.0",
-    "pyotp >=2.9.0,<3.0.0"
+    "pyotp >=2.9.0,<3.0.0",
+    "progress >=1.6,<2.0"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -178,6 +179,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "setuptools_scm.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "progress.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]
