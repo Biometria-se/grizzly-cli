@@ -301,7 +301,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
-            f'built image {image_name}\n'
+            f'\nbuilt image {image_name}\n'
             f'\n!! failed to tag image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
         )
 
@@ -335,7 +335,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
-            f'built image {image_name}\n'
+            f'\nbuilt image {image_name}\n'
             f'tagged image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
             f'\n!! failed to push image ghcr.io/biometria-se/{image_name}\n'
         )
@@ -358,7 +358,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == (
-            f'built image {image_name}\n'
+            f'\nbuilt image {image_name}\n'
             f'tagged image {image_name} -> ghcr.io/biometria-se/{image_name}\n'
             f'pushed image ghcr.io/biometria-se/{image_name}\n'
         )

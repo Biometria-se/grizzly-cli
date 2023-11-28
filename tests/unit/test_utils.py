@@ -1189,7 +1189,9 @@ def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: T
         requirements_file.unlink()
         requirements_file.write_text('grizzly-loadtester[dev,mq]')
 
-        assert (('1.1.1', ['dev', 'mq'], ), '(unknown)',) == get_dependency_versions()
+        actual_dependency_versions = get_dependency_versions()
+
+        assert (('1.1.1', ['dev', 'mq'], ), '(unknown)',) == actual_dependency_versions
 
         capture = capsys.readouterr()
         assert capture.err == '!! unable to find locust version in "locust" specified in pypi for grizzly-loadtester 1.1.1\n'

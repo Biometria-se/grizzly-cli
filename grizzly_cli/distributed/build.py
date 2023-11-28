@@ -131,10 +131,10 @@ def build(args: Arguments) -> int:
     if args.container_system == 'docker':
         build_env['DOCKER_BUILDKIT'] = '1'
 
-    result = run_command(build_command, env=build_env)
+    result = run_command(build_command, env=build_env, spinner='building')
 
     if result.return_code == 0:
-        print(f'built image {image_name}')
+        print(f'\nbuilt image {image_name}')
 
     if getattr(args, 'registry', None) is None or result.return_code != 0:
         return result.return_code
@@ -162,7 +162,7 @@ def build(args: Arguments) -> int:
         f'{args.registry}{image_name}',
     ]
 
-    result = run_command(push_command, env=build_env)
+    result = run_command(push_command, env=build_env, spinner='pushing')
 
     if result.return_code != 0:
         print(f'\n!! failed to push image {args.registry}{image_name}')

@@ -25,6 +25,7 @@ import tomli
 
 from behave.model import Scenario
 from jinja2 import Template
+from progress.spinner import Spinner
 
 import grizzly_cli
 
@@ -63,7 +64,7 @@ class RunCommandResult:
     output: Optional[List[bytes]] = field(init=False, default=None)
 
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent: bool = False, verbose: bool = False) -> RunCommandResult:
+def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, silent: bool = False, verbose: bool = False, spinner: Optional[str] = None) -> RunCommandResult:
     if env is None:
         env = environ.copy()
 
@@ -82,6 +83,11 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
     if silent:
         result.output = []
 
+    _spinner: Optional[Spinner] = None
+
+    if spinner is not None:
+        _spinner = Spinner(f'{spinner} ')
+
     def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:
         if result.abort_timestamp is None:
             result.abort_timestamp = datetime.utcnow()
@@ -93,6 +99,9 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, silent
                 stdout = process.stdout
                 if stdout is None:
                     break
+
+                if _spinner is not None:
+                    _spinner.next()
 
                 output = stdout.readline()
                 if not output:
@@ -440,14 +449,17 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
 
                         match = re.match(r'^locust \((.*?)\)$', requires_dist.strip())
 
-                        if not match:
+                        if match:
+                            locust_version = cast(str, match.group(1))
+                        else:
+                            locust_version = requires_dist.replace('locust', '').strip()
+
+                        if locust_version is not None and locust_version.startswith('=='):
+                            locust_version = locust_version[2:]
+
+                        if len(locust_version or '') < 1:
                             print(f'!! unable to find locust version in "{requires_dist.strip()}" specified in pypi for grizzly-loadtester {grizzly_version}', file=sys.stderr)
                             locust_version = '(unknown)'
-                            break
-
-                        locust_version = match.group(1)
-                        if locust_version.startswith('=='):
-                            locust_version = locust_version[2:]
                         break
 
                     if locust_version is None:
