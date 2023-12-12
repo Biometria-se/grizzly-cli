@@ -477,18 +477,20 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.out == ''
-    assert capture.err == dedent('''
-        feature file test.feature will execute in total 2 iterations
-
-        each scenario will execute accordingly:
-
-        ident   weight  #iter  #user  description
-        ------|-------|------|------|-------------|
-        001          1      1      1  scenario-1
-        002          1      1      1  scenario-2
-        ------|-------|------|------|-------------|
-
-    ''')
+    expected_lines = [
+        '\n',
+        'feature file test.feature will execute in total 2 iterations\n',
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   weight  #iter  #user  description\n',
+        '------|-------|------|------|-------------|\n',
+        '001          1      1      1  scenario-1 \n',
+        '002          1      1      1  scenario-2 \n',
+        '------|-------|------|------|-------------|\n',
+        '\n'
+    ]
+    assert capture.err == ''.join(expected_lines)
     capsys.readouterr()
     assert ask_yes_no.call_count == 1
     args, _ = ask_yes_no.call_args_list[-1]
@@ -561,18 +563,19 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.out == ''
-    assert capture.err == dedent('''
-        feature file test.feature will execute in total 55 iterations
-
-        each scenario will execute accordingly:
-
-        ident   weight  #iter  #user  description
-        ------|-------|------|------|-------------|
-        001        500     50     39  scenario-1
-        002          1      5      1  scenario-2
-        ------|-------|------|------|-------------|
-
-    ''')
+    assert capture.err == ''.join([
+        '\n',
+        'feature file test.feature will execute in total 55 iterations\n'
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   weight  #iter  #user  description\n',
+        '------|-------|------|------|-------------|\n',
+        '001        500     50     39  scenario-1 \n',
+        '002          1      5      1  scenario-2 \n',
+        '------|-------|------|------|-------------|\n',
+        '\n',
+    ])
     capsys.readouterr()
     assert ask_yes_no.call_count == 2
     args, _ = ask_yes_no.call_args_list[-1]
@@ -628,19 +631,20 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.out == ''
-    assert capture.err == dedent('''
-        feature file integration.feature will execute in total 1260 iterations
-
-        each scenario will execute accordingly:
-
-        ident   weight  #iter  #user  description
-        ------|-------|------|------|--------------------------------------------------------------------------------------|
-        001        100    500     46  scenario-1 testing a lot of stuff
-        002         50    750     23  scenario-2 testing a lot more of many different things that scenario-1 does not test
-        003          1     10      1  scenario-3
-        ------|-------|------|------|--------------------------------------------------------------------------------------|
-
-    ''')
+    assert capture.err == ''.join([
+        '\n',
+        'feature file integration.feature will execute in total 1260 iterations\n'
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   weight  #iter  #user  description                                                                         \n',
+        '------|-------|------|------|--------------------------------------------------------------------------------------|\n'
+        '001        100    500     46  scenario-1 testing a lot of stuff                                                   \n',
+        '002         50    750     23  scenario-2 testing a lot more of many different things that scenario-1 does not test\n',
+        '003          1     10      1  scenario-3                                                                          \n',
+        '------|-------|------|------|--------------------------------------------------------------------------------------|\n',
+        '\n',
+    ])
     capsys.readouterr()
     assert ask_yes_no.call_count == 2
 
@@ -661,140 +665,213 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     capture = capsys.readouterr()
 
     assert capture.out == ''
-    assert capture.err == dedent('''
-        feature file integration.feature will execute in total 1 iterations
-
-        each scenario will execute accordingly:
-
-        ident   weight  #iter  #user  description
-        ------|-------|------|------|-------------|
-        001         25      1      1  scenario-1
-        ------|-------|------|------|-------------|
-
-    ''')
+    assert capture.err == ''.join([
+        '\n',
+        'feature file integration.feature will execute in total 1 iterations\n'
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   weight  #iter  #user  description\n',
+        '------|-------|------|------|-------------|\n'
+        '001         25      1      1  scenario-1 \n',
+        '------|-------|------|------|-------------|\n',
+        '\n',
+    ])
     capsys.readouterr()
+
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-1 testing a lot of stuff',
+            [
+                'Given "4" users',
+            ],
+            [
+                'Given a user of type "RestApi" with weight "1" load testing "https://localhost"',
+                'And repeat for "10" iterations'
+                'And ask for value of variable "test_variable_2"',
+                'And ask for value of variable "test_variable_1"',
+            ]
+        ),
+        create_scenario(
+            'scenario-2 testing a lot more of many different things that scenario-1 does not test',
+            [],
+            [
+                'Given a user of type "MessageQueueUser" with weight "50" load testing "mqs://localhost"',
+                'And repeat for "0" iterations',
+                'And ask for value of variable "foo"',
+            ],
+        ),
+        create_scenario(
+            'scenario-3',
+            [],
+            [
+                'Given a user of type "RestApi" with weight "0" load testing "https://127.0.0.2"',
+                'And repeat for "10" iterations',
+            ]
+        ),
+        create_scenario(
+            'scenario-4',
+            [],
+            [
+                'Given a user of type "RestApi" with weight "0" load testing "https://127.0.0.2"',
+                'And repeat for "0" iterations',
+            ]
+        )
+    ])
+
+    arguments = Namespace(file='integration.feature', yes=True)
+
+    with pytest.raises(ValueError) as ve:
+        distribution_of_users_per_scenario(arguments, {})
+    capture = capsys.readouterr()
+
+    assert capture.out == ''
+    assert capture.err == ''.join([
+        '\n',
+        'feature file integration.feature will execute in total 20 iterations\n'
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   weight  #iter  #user  description                                                                            errors\n',
+        '------|-------|------|------|--------------------------------------------------------------------------------------|----------------------------------|\n'
+        '001          1     10      1  scenario-1 testing a lot of stuff                                                      \n',
+        '002         50      0      3  scenario-2 testing a lot more of many different things that scenario-1 does not test   no iterations\n',
+        '003          0     10      0  scenario-3                                                                             no users assigned\n',
+        '004          0      0      0  scenario-4                                                                             no users assigned, no iterations\n',
+        '------|-------|------|------|--------------------------------------------------------------------------------------|----------------------------------|\n',
+    ])
+    assert str(ve.value) == """                                                                                                                    ^
++-------------------------------------------------------------------------------------------------------------------+
+|
++- there were errors when calculating user distribution and iterations per scenario, adjust user "weight", number of users or iterations per scenario\n"""
 
 
 @pytest.mark.parametrize('users,iterations,output', [
     (
         6, 13,
-        dedent('''
-            feature file integration.feature will execute in total 28 iterations
-
-            each scenario will execute accordingly:
-
-            ident   weight  #iter  #user  description
-            ------|-------|------|------|-------------|
-            001         50     15      5  scenario-0
-            002         12      3      1  scenario-1
-            003         21      5      2  scenario-2
-            004          4      1      1  scenario-3
-            005          6      2      1  scenario-4
-            006          3      1      1  scenario-5
-            007          3      1      1  scenario-6
-            ------|-------|------|------|-------------|
-
-        '''),
+        ''.join([
+            '\n',
+            'feature file integration.feature will execute in total 28 iterations\n'
+            '\n',
+            'each scenario will execute accordingly:\n',
+            '\n',
+            'ident   weight  #iter  #user  description\n',
+            '------|-------|------|------|-------------|\n'
+            '001         50     15      5  scenario-0 \n',
+            '002         12      3      1  scenario-1 \n',
+            '003         21      5      2  scenario-2 \n',
+            '004          4      1      1  scenario-3 \n',
+            '005          6      2      1  scenario-4 \n',
+            '006          3      1      1  scenario-5 \n',
+            '007          3      1      1  scenario-6 \n',
+            '------|-------|------|------|-------------|\n',
+            '\n',
+        ]),
     ),
     (
         12, 20,
-        dedent('''
-            feature file integration.feature will execute in total 43 iterations
-
-            each scenario will execute accordingly:
-
-            ident   weight  #iter  #user  description
-            ------|-------|------|------|-------------|
-            001         33     23      6  scenario-0
-            002         16      5      2  scenario-1
-            003         28      8      5  scenario-2
-            004          5      2      1  scenario-3
-            005          8      3      2  scenario-4
-            006          4      1      1  scenario-5
-            007          4      1      1  scenario-6
-            ------|-------|------|------|-------------|
-
-        '''),
+        ''.join([
+            '\n',
+            'feature file integration.feature will execute in total 43 iterations\n',
+            '\n',
+            'each scenario will execute accordingly:\n',
+            '\n',
+            'ident   weight  #iter  #user  description\n',
+            '------|-------|------|------|-------------|\n'
+            '001         33     23      6  scenario-0 \n',
+            '002         16      5      2  scenario-1 \n',
+            '003         28      8      5  scenario-2 \n',
+            '004          5      2      1  scenario-3 \n',
+            '005          8      3      2  scenario-4 \n',
+            '006          4      1      1  scenario-5 \n',
+            '007          4      1      1  scenario-6 \n',
+            '------|-------|------|------|-------------|\n',
+            '\n',
+        ]),
     ),
     (
         18, 31,
-        dedent('''
-            feature file integration.feature will execute in total 66 iterations
-
-            each scenario will execute accordingly:
-
-            ident   weight  #iter  #user  description
-            ------|-------|------|------|-------------|
-            001         25     35      6  scenario-0
-            002         18      8      4  scenario-1
-            003         31     13      7  scenario-2
-            004          6      2      2  scenario-3
-            005          9      4      3  scenario-4
-            006          4      2      1  scenario-5
-            007          4      2      1  scenario-6
-            ------|-------|------|------|-------------|
-
-        '''),
+        ''.join([
+            '\n',
+            'feature file integration.feature will execute in total 66 iterations\n',
+            '\n',
+            'each scenario will execute accordingly:\n',
+            '\n',
+            'ident   weight  #iter  #user  description\n',
+            '------|-------|------|------|-------------|\n',
+            '001         25     35      6  scenario-0 \n',
+            '002         18      8      4  scenario-1 \n',
+            '003         31     13      7  scenario-2 \n',
+            '004          6      2      2  scenario-3 \n',
+            '005          9      4      3  scenario-4 \n',
+            '006          4      2      1  scenario-5 \n',
+            '007          4      2      1  scenario-6 \n',
+            '------|-------|------|------|-------------|\n',
+            '\n',
+        ]),
     ),
     (
         24, 49,
-        dedent('''
-            feature file integration.feature will execute in total 105 iterations
-
-            each scenario will execute accordingly:
-
-            ident   weight  #iter  #user  description
-            ------|-------|------|------|-------------|
-            001         20     56      6  scenario-0
-            002         20     12      6  scenario-1
-            003         33     21     10  scenario-2
-            004          6      4      1  scenario-3
-            005         10      6      3  scenario-4
-            006          4      3      2  scenario-5
-            007          4      3      2  scenario-6
-            ------|-------|------|------|-------------|
-
-        '''),
+        ''.join([
+            '\n',
+            'feature file integration.feature will execute in total 105 iterations\n',
+            '\n',
+            'each scenario will execute accordingly:\n',
+            '\n',
+            'ident   weight  #iter  #user  description\n',
+            '------|-------|------|------|-------------|\n',
+            '001         20     56      6  scenario-0 \n',
+            '002         20     12      6  scenario-1 \n',
+            '003         33     21     10  scenario-2 \n',
+            '004          6      4      1  scenario-3 \n',
+            '005         10      6      3  scenario-4 \n',
+            '006          4      3      2  scenario-5 \n',
+            '007          4      3      2  scenario-6 \n',
+            '------|-------|------|------|-------------|\n',
+            '\n',
+        ])
     ),
     (
         30, 58,
-        dedent('''
-            feature file integration.feature will execute in total 124 iterations
-
-            each scenario will execute accordingly:
-
-            ident   weight  #iter  #user  description
-            ------|-------|------|------|-------------|
-            001         16     66      6  scenario-0
-            002         20     15      7  scenario-1
-            003         35     24     12  scenario-2
-            004          6      5      3  scenario-3
-            005         10      8      4  scenario-4
-            006          5      3      2  scenario-5
-            007          5      3      2  scenario-6
-            ------|-------|------|------|-------------|
-
-        '''),
+        ''.join([
+            '\n',
+            'feature file integration.feature will execute in total 124 iterations\n',
+            '\n',
+            'each scenario will execute accordingly:\n',
+            '\n',
+            'ident   weight  #iter  #user  description\n',
+            '------|-------|------|------|-------------|\n',
+            '001         16     66      6  scenario-0 \n',
+            '002         20     15      7  scenario-1 \n',
+            '003         35     24     12  scenario-2 \n',
+            '004          6      5      3  scenario-3 \n',
+            '005         10      8      4  scenario-4 \n',
+            '006          5      3      2  scenario-5 \n',
+            '007          5      3      2  scenario-6 \n',
+            '------|-------|------|------|-------------|\n'
+            '\n',
+        ])
     ),
     (
         30, 21000,
-        dedent('''
-            feature file integration.feature will execute in total 44940 iterations
-
-            each scenario will execute accordingly:
-
-            ident   weight  #iter  #user  description
-            ------|-------|------|------|-------------|
-            001         16  23940      6  scenario-0
-            002         20   5250      7  scenario-1
-            003         35   8820     12  scenario-2
-            004          6   1680      3  scenario-3
-            005         10   2730      4  scenario-4
-            006          5   1260      2  scenario-5
-            007          5   1260      2  scenario-6
-            ------|-------|------|------|-------------|
-
-        '''),
+        ''.join([
+            '\n',
+            'feature file integration.feature will execute in total 44940 iterations\n',
+            '\n',
+            'each scenario will execute accordingly:\n',
+            '\n',
+            'ident   weight  #iter  #user  description\n',
+            '------|-------|------|------|-------------|\n',
+            '001         16  23940      6  scenario-0 \n',
+            '002         20   5250      7  scenario-1 \n',
+            '003         35   8820     12  scenario-2 \n',
+            '004          6   1680      3  scenario-3 \n',
+            '005         10   2730      4  scenario-4 \n',
+            '006          5   1260      2  scenario-5 \n',
+            '007          5   1260      2  scenario-6 \n',
+            '------|-------|------|------|-------------|\n',
+            '\n',
+        ])
     ),
 ])
 def test_distribution_of_users_per_scenario_advanced(capsys: CaptureFixture, mocker: MockerFixture, users: int, iterations: int, output: str) -> None:
