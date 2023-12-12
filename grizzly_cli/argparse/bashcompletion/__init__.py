@@ -294,8 +294,16 @@ class BashCompleteAction(Action):
 
                     if (value is None and len(provided_options) == 0) or (value is not None and len(provided_options) == 1):
                         file_suggestions = cast(BashCompletionTypes.File, suggestion.type).list_files(value)
+                        value_type = file_suggestions.get(value, None)
 
-                        if not (len(file_suggestions) == 1 and value in file_suggestions):
+                        # check if suggestion matching provided option (value) is a directory, and if
+                        # provded option (value) does not end with a path separator, it should be added
+                        # otherwise it will not be completed correctly
+                        if value_type == 'dir' and not value.endswith(path.sep):
+                            value = '{value}{sep}'.format(value=value, sep=path.sep)
+
+                        # only provide further suggestions if matches isn't a completed file path
+                        if not (len(file_suggestions) == 1 and value in file_suggestions) and (value_type is None or value_type != 'file'):
                             suggestions.update(file_suggestions)
                         else:
                             suggestions = all_suggestions
