@@ -729,24 +729,49 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             if user_overflow < 1:
                 break
 
-    def print_table_lines(max_length_iterations: int, max_length_users: int, max_length_description: int) -> None:
+    def print_table_lines(max_length_iterations: int, max_length_users: int, max_length_description: int, max_length_errors: int) -> None:
         line = ['-' * 5, '-|-', '-' * 6, '|-', '-' * max_length_iterations, '|-', '-' * max_length_users, '|-', '-' * max_length_description, '-|']
+        if max_length_errors > 0:
+            line += ['-' * (max_length_errors + 1), '-|']
         logger.info(''.join(line))
 
     rows: List[str] = []
     max_length_description = len('description')
     max_length_iterations = len('#iter')
     max_length_users = len('#user')
+    max_length_errors = len('errors')
 
     logger.info(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
 
+    errors: Dict[str, List[str]] = {}
+
     for scenario in distribution.values():
+        # check for errors
+        if scenario.user_count < 1:
+            if scenario.name not in errors:
+                errors.update({scenario.name: []})
+
+            errors[scenario.name].append('no users assigned')
+
+        if scenario.iterations < 1:
+            if scenario.name not in errors:
+                errors.update({scenario.name: []})
+
+            errors[scenario.name].append('no iterations')
+
+        # calculate max length out of all rows
         max_length_description = max(len(scenario.name), max_length_description)
         max_length_iterations = max(len(str(scenario.iterations)), max_length_iterations)
         max_length_users = max(len(str(scenario.user_count)), max_length_users)
+        max_length_errors = max(len(', '.join(errors.get(scenario.name, []))), max_length_errors)
+
+    # there was no errors, so reset max length for that column, so it won't be included
+    if len(errors) < 1:
+        max_length_errors = 0
 
     for scenario in distribution.values():
-        row = '{:5}   {:>6d}  {:>{}}  {:>{}}  {}'.format(
+        row_format = '{:5}   {:>6d}  {:>{}}  {:>{}}  {:<{}}'
+        row_format_args: Tuple[Any, ...] = (
             scenario.identifier,
             scenario.weight,
             scenario.iterations,
@@ -754,23 +779,50 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             scenario.user_count,
             max_length_users,
             scenario.name,
+            max_length_description,
         )
-        rows.append(row)
+
+        if len(errors) > 0:
+            row_format += '   {}'
+            row_format_args += (
+                ', '.join(errors.get(scenario.name, [])),
+            )
+
+        rows.append(row_format.format(*row_format_args))
 
     logger.info('each scenario will execute accordingly:\n')
-    logger.info('{:5}   {:>6}  {:>{}}  {:>{}}  {}'.format(
+    header_row_format = '{:5}   {:>6}  {:>{}}  {:>{}}  {:<{}}'
+    header_row_args: Tuple[Any, ...] = (
         'ident',
         'weight',
         '#iter', max_length_iterations,
         '#user', max_length_users,
-        'description',
-    ))
-    print_table_lines(max_length_iterations, max_length_users, max_length_description)
+        'description', max_length_description,
+    )
+
+    if len(errors) > 0:
+        header_row_format += '   {}'
+        header_row_args += (
+            'errors',
+        )
+
+    logger.info(header_row_format.format(*header_row_args))
+    print_table_lines(max_length_iterations, max_length_users, max_length_description, max_length_errors)
     for row in rows:
         logger.info(row)
-    print_table_lines(max_length_iterations, max_length_users, max_length_description)
+    print_table_lines(max_length_iterations, max_length_users, max_length_description, max_length_errors)
 
-    logger.info('')
+    if len(errors) > 0:
+        arrow_width = len('ident') + 2 + len('weight') + 2 + max_length_iterations + 2 + max_length_users + 2 + max_length_description + 2
+        message = f'''{" "* (1 + arrow_width)}^
++{"-" * arrow_width}+
+|
++- there were errors when calculating user distribution and iterations per scenario, adjust user "weight", number of users or iterations per scenario
+'''
+
+        raise ValueError(message)
+    else:
+        logger.info('')
 
     for scenario in distribution.values():
         if scenario.iterations < scenario.user_count:
