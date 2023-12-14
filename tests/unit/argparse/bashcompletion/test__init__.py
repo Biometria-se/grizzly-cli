@@ -282,6 +282,16 @@ class TestBashCompleteAction:
                 '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-dir\n--log-file\ntest.feature\ntest-dir',
             ),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature\ntest-dir'),
+            ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir', 'test-dir'),
+            (f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{path.sep}', f'test-dir{path.sep}test.feature'),
+            (
+                f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{path.sep}tes',
+                f'test-dir{path.sep}test.feature',
+            ),
+            (
+                f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{path.sep}test.feature',
+                '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file\n--log-dir',
+            ),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
