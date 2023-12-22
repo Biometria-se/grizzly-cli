@@ -1,9 +1,19 @@
+import sys
 import os
 
-from typing import List, Dict, Any, Callable, cast
+from typing import List, Dict, Any, Callable, ContextManager, TextIO, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from contextlib import nullcontext
+
+from jinja2 import Environment
+from jinja2.exceptions import TemplateAssertionError
+from jinja2_simple_tags import StandaloneTag
+from behave.parser import parse_feature
+from behave.model import Scenario, Step
 
 import grizzly_cli
 from .utils import (
@@ -17,6 +27,38 @@ from .utils import (
 )
 from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
+
+
+class ScenarioTag(StandaloneTag):
+    tags = {'scenario'}
+
+    def render(self, scenario: str, feature: str) -> str:
+        feature_file = Path(feature)
+
+        # check if relative to parent feature file
+        if not feature_file.exists():
+            feature_file = (self.environment.feature_file.parent / feature.lstrip('./')).resolve()
+
+        feature_content = feature_file.read_text()
+        feature_lines = feature_content.splitlines()
+        parsed_feature = parse_feature(feature_content, filename=feature_file.as_posix())
+
+        buffer: List[str] = []
+
+        for parsed_scenario in cast(List[Scenario], parsed_feature.scenarios):
+            if parsed_scenario.name != scenario:
+                continue
+
+            scenario_line = feature_lines[parsed_scenario.line - 1]
+            step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
+
+            for index, parsed_step in enumerate(cast(List[Step], parsed_scenario)):
+                step_line = f'{parsed_step.keyword} {parsed_step.name}'
+                if index > 0:
+                    step_line = f'{" " * step_indent}{step_line}'
+                buffer.append(step_line)
+
+        return '\n'.join(buffer)
 
 
 def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
@@ -90,6 +132,16 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         help='log directory suffix (relative to `requests/logs`) to save log files generated in a scenario',
     )
     run_parser.add_argument(
+        '--dump',
+        nargs='?',
+        default=None,
+        const=True,
+        help=(
+            'Dump parsed contents of file, can be useful when including scenarios from other feature files. If no argument is specified it '
+            'will be dumped to stdout, the argument is treated as a filename'
+        ),
+    )
+    run_parser.add_argument(
         'file',
         nargs='+',
         type=BashCompletionTypes.File('*.feature'),
@@ -110,77 +162,110 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         'GRIZZLY_MOUNT_CONTEXT': grizzly_cli.MOUNT_CONTEXT,
     }
 
-    variables = find_variable_names_in_questions(args.file)
-    questions = len(variables)
-    manual_input = False
+    environment = Environment(autoescape=False, extensions=[ScenarioTag])
+    feature_file = Path(args.file)
+    feature_content = feature_file.read_text()
+    file_context: ContextManager
 
-    if questions > 0 and not getattr(args, 'validate_config', False):
-        logger.info(f'feature file requires values for {questions} variables')
+    try:
+        template = environment.from_string(feature_content)
+        environment.extend(feature_file=feature_file)
+        feature_content = template.render()
+        file_context = NamedTemporaryFile(dir=feature_file.parent, suffix=f'-{feature_file.stem}.feature')
+    except Exception as e:  # do not change args.file, so will use file as is
+        if not isinstance(e, TemplateAssertionError):
+            raise
+        file_context = nullcontext()
 
-        for variable in variables:
-            name = f'TESTDATA_VARIABLE_{variable}'
-            value = os.environ.get(name, '')
-            while len(value) < 1:
-                value = get_input(f'initial value for "{variable}": ')
-                manual_input = True
-
-            environ[name] = value
-
-        logger.info('the following values was provided:')
-        for key, value in environ.items():
-            if not key.startswith('TESTDATA_VARIABLE_'):
-                continue
-            logger.info(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
-
-        if manual_input:
-            ask_yes_no('continue?')
-
-    notices = find_metadata_notices(args.file)
-
-    if len(notices) > 0:
-        if args.yes:
-            output_func = cast(Callable[[str], None], logger.info)
+    if args.dump:
+        output: TextIO
+        if isinstance(args.dump, str):
+            output = Path(args.dump).open('w+')
         else:
-            output_func = ask_yes_no
+            output = sys.stdout
 
-        for notice in notices:
-            output_func(notice)
+        print(feature_content, file=output)
 
-    if args.environment_file is not None:
-        environment_file = os.path.realpath(args.environment_file)
-        environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_file})
+        return 0
 
-    if args.log_dir is not None:
-        environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
+    with file_context as fd:
+        if fd is not None:
+            fd.write(feature_content.encode())
+            fd.flush()
 
-    if not getattr(args, 'validate_config', False):
-        distribution_of_users_per_scenario(args, environ)
+            args.file = fd.name
 
-    run_arguments: Dict[str, List[str]] = {
-        'master': [],
-        'worker': [],
-        'common': ['--stop'],
-    }
+        variables = find_variable_names_in_questions(args.file)
+        questions = len(variables)
+        manual_input = False
 
-    if args.verbose:
-        run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
+        if questions > 0 and not getattr(args, 'validate_config', False):
+            logger.info(f'feature file requires values for {questions} variables')
 
-    if args.csv_prefix is not None:
-        if args.csv_prefix is True:
-            parse_feature_file(args.file)
-            if grizzly_cli.FEATURE_DESCRIPTION is None:
-                raise ValueError('feature file does not seem to have a `Feature:` description to use as --csv-prefix')
+            for variable in variables:
+                name = f'TESTDATA_VARIABLE_{variable}'
+                value = os.environ.get(name, '')
+                while len(value) < 1:
+                    value = get_input(f'initial value for "{variable}": ')
+                    manual_input = True
 
-            csv_prefix = grizzly_cli.FEATURE_DESCRIPTION.replace(' ', '_')
-            timestamp = datetime.now().astimezone().strftime('%Y%m%dT%H%M%S')
-            setattr(args, 'csv_prefix', f'{csv_prefix}_{timestamp}')
+                environ[name] = value
 
-        run_arguments['common'] += [f'-Dcsv-prefix="{args.csv_prefix}"']
+            logger.info('the following values was provided:')
+            for key, value in environ.items():
+                if not key.startswith('TESTDATA_VARIABLE_'):
+                    continue
+                logger.info(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
 
-        if args.csv_interval is not None:
-            run_arguments['common'] += [f'-Dcsv-interval={args.csv_interval}']
+            if manual_input:
+                ask_yes_no('continue?')
 
-        if args.csv_flush_interval is not None:
-            run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
+        notices = find_metadata_notices(args.file)
 
-    return run_func(args, environ, run_arguments)
+        if len(notices) > 0:
+            if args.yes:
+                output_func = cast(Callable[[str], None], logger.info)
+            else:
+                output_func = ask_yes_no
+
+            for notice in notices:
+                output_func(notice)
+
+        if args.environment_file is not None:
+            environment_file = os.path.realpath(args.environment_file)
+            environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_file})
+
+        if args.log_dir is not None:
+            environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
+
+        if not getattr(args, 'validate_config', False):
+            distribution_of_users_per_scenario(args, environ)
+
+        run_arguments: Dict[str, List[str]] = {
+            'master': [],
+            'worker': [],
+            'common': ['--stop'],
+        }
+
+        if args.verbose:
+            run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
+
+        if args.csv_prefix is not None:
+            if args.csv_prefix is True:
+                parse_feature_file(args.file)
+                if grizzly_cli.FEATURE_DESCRIPTION is None:
+                    raise ValueError('feature file does not seem to have a `Feature:` description to use as --csv-prefix')
+
+                csv_prefix = grizzly_cli.FEATURE_DESCRIPTION.replace(' ', '_')
+                timestamp = datetime.now().astimezone().strftime('%Y%m%dT%H%M%S')
+                setattr(args, 'csv_prefix', f'{csv_prefix}_{timestamp}')
+
+            run_arguments['common'] += [f'-Dcsv-prefix="{args.csv_prefix}"']
+
+            if args.csv_interval is not None:
+                run_arguments['common'] += [f'-Dcsv-interval={args.csv_interval}']
+
+            if args.csv_flush_interval is not None:
+                run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
+
+        return run_func(args, environ, run_arguments)
