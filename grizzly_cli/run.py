@@ -1,7 +1,7 @@
 import sys
 import os
 
-from typing import List, Dict, Any, Callable, ContextManager, TextIO, cast
+from typing import Iterable, List, Dict, Any, Callable, ContextManager, TextIO, Union, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
@@ -11,6 +11,7 @@ from contextlib import nullcontext
 
 from jinja2 import Environment
 from jinja2.exceptions import TemplateAssertionError
+from jinja2.lexer import Token, TokenStream
 from jinja2_simple_tags import StandaloneTag
 from behave.parser import parse_feature
 from behave.model import Scenario, Step
@@ -29,7 +30,7 @@ from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
 
 
-class ScenarioTag(StandaloneTag):
+class OnlyScenarioTag(StandaloneTag):
     tags = {'scenario'}
 
     def render(self, scenario: str, feature: str) -> str:
@@ -59,6 +60,30 @@ class ScenarioTag(StandaloneTag):
                 buffer.append(step_line)
 
         return '\n'.join(buffer)
+
+    def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:
+        """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text."""
+        in_scenario = False
+        for token in stream:
+            if token.type == 'block_begin' and stream.current.value in self.tags:
+                in_scenario = True
+
+            if not in_scenario:
+                if token.type == 'variable_end':
+                    token_value = ' }}'
+                elif token.type == 'variable_begin':
+                    token_value = '{{ '
+                else:
+                    token_value = token.value
+
+                filtered_token = Token(token.lineno, 'data', token_value)
+            else:
+                filtered_token = token
+
+            yield filtered_token
+
+            if in_scenario and token.type == 'block_end':
+                in_scenario = False
 
 
 def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
@@ -162,7 +187,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         'GRIZZLY_MOUNT_CONTEXT': grizzly_cli.MOUNT_CONTEXT,
     }
 
-    environment = Environment(autoescape=False, extensions=[ScenarioTag])
+    environment = Environment(autoescape=False, extensions=[OnlyScenarioTag])
     feature_file = Path(args.file)
     feature_content = feature_file.read_text()
     file_context: ContextManager
