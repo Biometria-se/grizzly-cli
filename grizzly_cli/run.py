@@ -1,13 +1,12 @@
 import sys
 import os
 
-from typing import Iterable, List, Dict, Any, Callable, ContextManager, TextIO, Union, cast
+from typing import Iterable, List, Dict, Any, Callable, TextIO, Union, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from contextlib import nullcontext
 
 from jinja2 import Environment
 from jinja2.exceptions import TemplateAssertionError
@@ -190,35 +189,33 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
     environment = Environment(autoescape=False, extensions=[OnlyScenarioTag])
     feature_file = Path(args.file)
     feature_content = feature_file.read_text()
-    file_context: ContextManager
+
+    is_tmp_file = False
 
     try:
         template = environment.from_string(feature_content)
         environment.extend(feature_file=feature_file)
         feature_content = template.render()
-        file_context = NamedTemporaryFile(dir=feature_file.parent, suffix=f'-{feature_file.stem}.feature')
+        with NamedTemporaryFile(dir=feature_file.parent, suffix=f'-{feature_file.stem}.feature', delete=False) as fd:
+            fd.write(feature_content.encode())
+            fd.flush()
+            args.file = fd.name
+            is_tmp_file = True
     except Exception as e:  # do not change args.file, so will use file as is
         if not isinstance(e, TemplateAssertionError):
             raise
-        file_context = nullcontext()
 
-    if args.dump:
-        output: TextIO
-        if isinstance(args.dump, str):
-            output = Path(args.dump).open('w+')
-        else:
-            output = sys.stdout
+    try:
+        if args.dump:
+            output: TextIO
+            if isinstance(args.dump, str):
+                output = Path(args.dump).open('w+')
+            else:
+                output = sys.stdout
 
-        print(feature_content, file=output)
+            print(feature_content, file=output)
 
-        return 0
-
-    with file_context as fd:
-        if fd is not None:
-            fd.write(feature_content.encode())
-            fd.flush()
-
-            args.file = fd.name
+            return 0
 
         variables = find_variable_names_in_questions(args.file)
         questions = len(variables)
@@ -294,3 +291,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
                 run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
 
         return run_func(args, environ, run_arguments)
+    finally:
+        if is_tmp_file:
+            Path(args.file).unlink()
+
