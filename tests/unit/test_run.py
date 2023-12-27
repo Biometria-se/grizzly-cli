@@ -26,7 +26,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
     execution_context.mkdir()
     mount_context = test_context / 'mount-context'
     mount_context.mkdir()
-    (execution_context / 'test.feature').write_text('Feature: this feature is testing something')
+    feature_file = execution_context / 'test.feature'
+    feature_file.write_text('Feature: this feature is testing something')
     (execution_context / 'configuration.yaml').write_text('configuration:')
 
     parser = ArgumentParser()
@@ -53,8 +54,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             f'{execution_context}/test.feature',
+            '--verbose'
         ])
-        setattr(arguments, 'verbose', True)
         setattr(arguments, 'file', ' '.join(arguments.file))
 
         assert run(arguments, distributed_mock) == 0
@@ -178,9 +179,9 @@ bar = foo
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
             f'{execution_context}/test.feature',
+            '--csv-interval', '20',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
-        setattr(arguments, 'csv_interval', 20)
 
         assert run(arguments, local_mock) == 0
 
@@ -206,10 +207,10 @@ bar = foo
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
             f'{execution_context}/test.feature',
+            '--csv-interval', '20',
+            '--csv-prefix', 'test test',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
-        setattr(arguments, 'csv_interval', 20)
-        setattr(arguments, 'csv_prefix', 'test test')
 
         assert run(arguments, local_mock) == 0
 
@@ -240,11 +241,11 @@ bar = foo
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
             f'{execution_context}/test.feature',
+            '--csv-prefix',
+            '--csv-interval', '20',
+            '--csv-flush-interval', '60',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
-        setattr(arguments, 'csv_prefix', True)
-        setattr(arguments, 'csv_interval', 20)
-        setattr(arguments, 'csv_flush_interval', 60)
 
         assert run(arguments, distributed_mock) == 0
 
@@ -272,17 +273,104 @@ bar = foo
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
+            '--log-dir', 'foobar',
             f'{execution_context}/test.feature',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
-        setattr(arguments, 'log_dir', 'foobar')
 
         assert run(arguments, distributed_mock) == 0
 
-        args, kwargs = distributed_mock.call_args_list[-1]
-        assert kwargs == {}
-        assert args[0] is arguments
-        assert args[1].get('GRIZZLY_LOG_DIR', None) == 'foobar'
+        local_mock.assert_not_called()
+        distributed_mock.assert_called_once_with(
+            arguments,
+            {
+                'GRIZZLY_CLI_HOST': 'localhost',
+                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
+                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(path.join(execution_context, 'configuration.yaml')),
+                'GRIZZLY_LOG_DIR': 'foobar',
+            }, {
+                'master': [],
+                'worker': [],
+                'common': ['--stop'],
+            }
+        )
+        distributed_mock.reset_mock()
+
+        capsys.readouterr()
+
+        # --dump
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/test.feature',
+            '--dump',
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, distributed_mock) == 0
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+
+        assert capture.out == 'Feature: this feature is testing something\n'
+        assert capture.err == ''
+
+        # --dump output.feature
+        feature_file.write_text("""Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        {% scenario "second", feature="./second.feature" %}
+""")
+        feature_file_2 = execution_context / 'second.feature'
+        feature_file_2.write_text("""Feature: a second feature
+    Scenario: second
+        Given a variable with value "{{ foobar }}"
+        Then run a bloody test
+
+    Scenario: third
+        Given a variable with value "{{ value }}"
+""")
+
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/test.feature',
+            '--dump', f'{execution_context}/output.feature'
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, local_mock) == 0
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+
+        output_file = execution_context / 'output.feature'
+        assert output_file.read_text() == """Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        Given a variable with value "{{ foobar }}"
+        Then run a bloody test
+"""
+        assert feature_file.read_text() == """Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        {% scenario "second", feature="./second.feature" %}
+"""
     finally:
         tmp_path_factory._basetemp = original_tmp_path
         rmtree(test_context, onerror=onerror)

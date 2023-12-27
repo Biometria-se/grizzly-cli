@@ -6,10 +6,8 @@ from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from jinja2 import Environment
-from jinja2.exceptions import TemplateAssertionError
 from jinja2.lexer import Token, TokenStream
 from jinja2_simple_tags import StandaloneTag
 from behave.parser import parse_feature
@@ -188,24 +186,15 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
     environment = Environment(autoescape=False, extensions=[OnlyScenarioTag])
     feature_file = Path(args.file)
-    feature_content = feature_file.read_text()
-
-    is_tmp_file = False
+    original_feature_content = feature_file.read_text()
 
     try:
-        template = environment.from_string(feature_content)
+        # during execution, replace contents of feature file with the rendered version
+        template = environment.from_string(original_feature_content)
         environment.extend(feature_file=feature_file)
         feature_content = template.render()
-        with NamedTemporaryFile(dir=feature_file.parent, suffix=f'-{feature_file.stem}.feature', delete=False) as fd:
-            fd.write(feature_content.encode())
-            fd.flush()
-            args.file = fd.name
-            is_tmp_file = True
-    except Exception as e:  # do not change args.file, so will use file as is
-        if not isinstance(e, TemplateAssertionError):
-            raise
+        feature_file.write_text(feature_content)
 
-    try:
         if args.dump:
             output: TextIO
             if isinstance(args.dump, str):
@@ -292,6 +281,4 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
         return run_func(args, environ, run_arguments)
     finally:
-        if is_tmp_file:
-            Path(args.file).unlink()
-
+        feature_file.write_text(original_feature_content)
