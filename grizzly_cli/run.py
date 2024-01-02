@@ -1,9 +1,17 @@
+import sys
 import os
 
-from typing import List, Dict, Any, Callable, cast
+from typing import Iterable, List, Dict, Any, Callable, TextIO, Union, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
+from pathlib import Path
+
+from jinja2 import Environment
+from jinja2.lexer import Token, TokenStream
+from jinja2_simple_tags import StandaloneTag
+from behave.parser import parse_feature
+from behave.model import Scenario, Step
 
 import grizzly_cli
 from .utils import (
@@ -17,6 +25,62 @@ from .utils import (
 )
 from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
+
+
+class OnlyScenarioTag(StandaloneTag):
+    tags = {'scenario'}
+
+    def render(self, scenario: str, feature: str) -> str:
+        feature_file = Path(feature)
+
+        # check if relative to parent feature file
+        if not feature_file.exists():
+            feature_file = (self.environment.feature_file.parent / feature.lstrip('./')).resolve()
+
+        feature_content = feature_file.read_text()
+        feature_lines = feature_content.splitlines()
+        parsed_feature = parse_feature(feature_content, filename=feature_file.as_posix())
+
+        buffer: List[str] = []
+
+        for parsed_scenario in cast(List[Scenario], parsed_feature.scenarios):
+            if parsed_scenario.name != scenario:
+                continue
+
+            scenario_line = feature_lines[parsed_scenario.line - 1]
+            step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
+
+            for index, parsed_step in enumerate(cast(List[Step], parsed_scenario)):
+                step_line = f'{parsed_step.keyword} {parsed_step.name}'
+                if index > 0:
+                    step_line = f'{" " * step_indent}{step_line}'
+                buffer.append(step_line)
+
+        return '\n'.join(buffer)
+
+    def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:
+        """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text."""
+        in_scenario = False
+        for token in stream:
+            if token.type == 'block_begin' and stream.current.value in self.tags:
+                in_scenario = True
+
+            if not in_scenario:
+                if token.type == 'variable_end':
+                    token_value = ' }}'
+                elif token.type == 'variable_begin':
+                    token_value = '{{ '
+                else:
+                    token_value = token.value
+
+                filtered_token = Token(token.lineno, 'data', token_value)
+            else:
+                filtered_token = token
+
+            yield filtered_token
+
+            if in_scenario and token.type == 'block_end':
+                in_scenario = False
 
 
 def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
@@ -90,6 +154,16 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         help='log directory suffix (relative to `requests/logs`) to save log files generated in a scenario',
     )
     run_parser.add_argument(
+        '--dump',
+        nargs='?',
+        default=None,
+        const=True,
+        help=(
+            'Dump parsed contents of file, can be useful when including scenarios from other feature files. If no argument is specified it '
+            'will be dumped to stdout, the argument is treated as a filename'
+        ),
+    )
+    run_parser.add_argument(
         'file',
         nargs='+',
         type=BashCompletionTypes.File('*.feature'),
@@ -110,77 +184,101 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         'GRIZZLY_MOUNT_CONTEXT': grizzly_cli.MOUNT_CONTEXT,
     }
 
-    variables = find_variable_names_in_questions(args.file)
-    questions = len(variables)
-    manual_input = False
+    environment = Environment(autoescape=False, extensions=[OnlyScenarioTag])
+    feature_file = Path(args.file)
+    original_feature_content = feature_file.read_text()
 
-    if questions > 0 and not getattr(args, 'validate_config', False):
-        logger.info(f'feature file requires values for {questions} variables')
+    try:
+        # during execution, replace contents of feature file with the rendered version
+        template = environment.from_string(original_feature_content)
+        environment.extend(feature_file=feature_file)
+        feature_content = template.render()
+        feature_file.write_text(feature_content)
 
-        for variable in variables:
-            name = f'TESTDATA_VARIABLE_{variable}'
-            value = os.environ.get(name, '')
-            while len(value) < 1:
-                value = get_input(f'initial value for "{variable}": ')
-                manual_input = True
+        if args.dump:
+            output: TextIO
+            if isinstance(args.dump, str):
+                output = Path(args.dump).open('w+')
+            else:
+                output = sys.stdout
 
-            environ[name] = value
+            print(feature_content, file=output)
 
-        logger.info('the following values was provided:')
-        for key, value in environ.items():
-            if not key.startswith('TESTDATA_VARIABLE_'):
-                continue
-            logger.info(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+            return 0
 
-        if manual_input:
-            ask_yes_no('continue?')
+        variables = find_variable_names_in_questions(args.file)
+        questions = len(variables)
+        manual_input = False
 
-    notices = find_metadata_notices(args.file)
+        if questions > 0 and not getattr(args, 'validate_config', False):
+            logger.info(f'feature file requires values for {questions} variables')
 
-    if len(notices) > 0:
-        if args.yes:
-            output_func = cast(Callable[[str], None], logger.info)
-        else:
-            output_func = ask_yes_no
+            for variable in variables:
+                name = f'TESTDATA_VARIABLE_{variable}'
+                value = os.environ.get(name, '')
+                while len(value) < 1:
+                    value = get_input(f'initial value for "{variable}": ')
+                    manual_input = True
 
-        for notice in notices:
-            output_func(notice)
+                environ[name] = value
 
-    if args.environment_file is not None:
-        environment_file = os.path.realpath(args.environment_file)
-        environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_file})
+            logger.info('the following values was provided:')
+            for key, value in environ.items():
+                if not key.startswith('TESTDATA_VARIABLE_'):
+                    continue
+                logger.info(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
 
-    if args.log_dir is not None:
-        environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
+            if manual_input:
+                ask_yes_no('continue?')
 
-    if not getattr(args, 'validate_config', False):
-        distribution_of_users_per_scenario(args, environ)
+        notices = find_metadata_notices(args.file)
 
-    run_arguments: Dict[str, List[str]] = {
-        'master': [],
-        'worker': [],
-        'common': ['--stop'],
-    }
+        if len(notices) > 0:
+            if args.yes:
+                output_func = cast(Callable[[str], None], logger.info)
+            else:
+                output_func = ask_yes_no
 
-    if args.verbose:
-        run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
+            for notice in notices:
+                output_func(notice)
 
-    if args.csv_prefix is not None:
-        if args.csv_prefix is True:
-            parse_feature_file(args.file)
-            if grizzly_cli.FEATURE_DESCRIPTION is None:
-                raise ValueError('feature file does not seem to have a `Feature:` description to use as --csv-prefix')
+        if args.environment_file is not None:
+            environment_file = os.path.realpath(args.environment_file)
+            environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_file})
 
-            csv_prefix = grizzly_cli.FEATURE_DESCRIPTION.replace(' ', '_')
-            timestamp = datetime.now().astimezone().strftime('%Y%m%dT%H%M%S')
-            setattr(args, 'csv_prefix', f'{csv_prefix}_{timestamp}')
+        if args.log_dir is not None:
+            environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
 
-        run_arguments['common'] += [f'-Dcsv-prefix="{args.csv_prefix}"']
+        if not getattr(args, 'validate_config', False):
+            distribution_of_users_per_scenario(args, environ)
 
-        if args.csv_interval is not None:
-            run_arguments['common'] += [f'-Dcsv-interval={args.csv_interval}']
+        run_arguments: Dict[str, List[str]] = {
+            'master': [],
+            'worker': [],
+            'common': ['--stop'],
+        }
 
-        if args.csv_flush_interval is not None:
-            run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
+        if args.verbose:
+            run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
 
-    return run_func(args, environ, run_arguments)
+        if args.csv_prefix is not None:
+            if args.csv_prefix is True:
+                parse_feature_file(args.file)
+                if grizzly_cli.FEATURE_DESCRIPTION is None:
+                    raise ValueError('feature file does not seem to have a `Feature:` description to use as --csv-prefix')
+
+                csv_prefix = grizzly_cli.FEATURE_DESCRIPTION.replace(' ', '_')
+                timestamp = datetime.now().astimezone().strftime('%Y%m%dT%H%M%S')
+                setattr(args, 'csv_prefix', f'{csv_prefix}_{timestamp}')
+
+            run_arguments['common'] += [f'-Dcsv-prefix="{args.csv_prefix}"']
+
+            if args.csv_interval is not None:
+                run_arguments['common'] += [f'-Dcsv-interval={args.csv_interval}']
+
+            if args.csv_flush_interval is not None:
+                run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
+
+        return run_func(args, environ, run_arguments)
+    finally:
+        feature_file.write_text(original_feature_content)

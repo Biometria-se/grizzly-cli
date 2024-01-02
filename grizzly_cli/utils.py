@@ -676,7 +676,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
     for index, scenario in enumerate(grizzly_cli.SCENARIOS):
         if len(scenario.steps) < 1:
-            raise ValueError(f'{scenario.name} does not have any steps')
+            raise ValueError(f'scenario "{scenario.name}" does not have any steps')
 
         _pre_populate_scenario(scenario, index=index + 1)
 

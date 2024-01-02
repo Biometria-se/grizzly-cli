@@ -506,7 +506,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
 
     with pytest.raises(ValueError) as ve:
         distribution_of_users_per_scenario(arguments, {})
-    assert 'scenario-1 does not have any steps' in str(ve)
+    assert 'scenario "scenario-1" does not have any steps' in str(ve)
 
     mocker.patch('grizzly_cli.SCENARIOS', [
         create_scenario(

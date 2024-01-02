@@ -12,6 +12,20 @@ from setuptools_scm import Configuration as SetuptoolsScmConfiguration
 from setuptools_scm._cli import _get_version as setuptools_scm_get_version
 
 
+def CaseInsensitive(value: str) -> object:
+    class Wrapped(str):
+        def __eq__(self, other: object) -> bool:
+            return isinstance(other, str) and other.lower() == value.lower()
+
+        def __ne__(self, other: object) -> bool:
+            return not self.__eq__(other)
+
+        def __neq__(self, other: object) -> bool:
+            return self.__ne__(other)
+
+    return Wrapped()
+
+
 def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: Optional[str] = None, stdin: Optional[str] = None) -> Tuple[int, List[str]]:
     output: List[str] = []
     if env is None:
