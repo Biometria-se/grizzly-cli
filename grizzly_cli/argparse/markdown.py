@@ -1,8 +1,11 @@
-from typing import Any, List, Union, Sequence, Optional, Iterable, Tuple, Callable, Type, cast
-from typing_extensions import Self
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any, List, Union, Sequence, Optional, Iterable, Tuple, Callable, Type, cast
 from types import MethodType
 from argparse import Action, SUPPRESS, ArgumentParser, Namespace, HelpFormatter
 from textwrap import fill as textwrap_fill
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing_extensions import Self
 
 
 __all__ = [

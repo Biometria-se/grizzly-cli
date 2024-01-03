@@ -215,9 +215,6 @@ you cannot belive it, it's another sentence.
 
         def test_format_help(self, capsys: CaptureFixture) -> None:
             formatter = MarkdownFormatter.factory(0)('test-prog')
-            import sys
-
-            print(f'{formatter.level=}', file=sys.stderr)
 
             action1 = argparse.Action(['-r', '--root'], dest='root', nargs=2, help='root argument')
             action2 = argparse.Action(['--root-const'], dest='root', nargs=0, default=True)
@@ -229,7 +226,6 @@ you cannot belive it, it's another sentence.
 
             format_help_text = formatter._current_section.format_help()
             assert capsys.readouterr().out == ''
-            print(f'{formatter.level=}', file=sys.stderr)
             assert format_help_text == '''
 
 ## Root section
