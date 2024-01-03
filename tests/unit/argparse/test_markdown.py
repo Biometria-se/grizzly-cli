@@ -53,27 +53,27 @@ class TestMarkdownHelpAction:
         action.print_help(parser)
 
         assert print_help.call_count == 4
-        assert parser.formatter_class == MarkdownFormatter  # type: ignore
+        assert issubclass(parser.formatter_class, MarkdownFormatter)  # type: ignore
         assert parser._subparsers is not None
 
         _subparsers = getattr(parser, '_subparsers', None)
         assert _subparsers is not None
         for subparsers in _subparsers._group_actions:
             for name, subparser in subparsers.choices.items():
-                assert subparser.formatter_class == MarkdownFormatter  # type: ignore
+                assert issubclass(subparser.formatter_class, MarkdownFormatter)  # type: ignore
                 if name == 'a':
                     _subsubparsers = getattr(subparser, '_subparsers', None)
                     assert _subsubparsers is not None
                     for subsubparsers in _subsubparsers._group_actions:
                         for subsubparser in subsubparsers.choices.values():
-                            assert subsubparser.formatter_class == MarkdownFormatter
+                            assert issubclass(subsubparser.formatter_class, MarkdownFormatter)
 
     def test_print_help__format_help_markdown(self, mocker: MockerFixture) -> None:
         action = MarkdownHelpAction(['-t', '--test'])
         parser = argparse.ArgumentParser(description='test parser')
         parser._optionals.title = 'optional arguments'
 
-        formatter = MarkdownFormatter('test-prog')
+        formatter = MarkdownFormatter.factory(0)('test-prog')
 
         _get_formatter = mocker.patch.object(parser, '_get_formatter', side_effect=[formatter])
         add_text = mocker.patch.object(formatter, 'add_text', autospec=True)
@@ -96,14 +96,14 @@ class TestMarkdownHelpAction:
 
 class TestMarkdownFormatter:
     def test___init__(self) -> None:
-        formatter = MarkdownFormatter('test')
+        formatter = MarkdownFormatter.factory(0)('test')
         assert formatter._root_section is formatter._current_section
         assert formatter._root_section.parent is None
-        assert MarkdownFormatter.level == 0
+        assert formatter.level == 0
         assert formatter.current_level == 1
 
     def test__format_usage(self) -> None:
-        formatter = MarkdownFormatter('test')
+        formatter = MarkdownFormatter.factory(0)('test')
         usage = formatter._format_usage('test', None, None, 'a prefix')
         assert usage == '''
 ### Usage
@@ -133,7 +133,7 @@ test file
 '''
 
     def test_format_help(self) -> None:
-        formatter = MarkdownFormatter('test')
+        formatter = MarkdownFormatter.factory(0)('test')
         assert formatter.format_help() == ''
         assert formatter._root_section.heading == '# `test`'
 
@@ -160,7 +160,7 @@ you cannot belive it, it's another sentence.
 '''
 
     def test_start_section(self) -> None:
-        formatter = MarkdownFormatter('test-prog')
+        formatter = MarkdownFormatter.factory(0)('test-prog')
         assert formatter._root_section is formatter._current_section
 
         formatter.start_section('test-section-01')
@@ -172,7 +172,7 @@ you cannot belive it, it's another sentence.
         assert formatter._current_section.parent.items[0] == (formatter._current_section.format_help, [],)
 
     def test__format_action(self) -> None:
-        formatter = MarkdownFormatter('test-prog')
+        formatter = MarkdownFormatter.factory(0)('test-prog')
         action = argparse.Action(['-t', '--test'], dest='help', nargs=1, help='test argument')
 
         assert formatter._format_action(action) == ''
@@ -214,7 +214,7 @@ you cannot belive it, it's another sentence.
             assert len(section3.items) == 0
 
         def test_format_help(self, capsys: CaptureFixture) -> None:
-            formatter = MarkdownFormatter('test-prog')
+            formatter = MarkdownFormatter.factory(0)('test-prog')
 
             action1 = argparse.Action(['-r', '--root'], dest='root', nargs=2, help='root argument')
             action2 = argparse.Action(['--root-const'], dest='root', nargs=0, default=True)
@@ -249,6 +249,7 @@ you cannot belive it, it's another sentence.
             parent = formatter._current_section.parent
             formatter._current_section.parent = None
             formatter.end_section()
+            assert parent is not None
             formatter._current_section = parent
             format_help_text = formatter._current_section.format_help()
             assert capsys.readouterr().out == '\n'  # @TODO: whyyyyyyyyyy?!
