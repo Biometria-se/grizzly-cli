@@ -157,7 +157,7 @@ optional arguments:
 
     def test_print_help_MarkdownFormatter(self, capsys: CaptureFixture, parsers: Tuple[ArgumentParser, ...]) -> None:
         parser, _, _ = parsers
-        parser.formatter_class = MarkdownFormatter
+        parser.formatter_class = MarkdownFormatter.factory(0)
 
         parser.print_help()
         capture = capsys.readouterr()

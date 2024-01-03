@@ -1,4 +1,5 @@
-from typing import Any, List, Union, Sequence, Optional, Tuple, Callable
+from typing import Any, List, Union, Sequence, Optional, Iterable, Tuple, Callable, Type, cast
+from typing_extensions import Self
 from types import MethodType
 from argparse import Action, SUPPRESS, ArgumentParser, Namespace, HelpFormatter
 from textwrap import fill as textwrap_fill
@@ -71,10 +72,8 @@ class MarkdownHelpAction(Action):
         # switch format_help, so that stuff comes in an order that makes more sense in markdown
         setattr(parser, 'format_help', MethodType(format_help_markdown, parser))
         # switch formatter class so we'll get markdown
-        setattr(parser, 'formatter_class', MarkdownFormatter)
+        setattr(parser, 'formatter_class', MarkdownFormatter.factory(level))
         # -->
-
-        MarkdownFormatter.level = level
 
         parser.print_help()
 
@@ -88,20 +87,23 @@ class MarkdownHelpAction(Action):
 
 
 class MarkdownFormatter(HelpFormatter):
-    level: int = 0
+    level: int
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._root_section = self._MarkdownSection(self, None)
         self._current_section = self._root_section
-        self.level = MarkdownFormatter.level
 
-    class _MarkdownSection:
-        def __init__(self, formatter: 'MarkdownFormatter', parent: Optional['MarkdownFormatter._MarkdownSection'], heading: Optional[str] = None) -> None:
+    @staticmethod
+    def factory(level: int) -> Type['MarkdownFormatter']:
+        return type('MarkdownFormatterInstance', (MarkdownFormatter,), {'level': level})
+
+    class _MarkdownSection(HelpFormatter._Section):
+        def __init__(self, formatter: 'MarkdownFormatter', parent: Optional[Self], heading: Optional[str] = None) -> None:
             self.formatter = formatter
             self.parent = parent
             self.heading = heading
-            self.items: List[Tuple[Callable, Tuple[Any, ...]]] = []
+            self.items: List[Tuple[Callable[..., str], Iterable[Any]]] = []
 
         def format_help(self) -> str:
             # format the indented section
@@ -145,6 +147,7 @@ class MarkdownFormatter(HelpFormatter):
                 heading = '%*s%s\n' % (current_indent, '', self.heading)
 
                 # increase header if we're in a subparser
+                assert isinstance(self.formatter, MarkdownFormatter)
                 if self.formatter.level > 0:
                     # a bit hackish, to get a line break when adding a subparsers help
                     if self.parent is None:
@@ -202,7 +205,7 @@ class MarkdownFormatter(HelpFormatter):
             heading = f'{"#" * self.current_level}# {heading}'
 
         self._indent()
-        section = self._MarkdownSection(self, self._current_section, heading)
+        section = self._MarkdownSection(self, cast(MarkdownFormatter._MarkdownSection, self._current_section), heading)
         self._add_item(section.format_help, [])
         self._current_section = section
 
