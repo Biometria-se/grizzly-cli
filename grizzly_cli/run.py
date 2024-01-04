@@ -1,7 +1,7 @@
 import sys
 import os
 
-from typing import Iterable, List, Dict, Any, Callable, TextIO, Union, cast
+from typing import Iterable, List, Dict, Any, Callable, Optional, TextIO, Union, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
@@ -29,6 +29,12 @@ from .argparse.bashcompletion import BashCompletionTypes
 
 class OnlyScenarioTag(StandaloneTag):
     tags = {'scenario'}
+
+    def preprocess(
+        self, source: str, name: Optional[str], filename: Optional[str] = None
+    ) -> str:
+        self._source = source
+        return cast(str, super().preprocess(source, name, filename))
 
     def render(self, scenario: str, feature: str) -> str:
         feature_file = Path(feature)
@@ -61,17 +67,31 @@ class OnlyScenarioTag(StandaloneTag):
     def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:
         """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text."""
         in_scenario = False
+        in_variable = False
+        variable_begin_pos = -1
+        variable_end_pos = 0
         for token in stream:
             if token.type == 'block_begin' and stream.current.value in self.tags:
                 in_scenario = True
 
             if not in_scenario:
                 if token.type == 'variable_end':
-                    token_value = ' }}'
+                    # Find variable end in the source
+                    variable_end_pos = self._source.index(token.value, variable_begin_pos)
+                    # Extract the variable definition substring and use as token value
+                    token_value = self._source[variable_begin_pos:variable_end_pos + 2]
+                    in_variable = False
                 elif token.type == 'variable_begin':
-                    token_value = '{{ '
+                    # Find variable start in the source
+                    variable_begin_pos = self._source.index(token.value, variable_begin_pos + 1)
+                    in_variable = True
                 else:
                     token_value = token.value
+
+                if in_variable:
+                    # While handling in-variable tokens, withhold values until
+                    # the end of the variable is reached
+                    token_value = ''
 
                 filtered_token = Token(token.lineno, 'data', token_value)
             else:
