@@ -322,6 +322,62 @@ bar = foo
         # --dump output.feature
         feature_file.write_text("""Feature: a feature
     Scenario: first
+        Given a variable with value "{{foo * 0.25 | int }}" and another value " {{ bar |int + 12}}"
+        And a variable with value "{{ hello }}"
+        And a variable with value "{{ thisshouldwork | upper }}"
+        And a variable with value "{{thisshouldalsowork |bigtime}}"
+        And a variable with value "{{andthis|too}}"
+
+    Scenario: second
+        {% scenario "second", feature="./second.feature" %}
+
+    Scenario: third
+        Given a variable with value "{{ some*0.25 | more}}" and another value "{{yes|box }}"
+""")
+        feature_file_2 = execution_context / 'second.feature'
+        feature_file_2.write_text("""Feature: a second feature
+    Scenario: second
+        Given a variable with value "{{ foobar }}"
+        Then run a bloody test
+""")
+
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/test.feature',
+            '--dump', f'{execution_context}/output.feature'
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, local_mock) == 0
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+
+        output_file = execution_context / 'output.feature'
+        assert output_file.read_text() == """Feature: a feature
+    Scenario: first
+        Given a variable with value "{{foo * 0.25 | int }}" and another value " {{ bar |int + 12}}"
+        And a variable with value "{{ hello }}"
+        And a variable with value "{{ thisshouldwork | upper }}"
+        And a variable with value "{{thisshouldalsowork |bigtime}}"
+        And a variable with value "{{andthis|too}}"
+
+    Scenario: second
+        Given a variable with value "{{ foobar }}"
+        Then run a bloody test
+
+    Scenario: third
+        Given a variable with value "{{ some*0.25 | more}}" and another value "{{yes|box }}"
+"""
+
+        feature_file.write_text("""Feature: a feature
+    Scenario: first
         Given a variable with value "{{ hello }}"
 
     Scenario: second
