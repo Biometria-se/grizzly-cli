@@ -79,7 +79,7 @@ class OnlyScenarioTag(StandaloneTag):
                     # Find variable end in the source
                     variable_end_pos = self._source.index(token.value, variable_begin_pos)
                     # Extract the variable definition substring and use as token value
-                    token_value = self._source[variable_begin_pos:variable_end_pos + 2]
+                    token_value = self._source[variable_begin_pos:variable_end_pos + len(token.value)]
                     in_variable = False
                 elif token.type == 'variable_begin':
                     # Find variable start in the source
@@ -91,7 +91,7 @@ class OnlyScenarioTag(StandaloneTag):
                 if in_variable:
                     # While handling in-variable tokens, withhold values until
                     # the end of the variable is reached
-                    token_value = ''
+                    continue
 
                 filtered_token = Token(token.lineno, 'data', token_value)
             else:
