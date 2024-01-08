@@ -321,6 +321,9 @@ bar = foo
 
         # --dump output.feature
         feature_file.write_text("""Feature: a feature
+    Background: common
+        Given a common step
+
     Scenario: first
         Given a variable with value "{{foo * 0.25 | int }}" and another value " {{ bar |int + 12}}"
         And a variable with value "{{ hello }}"
@@ -336,6 +339,9 @@ bar = foo
 """)
         feature_file_2 = execution_context / 'second.feature'
         feature_file_2.write_text("""Feature: a second feature
+    Background: common
+        Given a common step
+
     Scenario: second
         Given a variable with value "{{ foobar }}"
         Then run a bloody test
@@ -361,6 +367,9 @@ bar = foo
 
         output_file = execution_context / 'output.feature'
         assert output_file.read_text() == """Feature: a feature
+    Background: common
+        Given a common step
+
     Scenario: first
         Given a variable with value "{{foo * 0.25 | int }}" and another value " {{ bar |int + 12}}"
         And a variable with value "{{ hello }}"
@@ -382,9 +391,15 @@ bar = foo
 
     Scenario: second
         {% scenario "second", feature="./second.feature" %}
+
+    # Scenario: third
+    #     {% scenario "second", feature="./second.feature" %}
 """)
         feature_file_2 = execution_context / 'second.feature'
         feature_file_2.write_text("""Feature: a second feature
+    Background: common
+        Given a common step
+
     Scenario: second
         Given a variable with value "{{ foobar }}"
         Then run a bloody test
@@ -419,6 +434,9 @@ bar = foo
     Scenario: second
         Given a variable with value "{{ foobar }}"
         Then run a bloody test
+
+    # Scenario: third
+    #     {% scenario "second", feature="./second.feature" %}
 """
         assert feature_file.read_text() == """Feature: a feature
     Scenario: first
@@ -426,6 +444,9 @@ bar = foo
 
     Scenario: second
         {% scenario "second", feature="./second.feature" %}
+
+    # Scenario: third
+    #     {% scenario "second", feature="./second.feature" %}
 """
     finally:
         tmp_path_factory._basetemp = original_tmp_path

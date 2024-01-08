@@ -56,7 +56,7 @@ class OnlyScenarioTag(StandaloneTag):
             scenario_line = feature_lines[parsed_scenario.line - 1]
             step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
 
-            for index, parsed_step in enumerate(cast(List[Step], parsed_scenario)):
+            for index, parsed_step in enumerate(cast(List[Step], parsed_scenario.steps)):
                 step_line = f'{parsed_step.keyword} {parsed_step.name}'
                 if index > 0:
                     step_line = f'{" " * step_indent}{step_line}'
@@ -68,11 +68,20 @@ class OnlyScenarioTag(StandaloneTag):
         """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text."""
         in_scenario = False
         in_variable = False
+        in_block_comment = False
+
         variable_begin_pos = -1
         variable_end_pos = 0
+        block_begin_pos = -1
+        block_end_pos = 0
+        source_lines = self._source.splitlines()
+
         for token in stream:
             if token.type == 'block_begin' and stream.current.value in self.tags:
                 in_scenario = True
+                in_block_comment = source_lines[token.lineno - 1].lstrip().startswith('#')
+                if in_block_comment:
+                    block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
 
             if not in_scenario:
                 if token.type == 'variable_end':
@@ -95,7 +104,15 @@ class OnlyScenarioTag(StandaloneTag):
 
                 filtered_token = Token(token.lineno, 'data', token_value)
             else:
-                filtered_token = token
+                if token.type == 'block_end' and in_block_comment:
+                    in_block_comment = False
+                    block_end_pos = self._source.index(token.value, block_begin_pos)
+                    token_value = self._source[block_begin_pos:block_end_pos + len(token.value)]
+                    filtered_token = Token(token.lineno, 'data', token_value)
+                elif in_block_comment:
+                    continue
+                else:
+                    filtered_token = token
 
             yield filtered_token
 
