@@ -11,7 +11,7 @@ from jinja2 import Environment
 from jinja2.lexer import Token, TokenStream
 from jinja2_simple_tags import StandaloneTag
 from behave.parser import parse_feature
-from behave.model import Scenario, Step
+from behave.model import Scenario, Step, Row
 
 import grizzly_cli
 from .utils import (
@@ -58,9 +58,29 @@ class OnlyScenarioTag(StandaloneTag):
 
             for index, parsed_step in enumerate(cast(List[Step], parsed_scenario.steps)):
                 step_line = f'{parsed_step.keyword} {parsed_step.name}'
+
+                # all lines except first, should have indentation based on how `Scenario:` had been indented
                 if index > 0:
                     step_line = f'{" " * step_indent}{step_line}'
+
                 buffer.append(step_line)
+
+                extra_indent = int((step_indent / 2) + step_indent)
+
+                # include step text if set
+                if parsed_step.text is not None:
+                    buffer.append(f'{" " * extra_indent}"""')
+                    for text_line in parsed_step.text.splitlines():
+                        buffer.append(f'{" " * (extra_indent)}{text_line}')
+                    buffer.append(f'{" " * extra_indent}"""')
+
+                # include step table if set
+                if parsed_step.table is not None:
+                    header_line = ' | '.join(parsed_step.table.headings)
+                    buffer.append(f'{" " * extra_indent}| {header_line} |')
+                    for row in cast(List[Row], parsed_step.table.rows):
+                        row_line = ' | '.join(row.cells)
+                        buffer.append(f'{" " * extra_indent}| {row_line} |')
 
         return '\n'.join(buffer)
 

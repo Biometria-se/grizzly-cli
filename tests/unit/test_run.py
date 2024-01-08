@@ -394,6 +394,9 @@ bar = foo
 
     # Scenario: third
     #     {% scenario "second", feature="./second.feature" %}
+
+    Scenario: third
+        {% scenario "third", feature="./second.feature" %}
 """)
         feature_file_2 = execution_context / 'second.feature'
         feature_file_2.write_text("""Feature: a second feature
@@ -403,9 +406,20 @@ bar = foo
     Scenario: second
         Given a variable with value "{{ foobar }}"
         Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
 
     Scenario: third
         Given a variable with value "{{ value }}"
+        Then run a bloody test, with table
+          | hello | world |
+          | foo   | bar   |
+          | bar   |       |
+          |       | foo   |
 """)
 
         arguments = parser.parse_args([
@@ -434,9 +448,23 @@ bar = foo
     Scenario: second
         Given a variable with value "{{ foobar }}"
         Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
 
     # Scenario: third
     #     {% scenario "second", feature="./second.feature" %}
+
+    Scenario: third
+        Given a variable with value "{{ value }}"
+        Then run a bloody test, with table
+            | hello | world |
+            | foo | bar |
+            | bar |  |
+            |  | foo |
 """
         assert feature_file.read_text() == """Feature: a feature
     Scenario: first
@@ -447,6 +475,9 @@ bar = foo
 
     # Scenario: third
     #     {% scenario "second", feature="./second.feature" %}
+
+    Scenario: third
+        {% scenario "third", feature="./second.feature" %}
 """
     finally:
         tmp_path_factory._basetemp = original_tmp_path
