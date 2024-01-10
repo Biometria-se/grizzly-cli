@@ -702,8 +702,8 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 match = re.match(r'repeat for "([^"]*)" iteration[s]?', step.name)
                 if match:
                     distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
-            elif (step.name.endswith(' users') or step.name.endswith(' user')) and step.keyword in ['Given', 'And']:
-                match = re.match(r'scenario is assigned "([^"]*)" user(s)?', step.name)
+            elif step.name.startswith('scenario is assigned') and step.keyword in ['Given', 'And']:
+                match = re.match(r'scenario is assigned "([^"]*)" user(s)?.*$', step.name)
                 if match:
                     scenario_user_count = int(round(float(Template(match.group(1)).render(**variables)), 0))
                     distribution[scenario.name].user_count = scenario_user_count
@@ -746,6 +746,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         line = ['-' * 5, '-|-', '-' * 6, '|-', '-' * max_length_iterations, '|-', '-' * max_length_users, '|-', '-' * max_length_description, '-|']
         if not use_weights:
             line = line[:1] + line[3:]
+            line[0] = f'{line[0]}-'
 
         if max_length_errors > 0:
             line += ['-' * (max_length_errors + 1), '-|']
@@ -785,7 +786,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     if len(errors) < 1:
         max_length_errors = 0
 
-    row_format = ['{:5}', '   {:>6d}', '  {:>{}}', '  {:>{}}', '  {:<{}}']
+    row_format = ['{:5} ', '  {:>6d}', '  {:>{}}', '  {:>{}}', '  {:<{}}']
     if not use_weights:
         row_format.pop(1)
 
@@ -824,7 +825,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         'description', max_length_description,
     ]
 
-    header_row_format = ['{:5}', '   {:>6}', '  {:>{}}', '  {:>{}}', '  {:<{}}']
+    header_row_format = ['{:5} ', '  {:>6}', '  {:>{}}', '  {:>{}}', '  {:<{}}']
     if not use_weights:
         header_row_format.pop(1)
         header_row_args.pop(1)

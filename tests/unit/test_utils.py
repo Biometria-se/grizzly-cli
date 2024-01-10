@@ -957,6 +957,63 @@ def test_distribution_of_users_per_scenario_advanced(capsys: CaptureFixture, moc
     capsys.readouterr()
 
 
+def test_distribution_of_users_per_scenario_no_weights(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+    setup_logging()
+
+    # all scenarios in a feature file will, at this point, have all the background steps
+    # grizzly will later make sure that they are only run once
+    background_steps = [
+        'Given spawn rate is "{{ rate }}" users per second'
+    ]
+
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-0',
+            background_steps,
+            [
+                'Given a user of type "RestApi" load testing "https://localhost"',
+                'And scenario is assigned "{{ ((((max_users * 0.7) - 0.5) | int) or 1) if max_users is defined else 1 }}" users',
+                'And repeat for "{{ (leveranser | int) + ((((leveranser * 0.7) + 0.5) | int) or 1) + ((((leveranser * 0.3) + 0.5) | int) or 1) }}" iterations',
+            ],
+        ),
+        create_scenario(
+            'scenario-1',
+            background_steps,
+            [
+                'Given a user of type "RestApi" load testing "https://localhost"',
+                'And scenario is assigned "{{ ((((max_users_undefined * 0.3) - 0.5) | int) or 1) if max_users_undefined is defined else 1 }}" users with tag "foo"',
+                'And repeat for "{{ ((leveranser * 0.3) + 0.5) | int }}" iterations',
+            ]
+        ),
+    ])
+
+    arguments = Namespace(file='integration.feature', yes=True)
+
+    distribution_of_users_per_scenario(arguments, {
+        'TESTDATA_VARIABLE_leveranser': '10',
+        'TESTDATA_VARIABLE_max_users': '10',
+        'TESTDATA_VARIABLE_rate': '10',
+    })
+    capture = capsys.readouterr()
+
+    assert capture.out == ''
+    print(capture.err)
+    assert capture.err == ''.join([
+        '\n',
+        'feature file integration.feature will execute in total 23 iterations divided on 2 scenarios\n',
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   #iter  #user  description\n',
+        '------|------|------|-------------|\n',
+        '001        20      6  scenario-0 \n',
+        '002         3      1  scenario-1 \n',
+        '------|------|------|-------------|\n',
+        '\n',
+    ])
+    capsys.readouterr()
+
+
 def test_ask_yes_no(capsys: CaptureFixture, mocker: MockerFixture) -> None:
     get_input = mocker.patch('grizzly_cli.utils.get_input', side_effect=['yeah', 'n', 'y'])
 
