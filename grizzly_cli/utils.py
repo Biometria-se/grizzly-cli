@@ -702,12 +702,14 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 match = re.match(r'repeat for "([^"]*)" iteration[s]?', step.name)
                 if match:
                     distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
-            elif step.name.startswith('scenario is assigned') and step.keyword in ['Given', 'And']:
-                match = re.match(r'scenario is assigned "([^"]*)" user(s)?.*$', step.name)
+            elif any([pattern in step.name for pattern in ['users of type', 'user of type']]):
+                match = re.match(r'"([^"]*)" user[s]? of type "([^"]*)".*', step.name)
                 if match:
                     scenario_user_count = int(round(float(Template(match.group(1)).render(**variables)), 0))
-                    distribution[scenario.name].user_count = scenario_user_count
                     scenario_user_count_total += scenario_user_count
+
+                    distribution[scenario.name].user_count = scenario_user_count
+                    distribution[scenario.name].user = match.group(2)
 
     scenario_count = len(distribution.keys())
     assert scenario_user_count_total is not None

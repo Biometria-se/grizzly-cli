@@ -971,8 +971,7 @@ def test_distribution_of_users_per_scenario_no_weights(capsys: CaptureFixture, m
             'scenario-0',
             background_steps,
             [
-                'Given a user of type "RestApi" load testing "https://localhost"',
-                'And scenario is assigned "{{ ((((max_users * 0.7) - 0.5) | int) or 1) if max_users is defined else 1 }}" users',
+                'Given "{{ ((((max_users * 0.7) - 0.5) | int) or 1) if max_users is defined else 1 }}" users of type "RestApi" load testing "https://localhost"',
                 'And repeat for "{{ (leveranser | int) + ((((leveranser * 0.7) + 0.5) | int) or 1) + ((((leveranser * 0.3) + 0.5) | int) or 1) }}" iterations',
             ],
         ),
@@ -980,8 +979,7 @@ def test_distribution_of_users_per_scenario_no_weights(capsys: CaptureFixture, m
             'scenario-1',
             background_steps,
             [
-                'Given a user of type "RestApi" load testing "https://localhost"',
-                'And scenario is assigned "{{ ((((max_users_undefined * 0.3) - 0.5) | int) or 1) if max_users_undefined is defined else 1 }}" users with tag "foo"',
+                'Given "{{ ((((max_users_undefined * 0.3) - 0.5) | int) or 1) if max_users_undefined is defined else 1 }}" user of type "RestApi" load testing "https://localhost"',
                 'And repeat for "{{ ((leveranser * 0.3) + 0.5) | int }}" iterations',
             ]
         ),
@@ -997,7 +995,6 @@ def test_distribution_of_users_per_scenario_no_weights(capsys: CaptureFixture, m
     capture = capsys.readouterr()
 
     assert capture.out == ''
-    print(capture.err)
     assert capture.err == ''.join([
         '\n',
         'feature file integration.feature will execute in total 23 iterations divided on 2 scenarios\n',
