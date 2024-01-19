@@ -81,7 +81,7 @@ bar = foo
             }, {
                 'master': [],
                 'worker': [],
-                'common': ['--stop', '--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr'],
+                'common': ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr'],
             }
         )
         distributed_mock.reset_mock()
@@ -127,7 +127,7 @@ bar = foo
             }, {
                 'master': [],
                 'worker': [],
-                'common': ['--stop'],
+                'common': [],
             }
         )
         local_mock.reset_mock()
@@ -162,7 +162,7 @@ bar = foo
             }, {
                 'master': [],
                 'worker': [],
-                'common': ['--stop'],
+                'common': [],
             }
         )
         local_mock.reset_mock()
@@ -195,7 +195,7 @@ bar = foo
             }, {
                 'master': [],
                 'worker': [],
-                'common': ['--stop'],
+                'common': [],
             }
         )
         local_mock.reset_mock()
@@ -225,7 +225,7 @@ bar = foo
             }, {
                 'master': [],
                 'worker': [],
-                'common': ['--stop', '-Dcsv-prefix="test test"', '-Dcsv-interval=20'],
+                'common': ['-Dcsv-prefix="test test"', '-Dcsv-interval=20'],
             }
         )
         local_mock.reset_mock()
@@ -260,7 +260,7 @@ bar = foo
             }, {
                 'master': [],
                 'worker': [],
-                'common': ['--stop', '-Dcsv-prefix="this_feature_is_testing_something_20221206T130113"', '-Dcsv-interval=20', '-Dcsv-flush-interval=60'],
+                'common': ['-Dcsv-prefix="this_feature_is_testing_something_20221206T130113"', '-Dcsv-interval=20', '-Dcsv-flush-interval=60'],
             }
         )
         distributed_mock.reset_mock()
@@ -292,7 +292,7 @@ bar = foo
             }, {
                 'master': [],
                 'worker': [],
-                'common': ['--stop'],
+                'common': [],
             }
         )
         distributed_mock.reset_mock()

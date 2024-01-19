@@ -312,7 +312,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         run_arguments: Dict[str, List[str]] = {
             'master': [],
             'worker': [],
-            'common': ['--stop'],
+            'common': [],
         }
 
         if args.verbose:
