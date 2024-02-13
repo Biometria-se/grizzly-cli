@@ -479,7 +479,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     assert capture.out == ''
     expected_lines = [
         '\n',
-        'feature file test.feature will execute in total 2 iterations\n',
+        'feature file test.feature will execute in total 2 iterations divided on 2 scenarios\n',
         '\n',
         'each scenario will execute accordingly:\n',
         '\n',
@@ -565,7 +565,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     assert capture.out == ''
     assert capture.err == ''.join([
         '\n',
-        'feature file test.feature will execute in total 55 iterations\n'
+        'feature file test.feature will execute in total 55 iterations divided on 2 scenarios\n'
         '\n',
         'each scenario will execute accordingly:\n',
         '\n',
@@ -633,7 +633,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     assert capture.out == ''
     assert capture.err == ''.join([
         '\n',
-        'feature file integration.feature will execute in total 1260 iterations\n'
+        'feature file integration.feature will execute in total 1260 iterations divided on 3 scenarios\n'
         '\n',
         'each scenario will execute accordingly:\n',
         '\n',
@@ -667,7 +667,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     assert capture.out == ''
     assert capture.err == ''.join([
         '\n',
-        'feature file integration.feature will execute in total 1 iterations\n'
+        'feature file integration.feature will execute in total 1 iterations divided on 1 scenarios\n'
         '\n',
         'each scenario will execute accordingly:\n',
         '\n',
@@ -728,7 +728,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     assert capture.out == ''
     assert capture.err == ''.join([
         '\n',
-        'feature file integration.feature will execute in total 20 iterations\n'
+        'feature file integration.feature will execute in total 20 iterations divided on 4 scenarios\n'
         '\n',
         'each scenario will execute accordingly:\n',
         '\n',
@@ -751,7 +751,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         6, 13,
         ''.join([
             '\n',
-            'feature file integration.feature will execute in total 28 iterations\n'
+            'feature file integration.feature will execute in total 28 iterations divided on 7 scenarios\n'
             '\n',
             'each scenario will execute accordingly:\n',
             '\n',
@@ -772,7 +772,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         12, 20,
         ''.join([
             '\n',
-            'feature file integration.feature will execute in total 43 iterations\n',
+            'feature file integration.feature will execute in total 43 iterations divided on 7 scenarios\n',
             '\n',
             'each scenario will execute accordingly:\n',
             '\n',
@@ -793,7 +793,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         18, 31,
         ''.join([
             '\n',
-            'feature file integration.feature will execute in total 66 iterations\n',
+            'feature file integration.feature will execute in total 66 iterations divided on 7 scenarios\n',
             '\n',
             'each scenario will execute accordingly:\n',
             '\n',
@@ -814,7 +814,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         24, 49,
         ''.join([
             '\n',
-            'feature file integration.feature will execute in total 105 iterations\n',
+            'feature file integration.feature will execute in total 105 iterations divided on 7 scenarios\n',
             '\n',
             'each scenario will execute accordingly:\n',
             '\n',
@@ -835,7 +835,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         30, 58,
         ''.join([
             '\n',
-            'feature file integration.feature will execute in total 124 iterations\n',
+            'feature file integration.feature will execute in total 124 iterations divided on 7 scenarios\n',
             '\n',
             'each scenario will execute accordingly:\n',
             '\n',
@@ -856,7 +856,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
         30, 21000,
         ''.join([
             '\n',
-            'feature file integration.feature will execute in total 44940 iterations\n',
+            'feature file integration.feature will execute in total 44940 iterations divided on 7 scenarios\n',
             '\n',
             'each scenario will execute accordingly:\n',
             '\n',
@@ -954,6 +954,60 @@ def test_distribution_of_users_per_scenario_advanced(capsys: CaptureFixture, moc
 
     assert capture.out == ''
     assert capture.err == output
+    capsys.readouterr()
+
+
+def test_distribution_of_users_per_scenario_no_weights(capsys: CaptureFixture, mocker: MockerFixture) -> None:
+    setup_logging()
+
+    # all scenarios in a feature file will, at this point, have all the background steps
+    # grizzly will later make sure that they are only run once
+    background_steps = [
+        'Given spawn rate is "{{ rate }}" users per second'
+    ]
+
+    mocker.patch('grizzly_cli.SCENARIOS', [
+        create_scenario(
+            'scenario-0',
+            background_steps,
+            [
+                'Given "{{ ((((max_users * 0.7) - 0.5) | int) or 1) if max_users is defined else 1 }}" users of type "RestApi" load testing "https://localhost"',
+                'And repeat for "{{ (leveranser | int) + ((((leveranser * 0.7) + 0.5) | int) or 1) + ((((leveranser * 0.3) + 0.5) | int) or 1) }}" iterations',
+            ],
+        ),
+        create_scenario(
+            'scenario-1',
+            background_steps,
+            [
+                'Given "{{ ((((max_users_undefined * 0.3) - 0.5) | int) or 1) if max_users_undefined is defined else 1 }}" user of type "RestApi" load testing "https://localhost"',
+                'And repeat for "{{ ((leveranser * 0.3) + 0.5) | int }}" iterations',
+            ]
+        ),
+    ])
+
+    arguments = Namespace(file='integration.feature', yes=True)
+
+    distribution_of_users_per_scenario(arguments, {
+        'TESTDATA_VARIABLE_leveranser': '10',
+        'TESTDATA_VARIABLE_max_users': '10',
+        'TESTDATA_VARIABLE_rate': '10',
+    })
+    capture = capsys.readouterr()
+
+    assert capture.out == ''
+    assert capture.err == ''.join([
+        '\n',
+        'feature file integration.feature will execute in total 23 iterations divided on 2 scenarios\n',
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   #iter  #user  description\n',
+        '------|------|------|-------------|\n',
+        '001        20      6  scenario-0 \n',
+        '002         3      1  scenario-1 \n',
+        '------|------|------|-------------|\n',
+        '\n',
+    ])
     capsys.readouterr()
 
 

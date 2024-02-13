@@ -11,7 +11,7 @@ from jinja2 import Environment
 from jinja2.lexer import Token, TokenStream
 from jinja2_simple_tags import StandaloneTag
 from behave.parser import parse_feature
-from behave.model import Scenario, Step
+from behave.model import Scenario, Step, Row
 
 import grizzly_cli
 from .utils import (
@@ -56,11 +56,31 @@ class OnlyScenarioTag(StandaloneTag):
             scenario_line = feature_lines[parsed_scenario.line - 1]
             step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
 
-            for index, parsed_step in enumerate(cast(List[Step], parsed_scenario)):
+            for index, parsed_step in enumerate(cast(List[Step], parsed_scenario.steps)):
                 step_line = f'{parsed_step.keyword} {parsed_step.name}'
+
+                # all lines except first, should have indentation based on how `Scenario:` had been indented
                 if index > 0:
                     step_line = f'{" " * step_indent}{step_line}'
+
                 buffer.append(step_line)
+
+                extra_indent = int((step_indent / 2) + step_indent)
+
+                # include step text if set
+                if parsed_step.text is not None:
+                    buffer.append(f'{" " * extra_indent}"""')
+                    for text_line in parsed_step.text.splitlines():
+                        buffer.append(f'{" " * (extra_indent)}{text_line}')
+                    buffer.append(f'{" " * extra_indent}"""')
+
+                # include step table if set
+                if parsed_step.table is not None:
+                    header_line = ' | '.join(parsed_step.table.headings)
+                    buffer.append(f'{" " * extra_indent}| {header_line} |')
+                    for row in cast(List[Row], parsed_step.table.rows):
+                        row_line = ' | '.join(row.cells)
+                        buffer.append(f'{" " * extra_indent}| {row_line} |')
 
         return '\n'.join(buffer)
 
@@ -68,11 +88,20 @@ class OnlyScenarioTag(StandaloneTag):
         """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text."""
         in_scenario = False
         in_variable = False
+        in_block_comment = False
+
         variable_begin_pos = -1
         variable_end_pos = 0
+        block_begin_pos = -1
+        block_end_pos = 0
+        source_lines = self._source.splitlines()
+
         for token in stream:
             if token.type == 'block_begin' and stream.current.value in self.tags:
                 in_scenario = True
+                in_block_comment = source_lines[token.lineno - 1].lstrip().startswith('#')
+                if in_block_comment:
+                    block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
 
             if not in_scenario:
                 if token.type == 'variable_end':
@@ -95,7 +124,15 @@ class OnlyScenarioTag(StandaloneTag):
 
                 filtered_token = Token(token.lineno, 'data', token_value)
             else:
-                filtered_token = token
+                if token.type == 'block_end' and in_block_comment:
+                    in_block_comment = False
+                    block_end_pos = self._source.index(token.value, block_begin_pos)
+                    token_value = self._source[block_begin_pos:block_end_pos + len(token.value)]
+                    filtered_token = Token(token.lineno, 'data', token_value)
+                elif in_block_comment:
+                    continue
+                else:
+                    filtered_token = token
 
             yield filtered_token
 
@@ -275,7 +312,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         run_arguments: Dict[str, List[str]] = {
             'master': [],
             'worker': [],
-            'common': ['--stop'],
+            'common': [],
         }
 
         if args.verbose:

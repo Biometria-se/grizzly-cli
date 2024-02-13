@@ -672,7 +672,8 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 iterations=None,
             )
 
-    scenario_user_count = 0
+    scenario_user_count_total: Optional[int] = None
+    use_weights = True
 
     for index, scenario in enumerate(grizzly_cli.SCENARIOS):
         if len(scenario.steps) < 1:
@@ -685,7 +686,11 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 if (step.name.endswith(' users') or step.name.endswith(' user')) and step.keyword == 'Given':
                     match = re.match(r'"([^"]*)" user(s)?', step.name)
                     if match:
-                        scenario_user_count = int(round(float(Template(match.group(1)).render(**variables)), 0))
+                        scenario_user_count_total = int(round(float(Template(match.group(1)).render(**variables)), 0))
+
+        if scenario_user_count_total is None:
+            use_weights = False
+            scenario_user_count_total = 0
 
         for step in scenario.steps:
             if step.name.startswith('a user of type'):
@@ -697,9 +702,18 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 match = re.match(r'repeat for "([^"]*)" iteration[s]?', step.name)
                 if match:
                     distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
+            elif any([pattern in step.name for pattern in ['users of type', 'user of type']]):
+                match = re.match(r'"([^"]*)" user[s]? of type "([^"]*)".*', step.name)
+                if match:
+                    scenario_user_count = int(round(float(Template(match.group(1)).render(**variables)), 0))
+                    scenario_user_count_total += scenario_user_count
+
+                    distribution[scenario.name].user_count = scenario_user_count
+                    distribution[scenario.name].user = match.group(2)
 
     scenario_count = len(distribution.keys())
-    if scenario_count > scenario_user_count:
+    assert scenario_user_count_total is not None
+    if scenario_count > scenario_user_count_total:
         raise ValueError(f'grizzly needs at least {scenario_count} users to run this feature')
 
     total_weight = 0
@@ -711,26 +725,31 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         total_weight += scenario.weight
         total_iterations += scenario.iterations
 
-    for scenario in distribution.values():
-        scenario.user_count = ceil(scenario_user_count * (scenario.weight / total_weight))
+    if use_weights:
+        for scenario in distribution.values():
+            scenario.user_count = ceil(scenario_user_count_total * (scenario.weight / total_weight))
 
-    # smooth assigned user count based on weight, so that the sum of scenario.user_count == total_user_count
-    total_user_count = sum([scenario.user_count for scenario in distribution.values()])
-    user_overflow = total_user_count - scenario_user_count
+        # smooth assigned user count based on weight, so that the sum of scenario.user_count == total_user_count
+        total_user_count = sum([scenario.user_count for scenario in distribution.values()])
+        user_overflow = total_user_count - scenario_user_count_total
 
-    while user_overflow > 0:
-        for scenario in dict(sorted(distribution.items(), key=lambda d: d[1].user_count, reverse=True)).values():
-            if scenario.user_count <= 1:
-                continue
+        while user_overflow > 0:
+            for scenario in dict(sorted(distribution.items(), key=lambda d: d[1].user_count, reverse=True)).values():
+                if scenario.user_count <= 1:
+                    continue
 
-            scenario.user_count -= 1
-            user_overflow -= 1
+                scenario.user_count -= 1
+                user_overflow -= 1
 
-            if user_overflow < 1:
-                break
+                if user_overflow < 1:
+                    break
 
     def print_table_lines(max_length_iterations: int, max_length_users: int, max_length_description: int, max_length_errors: int) -> None:
         line = ['-' * 5, '-|-', '-' * 6, '|-', '-' * max_length_iterations, '|-', '-' * max_length_users, '|-', '-' * max_length_description, '-|']
+        if not use_weights:
+            line = line[:1] + line[3:]
+            line[0] = f'{line[0]}-'
+
         if max_length_errors > 0:
             line += ['-' * (max_length_errors + 1), '-|']
         logger.info(''.join(line))
@@ -741,7 +760,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     max_length_users = len('#user')
     max_length_errors = len('errors')
 
-    logger.info(f'\nfeature file {args.file} will execute in total {total_iterations} iterations\n')
+    logger.info(f'\nfeature file {args.file} will execute in total {total_iterations} iterations divided on {len(grizzly_cli.SCENARIOS)} scenarios\n')
 
     errors: Dict[str, List[str]] = {}
 
@@ -769,9 +788,15 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     if len(errors) < 1:
         max_length_errors = 0
 
+    row_format = ['{:5} ', '  {:>6d}', '  {:>{}}', '  {:>{}}', '  {:<{}}']
+    if not use_weights:
+        row_format.pop(1)
+
+    if len(errors) > 0:
+        row_format.append('   {}')
+
     for scenario in distribution.values():
-        row_format = '{:5}   {:>6d}  {:>{}}  {:>{}}  {:<{}}'
-        row_format_args: Tuple[Any, ...] = (
+        row_format_args: List[Any] = [
             scenario.identifier,
             scenario.weight,
             scenario.iterations,
@@ -780,40 +805,47 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             max_length_users,
             scenario.name,
             max_length_description,
-        )
+        ]
+
+        # remove weights column
+        if not use_weights:
+            row_format_args.pop(1)
 
         if len(errors) > 0:
-            row_format += '   {}'
-            row_format_args += (
+            row_format_args.append(
                 ', '.join(errors.get(scenario.name, [])),
             )
 
-        rows.append(row_format.format(*row_format_args))
+        rows.append(''.join(row_format).format(*row_format_args))
 
     logger.info('each scenario will execute accordingly:\n')
-    header_row_format = '{:5}   {:>6}  {:>{}}  {:>{}}  {:<{}}'
-    header_row_args: Tuple[Any, ...] = (
+    header_row_args: List[Any] = [
         'ident',
         'weight',
         '#iter', max_length_iterations,
         '#user', max_length_users,
         'description', max_length_description,
-    )
+    ]
+
+    header_row_format = ['{:5} ', '  {:>6}', '  {:>{}}', '  {:>{}}', '  {:<{}}']
+    if not use_weights:
+        header_row_format.pop(1)
+        header_row_args.pop(1)
 
     if len(errors) > 0:
-        header_row_format += '   {}'
-        header_row_args += (
-            'errors',
-        )
+        header_row_format.append('   {}')
+        header_row_args.append('errors')
 
-    logger.info(header_row_format.format(*header_row_args))
+    logger.info(''.join(header_row_format).format(*header_row_args))
     print_table_lines(max_length_iterations, max_length_users, max_length_description, max_length_errors)
     for row in rows:
         logger.info(row)
     print_table_lines(max_length_iterations, max_length_users, max_length_description, max_length_errors)
 
     if len(errors) > 0:
-        arrow_width = len('ident') + 2 + len('weight') + 2 + max_length_iterations + 2 + max_length_users + 2 + max_length_description + 2
+        arrow_width = len('ident') + 2 + max_length_iterations + 2 + max_length_users + 2 + max_length_description + 2
+        if use_weights:
+            arrow_width += len('weight') + 2
         message = f'''{" "* (1 + arrow_width)}^
 +{"-" * arrow_width}+
 |
