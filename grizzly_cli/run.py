@@ -244,13 +244,14 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
     environment = Environment(autoescape=False, extensions=[OnlyScenarioTag])
     feature_file = Path(args.file)
     original_feature_content = feature_file.read_text()
+    feature_lock_file = feature_file.parent / f'{feature_file.stem}.lock{feature_file.suffix}'
 
     try:
-        # during execution, replace contents of feature file with the rendered version
+        # during execution, create a temporary .lock.feature file that will be removed when done
         template = environment.from_string(original_feature_content)
         environment.extend(feature_file=feature_file)
         feature_content = template.render()
-        feature_file.write_text(feature_content)
+        feature_lock_file.write_text(feature_content)
 
         if args.dump:
             output: TextIO
@@ -262,6 +263,8 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
             print(feature_content, file=output)
 
             return 0
+
+        args.file = feature_lock_file.as_posix()
 
         variables = find_variable_names_in_questions(args.file)
         questions = len(variables)
@@ -338,4 +341,4 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
         return run_func(args, environ, run_arguments)
     finally:
-        feature_file.write_text(original_feature_content)
+        feature_lock_file.unlink()
