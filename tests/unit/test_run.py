@@ -3,6 +3,7 @@ from os import getcwd, path
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
+from contextlib import suppress
 
 from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
@@ -26,7 +27,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
     execution_context.mkdir()
     mount_context = test_context / 'mount-context'
     mount_context.mkdir()
-    feature_file = execution_context / 'test.feature'
+    feature_file = execution_context / 'features' / 'test.feature'
+    feature_file.parent.mkdir(parents=True, exist_ok=True)
     feature_file.write_text('Feature: this feature is testing something')
     (execution_context / 'configuration.yaml').write_text('configuration:')
 
@@ -53,7 +55,7 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
         arguments = parser.parse_args([
             'run',
             '-e', f'{execution_context}/configuration.yaml',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
             '--verbose'
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
@@ -108,7 +110,7 @@ bar = foo
         arguments = parser.parse_args([
             'run',
             '-e', f'{execution_context}/configuration.yaml',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
 
@@ -144,7 +146,7 @@ bar = foo
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
 
@@ -178,7 +180,7 @@ bar = foo
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
             '--csv-interval', '20',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
@@ -206,7 +208,7 @@ bar = foo
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
             '--csv-interval', '20',
             '--csv-prefix', 'test test',
         ])
@@ -240,7 +242,7 @@ bar = foo
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
             '--csv-prefix',
             '--csv-interval', '20',
             '--csv-flush-interval', '60',
@@ -274,7 +276,7 @@ bar = foo
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
             '--log-dir', 'foobar',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
 
@@ -304,7 +306,7 @@ bar = foo
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
             '--dump',
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
@@ -332,10 +334,13 @@ bar = foo
         And a variable with value "{{andthis|too}}"
 
     Scenario: second
-        {% scenario "second", feature="./second.feature" %}
+        {% scenario "second", feature="../second.feature" %}
 
     Scenario: third
         Given a variable with value "{{ some*0.25 | more}}" and another value "{{yes|box }}"
+
+    Scenario: fourth
+        {% scenario "fourth", feature="./fourth.feature" %}
 """)
         feature_file_2 = execution_context / 'second.feature'
         feature_file_2.write_text("""Feature: a second feature
@@ -346,12 +351,21 @@ bar = foo
         Given a variable with value "{{ foobar }}"
         Then run a bloody test
 """)
+        feature_file_3 = execution_context / 'features' / 'fourth.feature'
+        feature_file_3.write_text("""Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Given a variable with value "{{ barfoo }}"
+        Then run a bloody test
+""")
 
         arguments = parser.parse_args([
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
             '--dump', f'{execution_context}/output.feature'
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
@@ -383,6 +397,10 @@ bar = foo
 
     Scenario: third
         Given a variable with value "{{ some*0.25 | more}}" and another value "{{yes|box }}"
+
+    Scenario: fourth
+        Given a variable with value "{{ barfoo }}"
+        Then run a bloody test
 """
 
         feature_file.write_text("""Feature: a feature
@@ -390,13 +408,13 @@ bar = foo
         Given a variable with value "{{ hello }}"
 
     Scenario: second
-        {% scenario "second", feature="./second.feature" %}
+        {% scenario "second", feature="../second.feature" %}
 
     # Scenario: third
-    #     {% scenario "second", feature="./second.feature" %}
+    #     {% scenario "inactive-second", feature="./second.feature" %}
 
     Scenario: third
-        {% scenario "third", feature="./second.feature" %}
+        {% scenario "third", feature="../second.feature" %}
 """)
         feature_file_2 = execution_context / 'second.feature'
         feature_file_2.write_text("""Feature: a second feature
@@ -422,11 +440,14 @@ bar = foo
           |       | foo   |
 """)
 
+        with suppress(FileNotFoundError):
+            output_file.unlink()
+
         arguments = parser.parse_args([
             'run',
             '-e', f'{execution_context}/configuration.yaml',
             '--yes',
-            f'{execution_context}/test.feature',
+            f'{execution_context}/features/test.feature',
             '--dump', f'{execution_context}/output.feature'
         ])
         setattr(arguments, 'file', ' '.join(arguments.file))
@@ -456,7 +477,7 @@ bar = foo
             \"\"\"
 
     # Scenario: third
-    #     {% scenario "second", feature="./second.feature" %}
+    #     {% scenario "inactive-second", feature="./second.feature" %}
 
     Scenario: third
         Given a variable with value "{{ value }}"
@@ -471,13 +492,13 @@ bar = foo
         Given a variable with value "{{ hello }}"
 
     Scenario: second
-        {% scenario "second", feature="./second.feature" %}
+        {% scenario "second", feature="../second.feature" %}
 
     # Scenario: third
-    #     {% scenario "second", feature="./second.feature" %}
+    #     {% scenario "inactive-second", feature="./second.feature" %}
 
     Scenario: third
-        {% scenario "third", feature="./second.feature" %}
+        {% scenario "third", feature="../second.feature" %}
 """
     finally:
         tmp_path_factory._basetemp = original_tmp_path
