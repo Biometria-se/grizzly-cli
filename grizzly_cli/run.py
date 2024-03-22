@@ -6,6 +6,7 @@ from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
 from pathlib import Path
+from contextlib import suppress
 
 from jinja2 import Environment
 from jinja2.lexer import Token, TokenStream
@@ -41,7 +42,10 @@ class OnlyScenarioTag(StandaloneTag):
 
         # check if relative to parent feature file
         if not feature_file.exists():
-            feature_file = (self.environment.feature_file.parent / feature.lstrip('./')).resolve()
+            if feature.startswith('./'):
+                feature.lstrip('./')
+
+            feature_file = (self.environment.feature_file.parent / feature).resolve()
 
         feature_content = feature_file.read_text()
         feature_lines = feature_content.splitlines()
@@ -99,9 +103,10 @@ class OnlyScenarioTag(StandaloneTag):
         for token in stream:
             if token.type == 'block_begin' and stream.current.value in self.tags:
                 in_scenario = True
-                in_block_comment = source_lines[token.lineno - 1].lstrip().startswith('#')
+                current_line = source_lines[token.lineno - 1].lstrip()
+                in_block_comment = current_line.startswith('#')
                 if in_block_comment:
-                    block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
+                    block_begin_pos = self._source.index(current_line.lstrip('#').lstrip(), block_begin_pos + 1)
 
             if not in_scenario:
                 if token.type == 'variable_end':
@@ -341,4 +346,5 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
         return run_func(args, environ, run_arguments)
     finally:
-        feature_lock_file.unlink()
+        with suppress(FileNotFoundError):
+            feature_lock_file.unlink()
