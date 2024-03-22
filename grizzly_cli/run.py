@@ -105,8 +105,7 @@ class OnlyScenarioTag(StandaloneTag):
                 in_scenario = True
                 current_line = source_lines[token.lineno - 1].lstrip()
                 in_block_comment = current_line.startswith('#')
-                if in_block_comment:
-                    block_begin_pos = self._source.index(current_line.lstrip('#').lstrip(), block_begin_pos + 1)
+                block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
 
             if not in_scenario:
                 if token.type == 'variable_end':
