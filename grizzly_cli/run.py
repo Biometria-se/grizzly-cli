@@ -42,9 +42,6 @@ class OnlyScenarioTag(StandaloneTag):
 
         # check if relative to parent feature file
         if not feature_file.exists():
-            if feature.startswith('./'):
-                feature.lstrip('./')
-
             feature_file = (self.environment.feature_file.parent / feature).resolve()
 
         feature_content = feature_file.read_text()
