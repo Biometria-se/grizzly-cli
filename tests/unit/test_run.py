@@ -42,8 +42,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
         mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', str(execution_context))
         mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', str(mount_context))
         mocker.patch('grizzly_cli.run.get_hostname', return_value='localhost')
-        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], [], []])
-        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], [], []])
+        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], [], [], []])
+        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], [], [], []])
         mocker.patch('grizzly_cli.run.distribution_of_users_per_scenario', autospec=True)
         ask_yes_no_mock = mocker.patch('grizzly_cli.run.ask_yes_no', autospec=True)
         distributed_mock = mocker.MagicMock(return_value=0)
@@ -291,6 +291,39 @@ bar = foo
                 'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(path.join(execution_context, 'configuration.yaml')),
                 'GRIZZLY_LOG_DIR': 'foobar',
+            }, {
+                'master': [],
+                'worker': [],
+                'common': [],
+            }
+        )
+        distributed_mock.reset_mock()
+
+        capsys.readouterr()
+
+        # --dry-run
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            '--log-dir', 'foobar',
+            f'{execution_context}/features/test.feature',
+            '--dry-run'
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, distributed_mock) == 0
+
+        local_mock.assert_not_called()
+        distributed_mock.assert_called_once_with(
+            arguments,
+            {
+                'GRIZZLY_CLI_HOST': 'localhost',
+                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
+                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(path.join(execution_context, 'configuration.yaml')),
+                'GRIZZLY_LOG_DIR': 'foobar',
+                'GRIZZLY_DRY_RUN': 'true',
             }, {
                 'master': [],
                 'worker': [],
