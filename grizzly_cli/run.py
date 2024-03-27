@@ -222,6 +222,12 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         ),
     )
     run_parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        required=False,
+        help='Will setup and run anything up until when locust should start. Useful for debugging feature files when developing new tests',
+    )
+    run_parser.add_argument(
         'file',
         nargs='+',
         type=BashCompletionTypes.File('*.feature'),
@@ -306,6 +312,9 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         if args.environment_file is not None:
             environment_file = os.path.realpath(args.environment_file)
             environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_file})
+
+        if args.dry_run:
+            environ.update({'GRIZZLY_DRY_RUN': 'true'})
 
         if args.log_dir is not None:
             environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
