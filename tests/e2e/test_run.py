@@ -152,6 +152,8 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
             assert "received from CLIENT" in result
             assert "AtomicCustomVariable.foobar='foobar'" in result
 
+            assert 'compose.yaml: `version` is obsolete' not in result
+
             datestamp = datetime.now().astimezone().strftime('%Y%m%dT')
 
             csv_file_exceptions = list(example_root.glob('*_exceptions.csv'))
