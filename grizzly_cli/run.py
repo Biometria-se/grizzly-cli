@@ -85,8 +85,12 @@ class OnlyScenarioTag(StandaloneTag):
 
         return '\n'.join(buffer)
 
-    def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:
-        """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text."""
+    def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:  # type: ignore[return]
+        """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text.
+
+        Overloaded from `StandaloneTag`, must match method signature, which is not `Generator`, even though we yield
+        the result instead of returning.
+        """
         in_scenario = False
         in_variable = False
         in_block_comment = False

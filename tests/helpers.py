@@ -1,15 +1,17 @@
 import subprocess
 import os
-import stat
 import sys
 
-from typing import Dict, Optional, Tuple, List, Callable, cast
-from types import TracebackType
+from typing import Dict, Optional, Tuple, List, cast
 from pathlib import Path
 
 from behave.model import Scenario, Step
 from setuptools_scm import Configuration as SetuptoolsScmConfiguration
 from setuptools_scm._cli import _get_version as setuptools_scm_get_version
+
+from grizzly_cli.utils import rm_rf
+
+__all__ = ['rm_rf']
 
 
 def CaseInsensitive(value: str) -> object:
@@ -76,22 +78,6 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: O
     process.wait()
 
     return process.returncode, output
-
-
-def onerror(func: Callable, path: str, exc_info: TracebackType) -> None:
-    '''
-    Error handler for ``shutil.rmtree``.
-    If the error is due to an access error (read only file)
-    it attempts to add write permission and then retries.
-    If the error is for another reason it re-raises the error.
-    Usage : ``shutil.rmtree(path, onerror=onerror)``
-    '''
-    # Is the error an access error?
-    if not os.access(path, os.W_OK):
-        os.chmod(path, stat.S_IWUSR)
-        func(path)
-    else:
-        raise  # pylint: disable=misplaced-bare-raise
 
 
 def create_scenario(name: str, background_steps: List[str], steps: List[str]) -> Scenario:

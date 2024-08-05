@@ -37,7 +37,6 @@ def pytest_collection_modifyitems(items: List[pytest.Function]) -> None:
             item.add_marker(pytest.mark.timeout(PYTEST_TIMEOUT))
 
 
-@pytest.mark.usefixtures('tmp_path_factory')
 def _e2e_fixture(tmp_path_factory: TempPathFactory, request: SubRequest) -> Generator[End2EndFixture, None, None]:
     distributed = request.param if hasattr(request, 'param') else E2E_RUN_MODE == 'dist'
 

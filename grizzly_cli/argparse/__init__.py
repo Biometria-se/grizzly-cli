@@ -1,7 +1,7 @@
 import sys
 import re
 
-from typing import Any, Optional, IO, Sequence
+from typing import Any, Optional, IO, Sequence, cast
 from argparse import ArgumentParser as CoreArgumentParser, Namespace, _SubParsersAction
 
 from .markdown import MarkdownFormatter, MarkdownHelpAction
@@ -37,7 +37,7 @@ class ArgumentParser(CoreArgumentParser):
             super().print_help(file)
             return
 
-        if self.formatter_class is not MarkdownFormatter:  # type: ignore
+        if cast(type, self.formatter_class) is not MarkdownFormatter:
             original_description = self.description
             original_actions = self._actions
 
@@ -53,7 +53,7 @@ class ArgumentParser(CoreArgumentParser):
 
         super().print_help(file)
 
-        if self.formatter_class is not MarkdownFormatter:  # type: ignore
+        if cast(type, self.formatter_class) is not MarkdownFormatter:
             self.description = original_description
             self._actions = original_actions
 

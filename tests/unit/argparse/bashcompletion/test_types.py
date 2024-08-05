@@ -1,4 +1,3 @@
-from shutil import rmtree
 from os import chdir, getcwd, sep
 from argparse import ArgumentTypeError
 
@@ -8,7 +7,8 @@ from _pytest.tmpdir import TempPathFactory
 
 from grizzly_cli.argparse.bashcompletion.types import BashCompletionTypes
 
-from ....helpers import onerror
+from tests.helpers import rm_rf
+
 
 CWD = getcwd()
 
@@ -66,7 +66,7 @@ class TestBashCompletionTypes:
                 assert impl('test.json') == 'test.json'
             finally:
                 chdir(CWD)
-                rmtree(test_context_root, onerror=onerror)
+                rm_rf(test_context_root)
 
         def test_list_files(self, tmp_path_factory: TempPathFactory) -> None:
             test_context = tmp_path_factory.mktemp('test_context')
@@ -113,4 +113,4 @@ class TestBashCompletionTypes:
                 }
             finally:
                 chdir(CWD)
-                rmtree(test_context_root, onerror=onerror)
+                rm_rf(test_context_root)

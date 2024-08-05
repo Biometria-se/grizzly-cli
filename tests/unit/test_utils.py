@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Tuple, Union
 from os import chdir, getcwd
 from textwrap import dedent
 from importlib import reload
-from shutil import rmtree
 from argparse import Namespace
 from tempfile import gettempdir
 from contextlib import ExitStack
@@ -30,7 +29,7 @@ from grizzly_cli.utils import (
     setup_logging,
 )
 
-from ..helpers import onerror, create_scenario
+from tests.helpers import create_scenario, rm_rf
 
 CWD = getcwd()
 
@@ -84,7 +83,7 @@ def test_parse_feature_file(tmp_path_factory: TempPathFactory) -> None:
 
     finally:
         chdir(CWD)
-        rmtree(test_context_root, onerror=onerror)
+        rm_rf(test_context_root)
 
 
 def test_list_images(mocker: MockerFixture) -> None:
@@ -393,7 +392,7 @@ Feature: test -1
 
         assert find_metadata_notices(str(feature_file)) == ['have you created testdata?', 'is the event log cleared?']
     finally:
-        rmtree(test_context, onerror=onerror)
+        rm_rf(test_context)
 
 
 def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: MockerFixture) -> None:
@@ -1264,7 +1263,7 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
                 assert capture.out == ''
                 assert open_mock.call_count == 1
     finally:
-        rmtree(test_context, onerror=onerror)
+        rm_rf(test_context)
 
 
 @pytest.mark.filterwarnings('ignore:Creating a LegacyVersion has been deprecated')
@@ -1375,7 +1374,7 @@ def test_get_dependency_versions_pypi(mocker: MockerFixture, tmp_path_factory: T
         assert capture.err == ''
         assert capture.out == ''
     finally:
-        rmtree(test_context, onerror=onerror)
+        rm_rf(test_context)
 
 
 def test_requirements(capsys: CaptureFixture, tmp_path_factory: TempPathFactory) -> None:
@@ -1400,4 +1399,4 @@ def test_requirements(capsys: CaptureFixture, tmp_path_factory: TempPathFactory)
         assert not requirements_file.exists()
 
     finally:
-        rmtree(test_context, onerror=onerror)
+        rm_rf(test_context)

@@ -19,15 +19,15 @@ jobs:
     steps:
     - name: checkout
       id: checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
 
     - name: install python dependencies
       id: pip
@@ -52,13 +52,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
         runs-on: ['ubuntu-latest']
         include:
-          - python-version: '3.11'
+          - python-version: '3.12'
             runs-on: windows-latest
-          - python-version: '3.11'
-            runs-on: macos-12
+          - python-version: '3.12'
+            runs-on: macos-13
 
     env:
       PYTHONPATH: .
@@ -66,7 +66,7 @@ jobs:
     steps:
     - name: timezone
       id: timezone
-      uses: szenius/set-timezone@v1.1
+      uses: szenius/set-timezone@v2.0
       with:
         timezoneLinux: "Europe/Stockholm"
         timezoneMacos: "Europe/Stockholm"
@@ -74,13 +74,13 @@ jobs:
 
     - name: checkout
       id: checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -103,8 +103,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11']
-        runs-on: ['ubuntu-latest', 'windows-latest', 'macos-latest']
+        python-version: ['3.12']
+        runs-on: ['ubuntu-latest', 'windows-latest', 'macos-13']
 
     env:
       PYTHONPATH: .
@@ -112,7 +112,7 @@ jobs:
     steps:
     - name: timezone
       id: timezone
-      uses: szenius/set-timezone@v1.1
+      uses: szenius/set-timezone@v2.0
       with:
         timezoneLinux: "Europe/Stockholm"
         timezoneMacos: "Europe/Stockholm"
@@ -120,13 +120,13 @@ jobs:
 
     - name: checkout
       id: checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -135,13 +135,15 @@ jobs:
       run: python -m pip install .[dev]
 
     - name: setup docker (macos)
-      if: ${{ matrix.runs-on == 'macos-latest' }}
+      if: ${{ matrix.runs-on == 'macos-13' }}
+      shell: bash
       run: |
+        uname -a
         brew install docker docker-compose colima docker-buildx
         mkdir -p $HOME/.docker/cli-plugins || true
         ln -sfn /usr/local/opt/docker-buildx/bin/docker-buildx ~/.docker/cli-plugins/docker-buildx
         ln -sfn /usr/local/opt/docker-compose/bin/docker-compose ~/.docker/cli-plugins/docker-compose
-        colima start
+        colima start --verbose || { cat /Users/runner/.colima/_lima/colima/serial*.log; exit 1; }
         sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
 
     - name: install docker-compose (ubuntu)
@@ -187,13 +189,13 @@ jobs:
     steps:
     - name: checkout
       id: checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: setup python
       id: setup-python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 

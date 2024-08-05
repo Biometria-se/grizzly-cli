@@ -1,12 +1,11 @@
 from typing import List, Dict, Optional
-from shutil import rmtree
 from packaging.version import Version
 
 import pytest
 
 from _pytest.tmpdir import TempPathFactory
 
-from ..helpers import run_command, onerror
+from tests.helpers import run_command, rm_rf
 
 
 @pytest.mark.parametrize('arguments,expected', [
@@ -105,4 +104,4 @@ successfully created project "foobar", with the following options:
     Given a user of type "RestApi" with weight "1" load testing "$conf::template.host"
 '''
     finally:
-        rmtree(test_context, onerror=onerror)
+        rm_rf(test_context)
