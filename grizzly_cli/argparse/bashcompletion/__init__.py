@@ -264,13 +264,13 @@ class BashCompleteAction(Action):
                     file_suggestions = cast(BashCompletionTypes.File, suggestion.type).list_files(value)  # type: ignore
 
                     if not (len(file_suggestions) == 1 and provided_options[-1] in file_suggestions):
-                        suggestions = file_suggestions
+                        suggestions = cast(Dict[str, Union[str, Action]], file_suggestions)
                     else:
                         suggestions = all_suggestions
                         for option in suggestion.option_strings:
                             del suggestions[option]
-                elif isinstance(suggestion.type, type):
-                    if suggestion.type == str and not isinstance(value, str):  # type: ignore
+                else:
+                    if suggestion.type == str and not isinstance(value, str):
                         suggestions = {}
                     elif suggestion.type == int and (value is None or not value.isnumeric()):
                         suggestions = {}
@@ -289,17 +289,17 @@ class BashCompleteAction(Action):
             del suggestions[option]
 
             if isinstance(suggestion, Action) and suggestion.type is not None:
-                if isinstance(suggestion.type, BashCompletionTypes.File):
-                    value = provided_options[-1] if len(provided_options) == 1 and not provided_options[-1].startswith('-') else None  # type: ignore
+                if isinstance(cast(Any, suggestion.type), BashCompletionTypes.File):
+                    value = provided_options[-1] if len(provided_options) == 1 and not provided_options[-1].startswith('-') else None
 
                     if (value is None and len(provided_options) == 0) or (value is not None and len(provided_options) == 1):
                         file_suggestions = cast(BashCompletionTypes.File, suggestion.type).list_files(value)
-                        value_type = file_suggestions.get(value, None)
+                        value_type = file_suggestions.get(value, None) if value is not None else None
 
                         # check if suggestion matching provided option (value) is a directory, and if
                         # provded option (value) does not end with a path separator, it should be added
                         # otherwise it will not be completed correctly
-                        if value_type == 'dir' and not value.endswith(path.sep):
+                        if value_type == 'dir' and (value is not None and not value.endswith(path.sep)):
                             value = '{value}{sep}'.format(value=value, sep=path.sep)
 
                         # only provide further suggestions if matches isn't a completed file path

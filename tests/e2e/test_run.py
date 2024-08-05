@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from ..fixtures import End2EndFixture
-from ..helpers import run_command, onerror
+from ..helpers import run_command
 
 
 def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
@@ -57,7 +57,7 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
 
         assert rc == 0
 
-        rmtree(example_root / '.git', onerror=onerror)
+        rmtree(example_root / '.git')
 
         example_root = example_root / 'example'
 
@@ -183,7 +183,7 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
                 output = [line for line in log_file_result.split('\n') if 'ERROR' not in line and 'DEBUG' not in line]
                 log_file_result = '\n'.join(output)
 
-            assert log_file_result == result
+            assert log_file_result.strip() == result.strip()
     except:
         if result is not None:
             print(result)

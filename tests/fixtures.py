@@ -19,7 +19,7 @@ from _pytest.tmpdir import TempPathFactory
 from behave.runner import Context
 from behave.model import Feature
 
-from .helpers import onerror, run_command
+from .helpers import run_command
 
 
 __all__ = [
@@ -261,7 +261,7 @@ def step_start_webserver(context: Context) -> None:
         if exc is None:
             if environ.get('KEEP_FILES', None) is None:
                 try:
-                    rmtree(self.root, onerror=onerror)
+                    rmtree(self.root)
                 except AttributeError:
                     pass
             else:

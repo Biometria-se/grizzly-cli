@@ -6,7 +6,7 @@ import pytest
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
-from ..helpers import run_command, onerror, get_current_version
+from tests.helpers import run_command, get_current_version, onerror
 
 
 CURRENT_VERSION = get_current_version()

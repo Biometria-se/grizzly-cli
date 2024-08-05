@@ -9,8 +9,6 @@ from pytest_mock import MockerFixture
 from grizzly_cli.init import tree, init
 from grizzly_cli.__main__ import _parse_arguments
 
-from ..helpers import onerror
-
 
 def test_tree(tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
@@ -38,7 +36,7 @@ def test_tree(tmp_path_factory: TempPathFactory) -> None:
 │   └── file-a2.txt
 └── root.yaml'''
     finally:
-        rmtree(test_context, onerror=onerror)
+        rmtree(test_context)
 
 
 def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker: MockerFixture) -> None:
@@ -77,7 +75,7 @@ def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker:
 └── requirements.txt
 '''
 
-        rmtree(test_existing, onerror=onerror)
+        rmtree(test_existing)
 
         question_mock = mocker.patch('grizzly_cli.init.ask_yes_no', side_effect=[None] * 4)
         mocker.patch('grizzly_cli.init.EXECUTION_CONTEXT', str(test_context))
@@ -153,7 +151,7 @@ do you want to create grizzly project "foobar"?'''
 │       └── steps.py
 └── requirements.txt'''
 
-        rmtree(template_root, onerror=onerror)
+        rmtree(template_root)
 
         capsys.readouterr()
 
@@ -172,7 +170,7 @@ do you want to create grizzly project "foobar"?'''
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester[mq]\n'
 
-        rmtree(template_root, onerror=onerror)
+        rmtree(template_root)
 
         sys.argv = ['grizzly-cli', 'init', 'foobar', '--grizzly-version', '1.2.4']
         arguments = _parse_arguments()
@@ -201,7 +199,7 @@ do you want to create grizzly project "foobar"?'''
         assert environment_file.is_file()
         assert environment_file.read_text() == 'from grizzly.environment import *\n\n'
 
-        rmtree(template_root, onerror=onerror)
+        rmtree(template_root)
 
         sys.argv = ['grizzly-cli', 'init', 'foobar', '--with-mq', '--grizzly-version', '1.5.0']
         arguments = _parse_arguments()
@@ -218,7 +216,7 @@ do you want to create grizzly project "foobar"?'''
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester[mq]==1.5.0\n'
 
-        rmtree(template_root, onerror=onerror)
+        rmtree(template_root)
 
         sys.argv = ['grizzly-cli', 'init', 'foobar', '--yes']
         arguments = _parse_arguments()
@@ -248,4 +246,4 @@ successfully created project "foobar", with the following options:
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester\n'
     finally:
-        rmtree(test_context, onerror=onerror)
+        rmtree(test_context)

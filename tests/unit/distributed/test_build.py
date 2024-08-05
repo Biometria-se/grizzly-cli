@@ -14,8 +14,6 @@ from argparse import Namespace
 from grizzly_cli.utils import RunCommandResult
 from grizzly_cli.distributed.build import _create_build_command, getgid, getuid, build
 
-from ...helpers import onerror
-
 
 CWD = getcwd()
 
@@ -364,4 +362,4 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         )
     finally:
         chdir(CWD)
-        rmtree(test_context, onerror=onerror)
+        rmtree(test_context)

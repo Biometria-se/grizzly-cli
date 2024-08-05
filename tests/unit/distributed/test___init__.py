@@ -5,7 +5,7 @@ from shutil import rmtree
 from os import getcwd, environ
 from tempfile import gettempdir
 from argparse import ArgumentParser, Namespace
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -16,7 +16,6 @@ from pytest_mock import MockerFixture
 from grizzly_cli.utils import RunCommandResult
 from grizzly_cli.distributed import create_parser, distributed_run, distributed
 
-from ...helpers import onerror
 
 CWD = getcwd()
 
@@ -77,7 +76,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     mocker.patch.object(grizzly_cli.distributed, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
     run_command_result = RunCommandResult(return_code=1)
-    run_command_result.abort_timestamp = datetime.utcnow()
+    run_command_result.abort_timestamp = datetime.now(tz=timezone.utc)
 
     run_command_mock = mocker.patch('grizzly_cli.distributed.run_command', return_value=None)
     check_output_mock = mocker.patch('grizzly_cli.distributed.subprocess.check_output', return_value=None)
@@ -172,7 +171,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
 
         # docker-compose v2
         rcr = RunCommandResult(return_code=1)
-        rcr.abort_timestamp = datetime.utcnow()
+        rcr.abort_timestamp = datetime.now(tz=timezone.utc)
         run_command_mock.return_value = None
         run_command_mock.side_effect = [RunCommandResult(return_code=0), rcr, RunCommandResult(return_code=0)]
         do_build_mock.return_value = 0
@@ -325,7 +324,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_MOUNT_PATH', None) == 'execution-context'
 
     finally:
-        rmtree(test_context, onerror=onerror)
+        rmtree(test_context)
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):
                 del environ[key]

@@ -12,7 +12,7 @@ from pytest_mock import MockerFixture
 from grizzly_cli.run import run, create_parser
 from grizzly_cli.utils import setup_logging
 
-from ..helpers import onerror, CaseInsensitive
+from ..helpers import CaseInsensitive
 
 CWD = getcwd()
 
@@ -535,4 +535,4 @@ bar = foo
 """
     finally:
         tmp_path_factory._basetemp = original_tmp_path
-        rmtree(test_context, onerror=onerror)
+        rmtree(test_context)

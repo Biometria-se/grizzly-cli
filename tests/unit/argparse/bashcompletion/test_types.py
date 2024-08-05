@@ -8,7 +8,6 @@ from _pytest.tmpdir import TempPathFactory
 
 from grizzly_cli.argparse.bashcompletion.types import BashCompletionTypes
 
-from ....helpers import onerror
 
 CWD = getcwd()
 
@@ -66,7 +65,7 @@ class TestBashCompletionTypes:
                 assert impl('test.json') == 'test.json'
             finally:
                 chdir(CWD)
-                rmtree(test_context_root, onerror=onerror)
+                rmtree(test_context_root)
 
         def test_list_files(self, tmp_path_factory: TempPathFactory) -> None:
             test_context = tmp_path_factory.mktemp('test_context')
@@ -113,4 +112,4 @@ class TestBashCompletionTypes:
                 }
             finally:
                 chdir(CWD)
-                rmtree(test_context_root, onerror=onerror)
+                rmtree(test_context_root)

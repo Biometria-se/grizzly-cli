@@ -14,7 +14,6 @@ from pytest_mock import MockerFixture
 
 from grizzly_cli.__main__ import _create_parser, _parse_arguments, _inject_additional_arguments_from_metadata, main
 
-from ..helpers import onerror
 
 CWD = getcwd()
 
@@ -483,7 +482,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert getattr(arguments, 'subcommand', None) is None
     finally:
         chdir(CWD)
-        rmtree(test_context_root, onerror=onerror)
+        rmtree(test_context_root)
 
 
 def test__inject_additional_arguments_from_metadata(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker: MockerFixture) -> None:
@@ -557,7 +556,7 @@ def test__inject_additional_arguments_from_metadata(tmp_path_factory: TempPathFa
         assert capture.out == ''
     finally:
         chdir(CWD)
-        rmtree(test_context, onerror=onerror)
+        rmtree(test_context)
 
 
 def test_main(mocker: MockerFixture, capsys: CaptureFixture) -> None:

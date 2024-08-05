@@ -4,6 +4,8 @@ import subprocess
 import signal as psignal
 import logging
 import logging.config
+import stat
+import os
 
 from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, cast
 from types import TracebackType, FrameType
@@ -19,6 +21,7 @@ from hashlib import sha1
 from math import ceil
 from datetime import datetime
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import requests
 import tomli
@@ -143,24 +146,24 @@ def get_docker_compose_version() -> Tuple[int, int, int]:
     return version
 
 
-def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
-    def onerror(func: Callable, path: str, exc_info: TracebackType) -> None:
-        import os
-        import stat
-        '''
-        Error handler for ``shutil.rmtree``.
-        If the error is due to an access error (read only file)
-        it attempts to add write permission and then retries.
-        If the error is for another reason it re-raises the error.
-        Usage : ``shutil.rmtree(path, onerror=onerror)``
-        '''
-        # Is the error an access error?
-        if not os.access(path, os.W_OK):
-            os.chmod(path, stat.S_IWUSR)
-            func(path)
-        else:
-            raise  # pylint: disable=misplaced-bare-raise
+def onerror(func: Callable, path: str, exc_info: Tuple[Type[BaseException], BaseException, TracebackType]) -> None:  # noqa: ARG001
+    """Error handler for shutil.rmtree.
 
+    If the error is due to an access error (read only file)
+    it attempts to add write permission and then retries.
+    If the error is for another reason it re-raises the error.
+    Usage : ``shutil.rmtree(path, onerror=onerror)``
+    """
+    _path = Path(path)
+    # Is the error an access error?
+    if not os.access(_path, os.W_OK):
+        _path.chmod(stat.S_IWUSR)
+        func(path)
+    else:
+        raise  # pylint: disable=E0704
+
+
+def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
     grizzly_requirement: Optional[str] = None
     grizzly_requirement_egg: str
     locust_version: Optional[str] = None
@@ -323,7 +326,7 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
                     _, grizzly_version = version_raw[-1].split(' = ')
                 except FileNotFoundError:
                     try:
-                        import setuptools_scm  # pylint: disable=unused-import  # noqa: F401
+                        import setuptools_scm  # pylint: disable=unused-import  # noqa: F401  # type: ignore
                     except ModuleNotFoundError:
                         rc = subprocess.check_call([
                             sys.executable,
@@ -846,7 +849,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         arrow_width = len('ident') + 2 + max_length_iterations + 2 + max_length_users + 2 + max_length_description + 2
         if use_weights:
             arrow_width += len('weight') + 2
-        message = f'''{" "* (1 + arrow_width)}^
+        message = f'''{" " * (1 + arrow_width)}^
 +{"-" * arrow_width}+
 |
 +- there were errors when calculating user distribution and iterations per scenario, adjust user "weight", number of users or iterations per scenario

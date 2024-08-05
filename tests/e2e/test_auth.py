@@ -9,7 +9,7 @@ import pytest
 
 from _pytest.tmpdir import TempPathFactory
 
-from ..helpers import run_command, onerror
+from ..helpers import run_command
 
 
 @contextmanager
@@ -39,7 +39,7 @@ def auth_via(tmp_path_factory: TempPathFactory, method: str) -> Generator[Tuple[
             except:
                 pass
 
-        rmtree(test_context, onerror=onerror)
+        rmtree(test_context)
 
 
 @pytest.mark.parametrize('method', ['env', 'file', 'stdin'])
