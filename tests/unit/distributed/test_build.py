@@ -2,7 +2,6 @@ import sys
 
 from os import environ, path, getcwd, chdir
 from inspect import getfile
-from shutil import rmtree
 from socket import gaierror
 
 from _pytest.capture import CaptureFixture
@@ -11,7 +10,7 @@ from pytest_mock import MockerFixture
 
 from argparse import Namespace
 
-from grizzly_cli.utils import RunCommandResult
+from grizzly_cli.utils import RunCommandResult, rm_rf
 from grizzly_cli.distributed.build import _create_build_command, getgid, getuid, build
 
 
@@ -362,4 +361,5 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         )
     finally:
         chdir(CWD)
-        rmtree(test_context)
+
+        rm_rf(test_context)

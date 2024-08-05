@@ -1,7 +1,6 @@
 import sys
 import json
 
-from shutil import rmtree
 from os import getcwd, environ
 from tempfile import gettempdir
 from argparse import ArgumentParser, Namespace
@@ -13,7 +12,7 @@ from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
-from grizzly_cli.utils import RunCommandResult
+from grizzly_cli.utils import RunCommandResult, rm_rf
 from grizzly_cli.distributed import create_parser, distributed_run, distributed
 
 
@@ -324,7 +323,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_MOUNT_PATH', None) == 'execution-context'
 
     finally:
-        rmtree(test_context)
+        rm_rf(test_context)
+
         for key in environ.keys():
             if key.startswith('GRIZZLY_'):
                 del environ[key]

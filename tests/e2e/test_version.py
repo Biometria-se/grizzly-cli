@@ -1,12 +1,11 @@
 from typing import Optional
-from shutil import rmtree
 
 import pytest
 
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
 
-from tests.helpers import run_command, get_current_version, onerror
+from tests.helpers import run_command, get_current_version, rm_rf
 
 
 CURRENT_VERSION = get_current_version()
@@ -60,4 +59,4 @@ def test_e2e_version(pip_module: str, grizzly_version: str, locust_version: str,
             print(result)
         raise
     finally:
-        rmtree(test_context, onerror=onerror)
+        rm_rf(test_context)

@@ -146,7 +146,10 @@ def get_docker_compose_version() -> Tuple[int, int, int]:
     return version
 
 
-def onerror(func: Callable, path: str, exc_info: Tuple[Type[BaseException], BaseException, TracebackType]) -> None:  # noqa: ARG001
+def onerror(func: Callable, path: str, exc_info: Union[
+        BaseException,
+        Tuple[Type[BaseException], BaseException, Optional[TracebackType]],
+]) -> None:  # noqa: ARG001
     """Error handler for shutil.rmtree.
 
     If the error is due to an access error (read only file)
@@ -161,6 +164,17 @@ def onerror(func: Callable, path: str, exc_info: Tuple[Type[BaseException], Base
         func(path)
     else:
         raise  # pylint: disable=E0704
+
+
+def rm_rf(path: Union[str, Path]) -> None:
+    """Remove the path contents recursively, even if some elements
+    are read-only."""
+    p = path.as_posix() if isinstance(path, Path) else path
+
+    if sys.version_info >= (3, 12):
+        rmtree(p, onexc=onerror)
+    else:
+        rmtree(p, onerror=onerror)
 
 
 def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
@@ -382,7 +396,7 @@ def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]]
         except RuntimeError:
             pass
         finally:
-            rmtree(tmp_workspace, onerror=onerror)
+            rm_rf(tmp_workspace)
     else:
         response = requests.get(
             'https://pypi.org/pypi/grizzly-loadtester/json'

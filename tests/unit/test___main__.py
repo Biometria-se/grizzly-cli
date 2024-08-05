@@ -4,7 +4,6 @@ from hashlib import sha1
 from typing import Dict, Optional, cast
 from argparse import ArgumentParser as CoreArgumentParser, Namespace
 from os import getcwd, environ, chdir, path
-from shutil import rmtree
 
 import pytest
 
@@ -14,6 +13,7 @@ from pytest_mock import MockerFixture
 
 from grizzly_cli.__main__ import _create_parser, _parse_arguments, _inject_additional_arguments_from_metadata, main
 
+from tests.helpers import rm_rf
 
 CWD = getcwd()
 
@@ -482,7 +482,7 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert getattr(arguments, 'subcommand', None) is None
     finally:
         chdir(CWD)
-        rmtree(test_context_root)
+        rm_rf(test_context_root)
 
 
 def test__inject_additional_arguments_from_metadata(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker: MockerFixture) -> None:
@@ -556,7 +556,7 @@ def test__inject_additional_arguments_from_metadata(tmp_path_factory: TempPathFa
         assert capture.out == ''
     finally:
         chdir(CWD)
-        rmtree(test_context)
+        rm_rf(test_context)
 
 
 def test_main(mocker: MockerFixture, capsys: CaptureFixture) -> None:

@@ -9,9 +9,9 @@ from behave.model import Scenario, Step
 from setuptools_scm import Configuration as SetuptoolsScmConfiguration
 from setuptools_scm._cli import _get_version as setuptools_scm_get_version
 
-from grizzly_cli.utils import onerror
+from grizzly_cli.utils import rm_rf
 
-__all__ = ['onerror']
+__all__ = ['rm_rf']
 
 
 def CaseInsensitive(value: str) -> object:

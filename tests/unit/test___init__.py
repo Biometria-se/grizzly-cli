@@ -1,10 +1,11 @@
 from os import chdir, environ, path, getcwd
-from shutil import rmtree
 from inspect import getfile
 from importlib import reload
 
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
+
+from tests.helpers import rm_rf
 
 
 CWD = getcwd()
@@ -33,7 +34,8 @@ def test___import__(tmp_path_factory: TempPathFactory, mocker: MockerFixture) ->
         assert len(grizzly_cli.SCENARIOS) == 0
     finally:
         chdir(CWD)
-        rmtree(test_context_root)
+        rm_rf(test_context_root)
+
         try:
             del environ['GRIZZLY_MOUNT_CONTEXT']
         except:

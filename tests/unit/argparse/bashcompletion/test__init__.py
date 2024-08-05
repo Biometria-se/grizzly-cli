@@ -3,7 +3,6 @@ import inspect
 
 from typing import Optional, Generator
 from os import path, chdir, getcwd
-from shutil import rmtree
 
 import pytest
 
@@ -14,6 +13,8 @@ from _pytest.tmpdir import TempPathFactory
 from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompletionAction, hook
 from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.__main__ import _create_parser
+
+from tests.helpers import rm_rf
 
 
 CWD = getcwd()
@@ -78,7 +79,7 @@ def test_file_structure(tmp_path_factory: TempPathFactory) -> Generator[str, Non
         yield str(test_context)
     finally:
         chdir(CWD)
-        rmtree(test_context)
+        rm_rf(test_context)
 
 
 class TestBashCompletionAction:

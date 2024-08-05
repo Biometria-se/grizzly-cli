@@ -7,7 +7,6 @@ from typing import Optional, Callable, Any, List, Tuple, Type, Dict, cast
 from typing_extensions import Literal
 from types import TracebackType
 from os import environ, getcwd, pathsep, linesep
-from shutil import rmtree
 from pathlib import Path
 from textwrap import dedent, indent
 from hashlib import sha1
@@ -18,6 +17,7 @@ from cProfile import Profile
 from _pytest.tmpdir import TempPathFactory
 from behave.runner import Context
 from behave.model import Feature
+from grizzly_cli.utils import rm_rf
 
 from .helpers import run_command
 
@@ -261,7 +261,7 @@ def step_start_webserver(context: Context) -> None:
         if exc is None:
             if environ.get('KEEP_FILES', None) is None:
                 try:
-                    rmtree(self.root)
+                    rm_rf(self.root)
                 except AttributeError:
                     pass
             else:

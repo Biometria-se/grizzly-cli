@@ -1,16 +1,16 @@
 import sys
 
-from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from typing import Optional
 from os import path, pathsep
 from datetime import datetime
+from base64 import b64encode
 
 import pytest
 import yaml
 
-from ..fixtures import End2EndFixture
-from ..helpers import run_command
+from tests.fixtures import End2EndFixture
+from tests.helpers import run_command, rm_rf
 
 
 def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
@@ -57,7 +57,7 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
 
         assert rc == 0
 
-        rmtree(example_root / '.git')
+        rm_rf(example_root / '.git')
 
         example_root = example_root / 'example'
 
@@ -183,7 +183,20 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
                 output = [line for line in log_file_result.split('\n') if 'ERROR' not in line and 'DEBUG' not in line]
                 log_file_result = '\n'.join(output)
 
-            assert log_file_result.strip() == result.strip()
+            print('result:')
+            print('-' * 100)
+            print(b64encode(result.encode()).decode())
+            print('-' * 100)
+            print('')
+            print('log_file_result:')
+            print('-' * 100)
+            print(b64encode(log_file_result.encode()).decode())
+            print('-' * 100)
+
+            if sys.version_info >= (3, 12):
+                result = result.replace('\r', '\n')
+
+            assert log_file_result == result
     except:
         if result is not None:
             print(result)
