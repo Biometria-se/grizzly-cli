@@ -584,6 +584,73 @@ the following variables was used in ../second.feature#second but was not declare
         capture = capsys.readouterr()
         assert capture.err == ''
         assert capture.out == ''
+
+        feature_file.write_text("""Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        {% scenario "second", feature="../second.feature", foo="bar" %}
+""")
+        feature_file_2 = execution_context / 'second.feature'
+        feature_file_2.write_text("""Feature: a second feature
+    Background: common
+        Given a common step
+
+    Scenario: second
+        Given a variable with value "{{ {$ foo $}foobar }}"
+        {% scenario "fourth", feature="./fourth.feature", foo="{$ foo $}", bar="foo" %}
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
+""")
+
+        feature_file_3.write_text("""Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Then could it be "{$ foo $}" and "{$ bar $}"
+""")
+
+        output_file.unlink(missing_ok=True)
+
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/features/test.feature',
+            '--dump', f'{execution_context}/output.feature'
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, local_mock) == 0
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+        assert output_file.read_text() == """Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        Given a variable with value "{{ barfoobar }}"
+        Then could it be "bar" and "foo"
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
+"""
     finally:
         tmp_path_factory._basetemp = original_tmp_path
         rm_rf(test_context)

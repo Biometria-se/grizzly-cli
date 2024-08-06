@@ -4,7 +4,6 @@ from tempfile import NamedTemporaryFile
 from typing import Optional
 from os import path, pathsep
 from datetime import datetime
-from base64 import b64encode
 
 import pytest
 import yaml
@@ -182,16 +181,6 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
             if sys.platform == 'darwin':
                 output = [line for line in log_file_result.split('\n') if 'ERROR' not in line and 'DEBUG' not in line]
                 log_file_result = '\n'.join(output)
-
-            print('result:')
-            print('-' * 100)
-            print(b64encode(result.encode()).decode())
-            print('-' * 100)
-            print('')
-            print('log_file_result:')
-            print('-' * 100)
-            print(b64encode(log_file_result.encode()).decode())
-            print('-' * 100)
 
             if sys.version_info >= (3, 12):
                 result = result.replace('\r', '\n')
