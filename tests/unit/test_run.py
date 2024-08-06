@@ -2,8 +2,8 @@ from os import getcwd, path
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
-from contextlib import suppress
 
+import pytest
 from _pytest.capture import CaptureFixture
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
@@ -372,7 +372,7 @@ bar = foo
         Given a variable with value "{{ some*0.25 | more}}" and another value "{{yes|box }}"
 
     Scenario: fourth
-        {% scenario "fourth", feature="./fourth.feature" %}
+        {% scenario "fourth", feature="./fourth.feature", foo="bar" %}
 """)
         feature_file_2 = execution_context / 'second.feature'
         feature_file_2.write_text("""Feature: a second feature
@@ -389,7 +389,8 @@ bar = foo
         Given a common step
 
     Scenario: fourth
-        Given a variable with value "{{ barfoo }}"
+        Given a variable with value "{{ {$ foo $}_barfoo }}"
+        Then get "{{ bar{$ foo $}foo }}" from "{{ {$ foo $}_barfoo }}"
         Then run a bloody test
 """)
 
@@ -431,7 +432,8 @@ bar = foo
         Given a variable with value "{{ some*0.25 | more}}" and another value "{{yes|box }}"
 
     Scenario: fourth
-        Given a variable with value "{{ barfoo }}"
+        Given a variable with value "{{ bar_barfoo }}"
+        Then get "{{ barbarfoo }}" from "{{ bar_barfoo }}"
         Then run a bloody test
 """
 
@@ -440,13 +442,13 @@ bar = foo
         Given a variable with value "{{ hello }}"
 
     Scenario: second
-        {% scenario "second", feature="../second.feature" %}
+        {% scenario "second", feature="../second.feature", prefix="s1" %}
 
     # Scenario: third
-    #     {% scenario "inactive-second", feature="./second.feature" %}
+    #     {% scenario "inactive-second", feature="./second.feature", prefix="s1" %}
 
     Scenario: third
-        {% scenario "third", feature="../second.feature" %}
+        {% scenario "third", feature="../second.feature", prefix="s1" %}
 """)
         feature_file_2 = execution_context / 'second.feature'
         feature_file_2.write_text("""Feature: a second feature
@@ -454,7 +456,7 @@ bar = foo
         Given a common step
 
     Scenario: second
-        Given a variable with value "{{ foobar }}"
+        Given a variable with value "{{ {$ prefix $}foobar }}"
         Then run a bloody test
             \"\"\"
             with step text
@@ -464,7 +466,7 @@ bar = foo
             \"\"\"
 
     Scenario: third
-        Given a variable with value "{{ value }}"
+        Given a variable with value "{{ {$ prefix $}value }}"
         Then run a bloody test, with table
           | hello | world |
           | foo   | bar   |
@@ -472,8 +474,7 @@ bar = foo
           |       | foo   |
 """)
 
-        with suppress(FileNotFoundError):
-            output_file.unlink()
+        output_file.unlink(missing_ok=True)
 
         arguments = parser.parse_args([
             'run',
@@ -499,7 +500,7 @@ bar = foo
         Given a variable with value "{{ hello }}"
 
     Scenario: second
-        Given a variable with value "{{ foobar }}"
+        Given a variable with value "{{ s1foobar }}"
         Then run a bloody test
             \"\"\"
             with step text
@@ -509,10 +510,10 @@ bar = foo
             \"\"\"
 
     # Scenario: third
-    #     {% scenario "inactive-second", feature="./second.feature" %}
+    #     {% scenario "inactive-second", feature="./second.feature", prefix="s1" %}
 
     Scenario: third
-        Given a variable with value "{{ value }}"
+        Given a variable with value "{{ s1value }}"
         Then run a bloody test, with table
             | hello | world |
             | foo | bar |
@@ -524,13 +525,131 @@ bar = foo
         Given a variable with value "{{ hello }}"
 
     Scenario: second
-        {% scenario "second", feature="../second.feature" %}
+        {% scenario "second", feature="../second.feature", prefix="s1" %}
 
     # Scenario: third
-    #     {% scenario "inactive-second", feature="./second.feature" %}
+    #     {% scenario "inactive-second", feature="./second.feature", prefix="s1" %}
 
     Scenario: third
-        {% scenario "third", feature="../second.feature" %}
+        {% scenario "third", feature="../second.feature", prefix="s1" %}
+"""
+
+        feature_file.write_text("""Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        {% scenario "second", feature="../second.feature", foo="bar" %}
+""")
+        feature_file_2 = execution_context / 'second.feature'
+        feature_file_2.write_text("""Feature: a second feature
+    Background: common
+        Given a common step
+
+    Scenario: second
+        Given a variable with value "{{ {$ bar $}foobar }}"
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
+""")
+
+        output_file.unlink(missing_ok=True)
+
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/features/test.feature',
+            '--dump', f'{execution_context}/output.feature'
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        with pytest.raises(ValueError) as ve:
+            run(arguments, local_mock)
+
+        assert str(ve.value) == '''the following variables has been declared in scenario tag but not used in ../second.feature#second:
+  foo
+
+the following variables was used in ../second.feature#second but was not declared in scenario tag:
+  bar
+'''
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+
+        feature_file.write_text("""Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        {% scenario "second", feature="../second.feature", foo="bar" %}
+""")
+        feature_file_2 = execution_context / 'second.feature'
+        feature_file_2.write_text("""Feature: a second feature
+    Background: common
+        Given a common step
+
+    Scenario: second
+        Given a variable with value "{{ {$ foo $}foobar }}"
+        {% scenario "fourth", feature="./fourth.feature", foo="{$ foo $}", bar="foo" %}
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
+""")
+
+        feature_file_3.write_text("""Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Then could it be "{$ foo $}" and "{$ bar $}"
+""")
+
+        output_file.unlink(missing_ok=True)
+
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/features/test.feature',
+            '--dump', f'{execution_context}/output.feature'
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, local_mock) == 0
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+        assert output_file.read_text() == """Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        Given a variable with value "{{ barfoobar }}"
+        Then could it be "bar" and "foo"
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
 """
     finally:
         tmp_path_factory._basetemp = original_tmp_path

@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import sys
 import os
+import re
 
-from typing import Iterable, List, Dict, Any, Callable, Optional, TextIO, Union, cast
+from typing import Iterable, List, Dict, Any, Callable, Optional, TextIO, Union, Set, cast
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
 from pathlib import Path
-from contextlib import suppress
 
 from jinja2 import Environment
 from jinja2.lexer import Token, TokenStream
@@ -37,7 +39,7 @@ class OnlyScenarioTag(StandaloneTag):
         self._source = source
         return cast(str, super().preprocess(source, name, filename))
 
-    def render(self, scenario: str, feature: str) -> str:
+    def render(self, scenario: str, feature: str, **variables: str) -> str:
         feature_file = Path(feature)
 
         # check if relative to parent feature file
@@ -45,14 +47,59 @@ class OnlyScenarioTag(StandaloneTag):
             feature_file = (self.environment.feature_file.parent / feature).resolve()
 
         feature_content = feature_file.read_text()
+        # <!-- sub-render included scenario
+        errors_unused: Set[str] = set()
+        errors_undeclared: Set[str] = set()
+
+        # tag has specified variables, so lets "render"
+        if len(variables) > 0:
+            for name, value in variables.items():
+                variable_template = f'{{$ {name} $}}'
+                if variable_template not in feature_content:
+                    errors_unused.add(name)
+                    continue
+
+                feature_content = feature_content.replace(variable_template, value)
+
+        # look for sub-variables that has not been rendered
+        if '{$' in feature_content and '$}' in feature_content:
+            matches = re.finditer(r'\{\$ ([^$]+) \$\}', feature_content, re.MULTILINE)
+
+            for match in matches:
+                errors_undeclared.add(match.group(1))
+
+        if len(errors_undeclared) + len(errors_unused) > 0:
+            scenario_identifier = f'{feature}#{scenario}'
+            buffer_error: List[str] = []
+            if len(errors_unused) > 0:
+                errors_unused_message = "\n  ".join(errors_unused)
+                buffer_error.append(f'the following variables has been declared in scenario tag but not used in {scenario_identifier}:\n  {errors_unused_message}')
+                buffer_error.append('')
+
+            if len(errors_undeclared) > 0:
+                errors_undeclared_message = "\n  ".join(errors_undeclared)
+                buffer_error.append(f'the following variables was used in {scenario_identifier} but was not declared in scenario tag:\n  {errors_undeclared_message}')
+                buffer_error.append('')
+
+            message = '\n'.join(buffer_error)
+            raise ValueError(message)
+
+        # check if we have nested `{% scenario .. %}` tags, and render
+        if '{% scenario' in feature_content:
+            template = self.environment.from_string(feature_content)
+            feature_content = template.render()
+        # // -->
+
         feature_lines = feature_content.splitlines()
         parsed_feature = parse_feature(feature_content, filename=feature_file.as_posix())
 
-        buffer: List[str] = []
+        buffer_feature: List[str] = []
 
         for parsed_scenario in cast(List[Scenario], parsed_feature.scenarios):
             if parsed_scenario.name != scenario:
                 continue
+
+            buffer_scenario: List[str] = []
 
             scenario_line = feature_lines[parsed_scenario.line - 1]
             step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
@@ -64,26 +111,29 @@ class OnlyScenarioTag(StandaloneTag):
                 if index > 0:
                     step_line = f'{" " * step_indent}{step_line}'
 
-                buffer.append(step_line)
+                buffer_scenario.append(step_line)
 
                 extra_indent = int((step_indent / 2) + step_indent)
 
                 # include step text if set
                 if parsed_step.text is not None:
-                    buffer.append(f'{" " * extra_indent}"""')
+                    buffer_scenario.append(f'{" " * extra_indent}"""')
                     for text_line in parsed_step.text.splitlines():
-                        buffer.append(f'{" " * (extra_indent)}{text_line}')
-                    buffer.append(f'{" " * extra_indent}"""')
+                        buffer_scenario.append(f'{" " * (extra_indent)}{text_line}')
+                    buffer_scenario.append(f'{" " * extra_indent}"""')
 
                 # include step table if set
                 if parsed_step.table is not None:
                     header_line = ' | '.join(parsed_step.table.headings)
-                    buffer.append(f'{" " * extra_indent}| {header_line} |')
+                    buffer_scenario.append(f'{" " * extra_indent}| {header_line} |')
                     for row in cast(List[Row], parsed_step.table.rows):
                         row_line = ' | '.join(row.cells)
-                        buffer.append(f'{" " * extra_indent}| {row_line} |')
+                        buffer_scenario.append(f'{" " * extra_indent}| {row_line} |')
 
-        return '\n'.join(buffer)
+            feature_scenario = '\n'.join(buffer_scenario)
+            buffer_feature.append(feature_scenario)
+
+        return '\n'.join(buffer_feature)
 
     def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:  # type: ignore[return]
         """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text.
@@ -355,5 +405,4 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
         return run_func(args, environ, run_arguments)
     finally:
-        with suppress(FileNotFoundError):
-            feature_lock_file.unlink()
+        feature_lock_file.unlink(missing_ok=True)

@@ -166,15 +166,19 @@ def onerror(func: Callable, path: str, exc_info: Union[
         raise  # pylint: disable=E0704
 
 
-def rm_rf(path: Union[str, Path]) -> None:
+def rm_rf(path: Union[str, Path], *, missing_ok: bool = False) -> None:
     """Remove the path contents recursively, even if some elements
     are read-only."""
     p = path.as_posix() if isinstance(path, Path) else path
 
-    if sys.version_info >= (3, 12):
-        rmtree(p, onexc=onerror)
-    else:
-        rmtree(p, onerror=onerror)
+    try:
+        if sys.version_info >= (3, 12):
+            rmtree(p, onexc=onerror)
+        else:
+            rmtree(p, onerror=onerror)
+    except FileNotFoundError:
+        if not missing_ok:
+            raise
 
 
 def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
