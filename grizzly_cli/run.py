@@ -37,6 +37,18 @@ class OnlyScenarioTag(StandaloneTag):
         self, source: str, name: Optional[str], filename: Optional[str] = None
     ) -> str:
         self._source = source
+
+        # make sure all included scenarios has the same indentation
+        for line in self._source.splitlines():
+            match = re.match(r'^(\s+)\w.*$', line)
+            if match:
+                try:
+                    _ = self.environment.indent
+                except:
+                    indentation = (len(line) - len(line.lstrip())) * 2
+                    self.environment.extend(indent=indentation)
+                break
+
         return cast(str, super().preprocess(source, name, filename))
 
     def render(self, scenario: str, feature: str, **variables: str) -> str:
@@ -86,8 +98,13 @@ class OnlyScenarioTag(StandaloneTag):
 
         # check if we have nested `{% scenario .. %}` tags, and render
         if '{% scenario' in feature_content:
+            original_feature_file = self.environment.feature_file
+            self.environment.feature_file = feature_file
+
             template = self.environment.from_string(feature_content)
             feature_content = template.render()
+
+            self.environment.feature_file = original_feature_file
         # // -->
 
         feature_lines = feature_content.splitlines()
@@ -102,7 +119,11 @@ class OnlyScenarioTag(StandaloneTag):
             buffer_scenario: List[str] = []
 
             scenario_line = feature_lines[parsed_scenario.line - 1]
-            step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
+            try:
+                step_indent = self.environment.indent
+            except:
+                step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
+                self.environment.extend(indent=step_indent)
 
             for index, parsed_step in enumerate(cast(List[Step], parsed_scenario.steps)):
                 step_line = f'{parsed_step.keyword} {parsed_step.name}'

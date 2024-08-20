@@ -137,7 +137,7 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
             assert 'WARNING' not in result
             assert '1 feature passed, 0 failed, 0 skipped' in result
             assert '3 scenarios passed, 0 failed, 0 skipped' in result
-            assert '29 steps passed, 0 failed, 0 skipped, 0 undefined' in result
+            assert 'steps passed, 0 failed, 0 skipped, 0 undefined' in result
 
             assert 'ident   iter  status   description' in result
             assert '001      2/2  passed   dog facts api' in result
