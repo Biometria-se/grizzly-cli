@@ -599,7 +599,7 @@ the following variables was used in ../second.feature#second but was not declare
 
     Scenario: second
         Given a variable with value "{{ {$ foo $}foobar }}"
-        {% scenario "fourth", feature="./fourth.feature", foo="{$ foo $}", bar="foo" %}
+        {% scenario "fourth", feature="./features/fourth.feature", foo="{$ foo $}", bar="foo" %}
         Then run a bloody test
             \"\"\"
             with step text
