@@ -905,12 +905,12 @@ def setup_logging(logfile: Optional[str] = None) -> None:
                 'handlers': ['console'],
                 'level': 'INFO',
                 'propagate': False,
-            }
+            },
         },
         'root': {
             'handlers': ['console'],
             'level': 'INFO',
-        }
+        },
     }
 
     if logfile is not None:

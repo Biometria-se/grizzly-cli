@@ -9,12 +9,14 @@ from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime
 from pathlib import Path
+from contextlib import suppress
+from textwrap import dedent
 
 from jinja2 import Environment
 from jinja2.lexer import Token, TokenStream
 from jinja2_simple_tags import StandaloneTag
 from behave.parser import parse_feature
-from behave.model import Scenario, Step, Row
+from behave.model import Scenario
 
 import grizzly_cli
 from .utils import (
@@ -30,24 +32,13 @@ from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
 
 
-class OnlyScenarioTag(StandaloneTag):
+class ScenarioTag(StandaloneTag):
     tags = {'scenario'}
 
     def preprocess(
         self, source: str, name: Optional[str], filename: Optional[str] = None
     ) -> str:
         self._source = source
-
-        # make sure all included scenarios has the same indentation
-        for line in self._source.splitlines():
-            match = re.match(r'^(\s+)\w.*$', line)
-            if match:
-                try:
-                    _ = self.environment.indent
-                except:
-                    indentation = (len(line) - len(line.lstrip())) * 2
-                    self.environment.extend(indent=indentation)
-                break
 
         return cast(str, super().preprocess(source, name, filename))
 
@@ -64,14 +55,13 @@ class OnlyScenarioTag(StandaloneTag):
         errors_undeclared: Set[str] = set()
 
         # tag has specified variables, so lets "render"
-        if len(variables) > 0:
-            for name, value in variables.items():
-                variable_template = f'{{$ {name} $}}'
-                if variable_template not in feature_content:
-                    errors_unused.add(name)
-                    continue
+        for name, value in variables.items():
+            variable_template = f'{{$ {name} $}}'
+            if variable_template not in feature_content:
+                errors_unused.add(name)
+                continue
 
-                feature_content = feature_content.replace(variable_template, value)
+            feature_content = feature_content.replace(variable_template, str(value))
 
         # look for sub-variables that has not been rendered
         if '{$' in feature_content and '$}' in feature_content:
@@ -97,67 +87,41 @@ class OnlyScenarioTag(StandaloneTag):
             raise ValueError(message)
 
         # check if we have nested `{% scenario .. %}` tags, and render
-        if '{% scenario' in feature_content:
-            original_feature_file = self.environment.feature_file
-            self.environment.feature_file = feature_file
-
-            template = self.environment.from_string(feature_content)
+        if '{%' in feature_content and '%}' in feature_content:
+            environment = self.environment.overlay()
+            environment.extend(feature_file=feature_file)
+            template = environment.from_string(feature_content)
             feature_content = template.render()
-
-            self.environment.feature_file = original_feature_file
         # // -->
 
-        feature_lines = feature_content.splitlines()
+        source_lines = feature_content.splitlines()
+
         parsed_feature = parse_feature(feature_content, filename=feature_file.as_posix())
+        parsed_scenarios = cast(List[Scenario], parsed_feature.scenarios)
 
-        buffer_feature: List[str] = []
+        for scenario_index, parsed_scenario in enumerate(parsed_scenarios):
+            if parsed_scenario.name == scenario:
+                break
 
-        for parsed_scenario in cast(List[Scenario], parsed_feature.scenarios):
-            if parsed_scenario.name != scenario:
-                continue
+        # check if there are scenarios after our scenario in the source
+        next_scenario: Optional[Scenario] = None
+        with suppress(IndexError):
+            next_scenario = parsed_scenarios[scenario_index + 1]
 
-            buffer_scenario: List[str] = []
+        if next_scenario is None:  # last scenario, take everything until the end
+            target_lines = source_lines[parsed_scenario.line:]
+        else:  # take everything up until where the next scenario starts
+            target_lines = source_lines[parsed_scenario.line:next_scenario.line - 1]
+            if target_lines[-1] == '':  # if last line is an empty line, lets remove it
+                target_lines.pop()
 
-            scenario_line = feature_lines[parsed_scenario.line - 1]
-            try:
-                step_indent = self.environment.indent
-            except:
-                step_indent = (len(scenario_line) - len(scenario_line.lstrip())) * 2
-                self.environment.extend(indent=step_indent)
+        # first line can have incorrect indentation
+        target_lines[0] = dedent(target_lines[0])
 
-            for index, parsed_step in enumerate(cast(List[Step], parsed_scenario.steps)):
-                step_line = f'{parsed_step.keyword} {parsed_step.name}'
-
-                # all lines except first, should have indentation based on how `Scenario:` had been indented
-                if index > 0:
-                    step_line = f'{" " * step_indent}{step_line}'
-
-                buffer_scenario.append(step_line)
-
-                extra_indent = int((step_indent / 2) + step_indent)
-
-                # include step text if set
-                if parsed_step.text is not None:
-                    buffer_scenario.append(f'{" " * extra_indent}"""')
-                    for text_line in parsed_step.text.splitlines():
-                        buffer_scenario.append(f'{" " * (extra_indent)}{text_line}')
-                    buffer_scenario.append(f'{" " * extra_indent}"""')
-
-                # include step table if set
-                if parsed_step.table is not None:
-                    header_line = ' | '.join(parsed_step.table.headings)
-                    buffer_scenario.append(f'{" " * extra_indent}| {header_line} |')
-                    for row in cast(List[Row], parsed_step.table.rows):
-                        row_line = ' | '.join(row.cells)
-                        buffer_scenario.append(f'{" " * extra_indent}| {row_line} |')
-
-            feature_scenario = '\n'.join(buffer_scenario)
-            buffer_feature.append(feature_scenario)
-
-        return '\n'.join(buffer_feature)
+        return '\n'.join(target_lines)
 
     def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:  # type: ignore[return]
-        """Everything outside of `{% scenario ... %}` should be treated as "data", e.g. plain text.
+        """Everything outside of `{% scenario ... %}` (and `{% if ... %}...{% endif %}`) should be treated as "data", e.g. plain text.
 
         Overloaded from `StandaloneTag`, must match method signature, which is not `Generator`, even though we yield
         the result instead of returning.
@@ -165,6 +129,7 @@ class OnlyScenarioTag(StandaloneTag):
         in_scenario = False
         in_variable = False
         in_block_comment = False
+        in_condition = False
 
         variable_begin_pos = -1
         variable_end_pos = 0
@@ -173,13 +138,28 @@ class OnlyScenarioTag(StandaloneTag):
         source_lines = self._source.splitlines()
 
         for token in stream:
-            if token.type == 'block_begin' and stream.current.value in self.tags:
-                in_scenario = True
-                current_line = source_lines[token.lineno - 1].lstrip()
-                in_block_comment = current_line.startswith('#')
-                block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
+            if token.type == 'block_begin':
+                if stream.current.value in self.tags:  # {% scenario ... %}
+                    in_scenario = True
+                    current_line = source_lines[token.lineno - 1].lstrip()
+                    in_block_comment = current_line.startswith('#')
+                    block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
+                elif stream.current.value in ['if', 'endif']:  # {% if <condition %}, {% endif %}
+                    in_condition = True
 
-            if not in_scenario:
+            if in_scenario:
+                if token.type == 'block_end' and in_block_comment:
+                    in_block_comment = False
+                    block_end_pos = self._source.index(token.value, block_begin_pos)
+                    token_value = self._source[block_begin_pos:block_end_pos + len(token.value)]
+                    filtered_token = Token(token.lineno, 'data', token_value)
+                elif in_block_comment:
+                    continue
+                else:
+                    filtered_token = token
+            elif in_condition:
+                filtered_token = token
+            else:
                 if token.type == 'variable_end':
                     # Find variable end in the source
                     variable_end_pos = self._source.index(token.value, variable_begin_pos)
@@ -199,21 +179,15 @@ class OnlyScenarioTag(StandaloneTag):
                     continue
 
                 filtered_token = Token(token.lineno, 'data', token_value)
-            else:
-                if token.type == 'block_end' and in_block_comment:
-                    in_block_comment = False
-                    block_end_pos = self._source.index(token.value, block_begin_pos)
-                    token_value = self._source[block_begin_pos:block_end_pos + len(token.value)]
-                    filtered_token = Token(token.lineno, 'data', token_value)
-                elif in_block_comment:
-                    continue
-                else:
-                    filtered_token = token
 
             yield filtered_token
 
-            if in_scenario and token.type == 'block_end':
-                in_scenario = False
+            if token.type == 'block_end':
+                if in_scenario:
+                    in_scenario = False
+
+                if stream.current.value == 'endif':  # {% endif %}
+                    in_condition = False
 
 
 def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
@@ -323,7 +297,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         'GRIZZLY_MOUNT_CONTEXT': grizzly_cli.MOUNT_CONTEXT,
     }
 
-    environment = Environment(autoescape=False, extensions=[OnlyScenarioTag])
+    environment = Environment(autoescape=False, extensions=[ScenarioTag])
     feature_file = Path(args.file)
     original_feature_content = feature_file.read_text()
     feature_lock_file = feature_file.parent / f'{feature_file.stem}.lock{feature_file.suffix}'
