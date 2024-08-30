@@ -1,3 +1,4 @@
+import logging
 from os import getcwd, path
 from argparse import ArgumentParser
 from datetime import datetime
@@ -5,10 +6,12 @@ from pathlib import Path
 
 import pytest
 from _pytest.capture import CaptureFixture
+from _pytest.logging import LogCaptureFixture
 from _pytest.tmpdir import TempPathFactory
 from pytest_mock import MockerFixture
+from jinja2 import Environment
 
-from grizzly_cli.run import run, create_parser
+from grizzly_cli.run import run, create_parser, ScenarioTag
 from grizzly_cli.utils import setup_logging
 
 from tests.helpers import CaseInsensitive, rm_rf
@@ -352,6 +355,43 @@ bar = foo
 
         assert capture.out == 'Feature: this feature is testing something\n'
         assert capture.err == ''
+    finally:
+        tmp_path_factory._basetemp = original_tmp_path
+        rm_rf(test_context)
+
+
+def test_run_dump(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory, caplog: LogCaptureFixture) -> None:
+    setup_logging()
+
+    original_tmp_path = tmp_path_factory._basetemp
+    tmp_path_factory._basetemp = Path.cwd() / '.pytest_tmp'
+    test_context = tmp_path_factory.mktemp('test_context')
+    execution_context = test_context / 'execution-context'
+    execution_context.mkdir()
+    mount_context = test_context / 'mount-context'
+    mount_context.mkdir()
+    feature_file = execution_context / 'features' / 'test.feature'
+    feature_file.parent.mkdir(parents=True, exist_ok=True)
+    feature_file.write_text('Feature: this feature is testing something')
+    (execution_context / 'configuration.yaml').write_text('configuration:')
+
+    parser = ArgumentParser()
+
+    sub_parsers = parser.add_subparsers(dest='test')
+
+    create_parser(sub_parsers, parent='local')
+
+    try:
+        mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', str(execution_context))
+        mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', str(mount_context))
+        mocker.patch('grizzly_cli.run.get_hostname', return_value='localhost')
+        mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], [], [], []])
+        mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], [], [], []])
+        mocker.patch('grizzly_cli.run.distribution_of_users_per_scenario', autospec=True)
+        distributed_mock = mocker.MagicMock(return_value=0)
+        local_mock = mocker.MagicMock(return_value=0)
+
+        setattr(getattr(run, '__wrapped__'), '__value__', str(execution_context))
 
         # --dump output.feature
         feature_file.write_text("""Feature: a feature
@@ -515,10 +555,10 @@ bar = foo
     Scenario: third
         Given a variable with value "{{ s1value }}"
         Then run a bloody test, with table
-            | hello | world |
-            | foo | bar |
-            | bar |  |
-            |  | foo |
+          | hello | world |
+          | foo   | bar   |
+          | bar   |       |
+          |       | foo   |
 """
         assert feature_file.read_text() == """Feature: a feature
     Scenario: first
@@ -599,7 +639,8 @@ the following variables was used in ../second.feature#second but was not declare
 
     Scenario: second
         Given a variable with value "{{ {$ foo $}foobar }}"
-        {% scenario "fourth", feature="./features/fourth.feature", foo="{$ foo $}", bar="foo" %}
+        {% scenario "fourth", feature="../features/fourth.feature", foo="{$ foo $}", bar="foo", condition=True %}
+
         Then run a bloody test
             \"\"\"
             with step text
@@ -615,6 +656,11 @@ the following variables was used in ../second.feature#second but was not declare
 
     Scenario: fourth
         Then could it be "{$ foo $}" and "{$ bar $}"
+
+        # <!-- this step is conditional -->
+        {%- if {$ condition $} %}
+        Then alert me!
+        {%- endif %}
 """)
 
         output_file.unlink(missing_ok=True)
@@ -643,6 +689,116 @@ the following variables was used in ../second.feature#second but was not declare
     Scenario: second
         Given a variable with value "{{ barfoobar }}"
         Then could it be "bar" and "foo"
+
+        # <!-- this step is conditional -->
+        Then alert me!
+
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
+"""
+
+        feature_file_2.write_text("""Feature: a second feature
+    Background: common
+        Given a common step
+
+    Scenario: second
+        Given a variable with value "{{ {$ foo $}foobar }}"
+        {% scenario "fourth", feature="../features/fourth.feature", foo="{$ foo $}", bar="foo", condition=False %}
+
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
+""")
+
+        output_file.unlink(missing_ok=True)
+
+        arguments = parser.parse_args([
+            'run',
+            '-e', f'{execution_context}/configuration.yaml',
+            '--yes',
+            f'{execution_context}/features/test.feature',
+            '--dump', f'{execution_context}/output.feature'
+        ])
+        setattr(arguments, 'file', ' '.join(arguments.file))
+
+        assert run(arguments, local_mock) == 0
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+        assert output_file.read_text() == """Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        Given a variable with value "{{ barfoobar }}"
+        Then could it be "bar" and "foo"
+
+        # <!-- this step is conditional -->
+
+        Then run a bloody test
+            \"\"\"
+            with step text
+            that spans
+            more than
+            one line
+            \"\"\"
+"""
+
+        feature_file_3.write_text("""Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Then could it be "{$ foo $}" and "{$ bar $}"
+        \"\"\"
+        hello world
+        \"\"\"
+
+        # <!-- this step is conditional -->
+        {%- if {$ condition $} %}
+        Then alert me!
+        {%- endif %}
+
+    Scenario: fifth
+        Given a scenario after the included scenario
+""")
+
+        output_file.unlink(missing_ok=True)
+
+        assert run(arguments, distributed_mock) == 0
+
+        distributed_mock.assert_not_called()
+        local_mock.assert_not_called()
+
+        capture = capsys.readouterr()
+        assert capture.err == ''
+        assert capture.out == ''
+        assert output_file.read_text() == """Feature: a feature
+    Scenario: first
+        Given a variable with value "{{ hello }}"
+
+    Scenario: second
+        Given a variable with value "{{ barfoobar }}"
+        Then could it be "bar" and "foo"
+        \"\"\"
+        hello world
+        \"\"\"
+
+        # <!-- this step is conditional -->
+
         Then run a bloody test
             \"\"\"
             with step text
@@ -654,3 +810,65 @@ the following variables was used in ../second.feature#second but was not declare
     finally:
         tmp_path_factory._basetemp = original_tmp_path
         rm_rf(test_context)
+
+
+def test_if_condition_with_scenario_tag_ext(caplog: LogCaptureFixture) -> None:
+    environment = Environment(autoescape=False, extensions=[ScenarioTag])
+
+    template = environment.from_string('{% if False %}hello{% endif %}')
+    with caplog.at_level(logging.DEBUG):
+        assert template.render() == ''
+
+    template = environment.from_string('{% if True %}hello{% endif %}')
+    assert template.render() == 'hello'
+
+    template = environment.from_string("""foobar
+
+{%- if True %}
+hello
+{%- endif %}
+world!""")
+    assert template.render() == 'foobar\nhello\nworld!'
+
+    template = environment.from_string("""Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Then could it be "{$ foo $}" and "{$ bar $}"
+
+        # <!-- this step is conditional -->
+        {%- if True %}
+        Then alert me!
+        {%- endif %}""")
+
+    assert template.render() == """Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Then could it be "{$ foo $}" and "{$ bar $}"
+
+        # <!-- this step is conditional -->
+        Then alert me!"""
+
+    template = environment.from_string("""Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Then could it be "{$ foo $}" and "{$ bar $}"
+
+        # <!-- this step is conditional -->
+        {%- if False %}
+        Then alert me!
+        {%- endif %}""")
+
+    assert template.render() == """Feature: a fourth feature
+    Background: common
+        Given a common step
+
+    Scenario: fourth
+        Then could it be "{$ foo $}" and "{$ bar $}"
+
+        # <!-- this step is conditional -->"""
