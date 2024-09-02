@@ -815,20 +815,20 @@ the following variables was used in ../second.feature#second but was not declare
 def test_if_condition_with_scenario_tag_ext(caplog: LogCaptureFixture) -> None:
     environment = Environment(autoescape=False, extensions=[ScenarioTag])
 
-    template = environment.from_string('{% if False %}hello{% endif %}')
+    template = environment.from_string("{% if False %}hello {{ name }}!{% endif %}")
     with caplog.at_level(logging.DEBUG):
         assert template.render() == ''
 
-    template = environment.from_string('{% if True %}hello{% endif %}')
-    assert template.render() == 'hello'
+    template = environment.from_string("{% if True %}hello {{ name }}!{% endif %}")
+    assert template.render() == 'hello {{ name }}!'
 
     template = environment.from_string("""foobar
 
 {%- if True %}
-hello
+hello {{ name }}!
 {%- endif %}
-world!""")
-    assert template.render() == 'foobar\nhello\nworld!'
+world""")
+    assert template.render() == 'foobar\nhello {{ name }}!\nworld'
 
     template = environment.from_string("""Feature: a fourth feature
     Background: common
@@ -839,7 +839,7 @@ world!""")
 
         # <!-- this step is conditional -->
         {%- if True %}
-        Then alert me!
+        Then show me the "{{ money }}"
         {%- endif %}""")
 
     assert template.render() == """Feature: a fourth feature
@@ -850,7 +850,8 @@ world!""")
         Then could it be "{$ foo $}" and "{$ bar $}"
 
         # <!-- this step is conditional -->
-        Then alert me!"""
+        Then show me the "{{ money }}"
+        """.rstrip()
 
     template = environment.from_string("""Feature: a fourth feature
     Background: common
@@ -861,7 +862,7 @@ world!""")
 
         # <!-- this step is conditional -->
         {%- if False %}
-        Then alert me!
+        Then show me the "{{ money }}"
         {%- endif %}""")
 
     assert template.render() == """Feature: a fourth feature

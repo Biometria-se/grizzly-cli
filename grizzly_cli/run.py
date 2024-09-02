@@ -127,9 +127,9 @@ class ScenarioTag(StandaloneTag):
         the result instead of returning.
         """
         in_scenario = False
-        in_variable = False
         in_block_comment = False
         in_condition = False
+        in_variable = False
 
         variable_begin_pos = -1
         variable_end_pos = 0
@@ -144,7 +144,7 @@ class ScenarioTag(StandaloneTag):
                     current_line = source_lines[token.lineno - 1].lstrip()
                     in_block_comment = current_line.startswith('#')
                     block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
-                elif stream.current.value in ['if', 'endif']:  # {% if <condition %}, {% endif %}
+                elif stream.current.value in ['if', 'endif']:  # {% if <condition> %}, {% endif %}
                     in_condition = True
 
             if in_scenario:
@@ -160,23 +160,21 @@ class ScenarioTag(StandaloneTag):
             elif in_condition:
                 filtered_token = token
             else:
-                if token.type == 'variable_end':
+                if token.type == 'variable_begin':
+                    # Find variable start in the source
+                    variable_begin_pos = self._source.index(token.value, variable_begin_pos + 1)
+                    in_variable = True
+                    continue
+                elif token.type == 'variable_end':
                     # Find variable end in the source
                     variable_end_pos = self._source.index(token.value, variable_begin_pos)
                     # Extract the variable definition substring and use as token value
                     token_value = self._source[variable_begin_pos:variable_end_pos + len(token.value)]
                     in_variable = False
-                elif token.type == 'variable_begin':
-                    # Find variable start in the source
-                    variable_begin_pos = self._source.index(token.value, variable_begin_pos + 1)
-                    in_variable = True
+                elif in_variable:  # Variable templates is yielded when the whole block has been processed
+                    continue
                 else:
                     token_value = token.value
-
-                if in_variable:
-                    # While handling in-variable tokens, withhold values until
-                    # the end of the variable is reached
-                    continue
 
                 filtered_token = Token(token.lineno, 'data', token_value)
 
@@ -186,7 +184,7 @@ class ScenarioTag(StandaloneTag):
                 if in_scenario:
                     in_scenario = False
 
-                if stream.current.value == 'endif':  # {% endif %}
+                if in_condition:
                     in_condition = False
 
 
