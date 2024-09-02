@@ -639,7 +639,7 @@ the following variables was used in ../second.feature#second but was not declare
 
     Scenario: second
         Given a variable with value "{{ {$ foo $}foobar }}"
-        {% scenario "fourth", feature="../features/fourth.feature", foo="{$ foo $}", bar="foo", condition=True %}
+        {% scenario "fourth", feature="./features/fourth.feature", foo="{$ foo $}", bar="foo", condition=True %}
 
         Then run a bloody test
             \"\"\"
@@ -708,7 +708,7 @@ the following variables was used in ../second.feature#second but was not declare
 
     Scenario: second
         Given a variable with value "{{ {$ foo $}foobar }}"
-        {% scenario "fourth", feature="../features/fourth.feature", foo="{$ foo $}", bar="foo", condition=False %}
+        {% scenario "fourth", feature="./features/fourth.feature", foo="{$ foo $}", bar="foo", condition=False %}
 
         Then run a bloody test
             \"\"\"
@@ -877,10 +877,13 @@ world""")
 
 class TestScenarioTag:
     def test_get_scenario_text(self, tmp_path_factory: TempPathFactory) -> None:
+        original_tmp_path = tmp_path_factory._basetemp
+        tmp_path_factory._basetemp = Path.cwd() / '.pytest_tmp'
         test_context = tmp_path_factory.mktemp('context')
         test_feature = test_context / 'test.feature'
 
-        test_feature.write_text("""Feature: test
+        try:
+            test_feature.write_text("""Feature: test
     Background: common
         Then some steps here
         And other useful stuff
@@ -917,10 +920,10 @@ class TestScenarioTag:
         And one more step
 """)
 
-        assert ScenarioTag.get_scenario_text('first', test_feature) == """Given the first scenario
+            assert ScenarioTag.get_scenario_text('first', test_feature) == """Given the first scenario
         And it's steps"""
 
-        assert ScenarioTag.get_scenario_text('second', test_feature) == """Given the second scenario
+            assert ScenarioTag.get_scenario_text('second', test_feature) == """Given the second scenario
 
         # <!-- comment -->
         And it's steps
@@ -928,9 +931,12 @@ class TestScenarioTag:
         step text
         \"\"\""""
 
-        assert ScenarioTag.get_scenario_text('third', test_feature) == """Given the third scenario
+            assert ScenarioTag.get_scenario_text('third', test_feature) == """Given the third scenario
         And it's steps
         | foo | bar |
         | bar | foo |
 
         And one more step"""
+        finally:
+            tmp_path_factory._basetemp = original_tmp_path
+            rm_rf(test_context)
