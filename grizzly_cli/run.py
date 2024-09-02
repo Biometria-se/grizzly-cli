@@ -42,6 +42,49 @@ class ScenarioTag(StandaloneTag):
 
         return cast(str, super().preprocess(source, name, filename))
 
+    @classmethod
+    def get_scenario_text(cls, name: str, file: Path) -> str:
+        content = file.read_text()
+
+        content_skel = re.sub(r'\{%.*%\}', '', content)
+        content_skel = re.sub(r'\{\$.*\$\}', '', content_skel)
+
+        assert len(content.splitlines()) == len(content_skel.splitlines()), 'oops, there is not a 1:1 match between lines!'
+
+        feature = parse_feature(content_skel, filename=file.as_posix())
+        scenarios = cast(List[Scenario], feature.scenarios)
+        lines = content.splitlines()
+
+        for scenario_index, scenario in enumerate(scenarios):
+            if scenario.name == name:
+                break
+
+        # check if there are scenarios after our scenario in the source
+        next_scenario: Optional[Scenario] = None
+        with suppress(IndexError):
+            next_scenario = scenarios[scenario_index + 1]
+
+        if next_scenario is None:  # last scenario, take everything until the end
+            scenario_lines = lines[scenario.line:]
+        else:  # take everything up until where the next scenario starts
+            scenario_lines = lines[scenario.line:next_scenario.line - 1]
+            if scenario_lines[-1] == '':  # if last line is an empty line, lets remove it
+                scenario_lines.pop()
+
+        # remove any scenario text/comments
+        if scenario_lines[0].strip() == '"""':
+            try:
+                offset = scenario_lines[1:].index(scenario_lines[0]) + 1 + 1
+            except:
+                offset = 0
+
+            scenario_lines = scenario_lines[offset:]
+
+        # first line can have incorrect indentation
+        scenario_lines[0] = dedent(scenario_lines[0])
+
+        return '\n'.join(scenario_lines)
+
     def render(self, scenario: str, feature: str, **variables: str) -> str:
         feature_file = Path(feature)
 
@@ -49,7 +92,10 @@ class ScenarioTag(StandaloneTag):
         if not feature_file.exists():
             feature_file = (self.environment.feature_file.parent / feature).resolve()
 
-        feature_content = feature_file.read_text()
+        scenario_content = self.get_scenario_text(scenario, feature_file)
+
+        ignore_errors = getattr(self.environment, 'ignore_errors', False)
+
         # <!-- sub-render included scenario
         errors_unused: Set[str] = set()
         errors_undeclared: Set[str] = set()
@@ -57,68 +103,45 @@ class ScenarioTag(StandaloneTag):
         # tag has specified variables, so lets "render"
         for name, value in variables.items():
             variable_template = f'{{$ {name} $}}'
-            if variable_template not in feature_content:
+            if variable_template not in scenario_content:
                 errors_unused.add(name)
                 continue
 
-            feature_content = feature_content.replace(variable_template, str(value))
+            scenario_content = scenario_content.replace(variable_template, str(value))
 
         # look for sub-variables that has not been rendered
-        if '{$' in feature_content and '$}' in feature_content:
-            matches = re.finditer(r'\{\$ ([^$]+) \$\}', feature_content, re.MULTILINE)
+        if not ignore_errors:
+            if '{$' in scenario_content and '$}' in scenario_content:
+                matches = re.finditer(r'\{\$ ([^$]+) \$\}', scenario_content, re.MULTILINE)
 
-            for match in matches:
-                errors_undeclared.add(match.group(1))
+                for match in matches:
+                    errors_undeclared.add(match.group(1))
 
-        if len(errors_undeclared) + len(errors_unused) > 0:
-            scenario_identifier = f'{feature}#{scenario}'
-            buffer_error: List[str] = []
-            if len(errors_unused) > 0:
-                errors_unused_message = "\n  ".join(errors_unused)
-                buffer_error.append(f'the following variables has been declared in scenario tag but not used in {scenario_identifier}:\n  {errors_unused_message}')
-                buffer_error.append('')
+            if len(errors_undeclared) + len(errors_unused) > 0:
+                scenario_identifier = f'{feature}#{scenario}'
+                buffer_error: List[str] = []
+                if len(errors_unused) > 0:
+                    errors_unused_message = "\n  ".join(errors_unused)
+                    buffer_error.append(f'the following variables has been declared in scenario tag but not used in {scenario_identifier}:\n  {errors_unused_message}')
+                    buffer_error.append('')
 
-            if len(errors_undeclared) > 0:
-                errors_undeclared_message = "\n  ".join(errors_undeclared)
-                buffer_error.append(f'the following variables was used in {scenario_identifier} but was not declared in scenario tag:\n  {errors_undeclared_message}')
-                buffer_error.append('')
+                if len(errors_undeclared) > 0:
+                    errors_undeclared_message = "\n  ".join(errors_undeclared)
+                    buffer_error.append(f'the following variables was used in {scenario_identifier} but was not declared in scenario tag:\n  {errors_undeclared_message}')
+                    buffer_error.append('')
 
-            message = '\n'.join(buffer_error)
-            raise ValueError(message)
+                message = '\n'.join(buffer_error)
+                raise ValueError(message)
 
-        # check if we have nested `{% scenario .. %}` tags, and render
-        if '{%' in feature_content and '%}' in feature_content:
+        # check if we have nested statements (`{% .. %}`), and render again if that is the case
+        if '{%' in scenario_content and '%}' in scenario_content:
             environment = self.environment.overlay()
             environment.extend(feature_file=feature_file)
-            template = environment.from_string(feature_content)
-            feature_content = template.render()
+            template = environment.from_string(scenario_content)
+            scenario_content = template.render()
         # // -->
 
-        source_lines = feature_content.splitlines()
-
-        parsed_feature = parse_feature(feature_content, filename=feature_file.as_posix())
-        parsed_scenarios = cast(List[Scenario], parsed_feature.scenarios)
-
-        for scenario_index, parsed_scenario in enumerate(parsed_scenarios):
-            if parsed_scenario.name == scenario:
-                break
-
-        # check if there are scenarios after our scenario in the source
-        next_scenario: Optional[Scenario] = None
-        with suppress(IndexError):
-            next_scenario = parsed_scenarios[scenario_index + 1]
-
-        if next_scenario is None:  # last scenario, take everything until the end
-            target_lines = source_lines[parsed_scenario.line:]
-        else:  # take everything up until where the next scenario starts
-            target_lines = source_lines[parsed_scenario.line:next_scenario.line - 1]
-            if target_lines[-1] == '':  # if last line is an empty line, lets remove it
-                target_lines.pop()
-
-        # first line can have incorrect indentation
-        target_lines[0] = dedent(target_lines[0])
-
-        return '\n'.join(target_lines)
+        return scenario_content
 
     def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:  # type: ignore[return]
         """Everything outside of `{% scenario ... %}` (and `{% if ... %}...{% endif %}`) should be treated as "data", e.g. plain text.
@@ -303,7 +326,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
     try:
         # during execution, create a temporary .lock.feature file that will be removed when done
         template = environment.from_string(original_feature_content)
-        environment.extend(feature_file=feature_file)
+        environment.extend(feature_file=feature_file, ignore_errors=False)
         feature_content = template.render()
         feature_lock_file.write_text(feature_content)
 

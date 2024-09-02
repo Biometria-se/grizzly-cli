@@ -873,3 +873,64 @@ world""")
         Then could it be "{$ foo $}" and "{$ bar $}"
 
         # <!-- this step is conditional -->"""
+
+
+class TestScenarioTag:
+    def test_get_scenario_text(self, tmp_path_factory: TempPathFactory) -> None:
+        test_context = tmp_path_factory.mktemp('context')
+        test_feature = test_context / 'test.feature'
+
+        test_feature.write_text("""Feature: test
+    Background: common
+        Then some steps here
+        And other useful stuff
+
+    Scenario: first
+        \"\"\"
+        this is just some comments
+        for the scenario, that spans
+        multiple lines.
+        \"\"\"
+        Given the first scenario
+        And it's steps
+
+    Scenario: second
+        Given the second scenario
+
+        # <!-- comment -->
+        And it's steps
+        \"\"\"
+        step text
+        \"\"\"
+
+    Scenario: third
+        \"\"\"
+        this is just some comments
+        for the scenario, that spans
+        multiple lines.
+        \"\"\"
+        Given the third scenario
+        And it's steps
+        | foo | bar |
+        | bar | foo |
+
+        And one more step
+""")
+
+        assert ScenarioTag.get_scenario_text('first', test_feature) == """Given the first scenario
+        And it's steps"""
+
+        assert ScenarioTag.get_scenario_text('second', test_feature) == """Given the second scenario
+
+        # <!-- comment -->
+        And it's steps
+        \"\"\"
+        step text
+        \"\"\""""
+
+        assert ScenarioTag.get_scenario_text('third', test_feature) == """Given the third scenario
+        And it's steps
+        | foo | bar |
+        | bar | foo |
+
+        And one more step"""
