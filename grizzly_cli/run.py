@@ -320,11 +320,32 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
     environment = Environment(autoescape=False, extensions=[ScenarioTag])
     feature_file = Path(args.file)
-    original_feature_content = feature_file.read_text()
+
+    # during execution, create a temporary .lock.feature file that will be removed when done
+    original_feature_lines = feature_file.read_text().splitlines()
     feature_lock_file = feature_file.parent / f'{feature_file.stem}.lock{feature_file.suffix}'
 
     try:
-        # during execution, create a temporary .lock.feature file that will be removed when done
+        buffer: List[str] = []
+        remove_endif = False
+
+        # remove if-statements containing variables (`{$ .. $}`)
+        for line in original_feature_lines:
+            stripped_line = line.strip()
+
+            if stripped_line[:2] == '{%' and stripped_line[-2:] == '%}':
+                if '{$' in stripped_line and '$}' in stripped_line and 'if' in stripped_line:
+                    remove_endif = True
+                    continue
+
+                if remove_endif and 'endif' in stripped_line:
+                    remove_endif = False
+                    continue
+
+            buffer.append(line)
+
+        original_feature_content = '\n'.join(buffer)
+
         template = environment.from_string(original_feature_content)
         environment.extend(feature_file=feature_file, ignore_errors=False)
         feature_content = template.render()
