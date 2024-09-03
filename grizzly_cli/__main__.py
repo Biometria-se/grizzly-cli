@@ -4,6 +4,7 @@ import sys
 
 from shutil import which
 from typing import Tuple, Optional, List
+from traceback import format_exc
 
 from .argparse import ArgumentParser
 from .utils import ask_yes_no, get_distributed_system, get_dependency_versions, setup_logging
@@ -161,6 +162,8 @@ def _inject_additional_arguments_from_metadata(args: argparse.Namespace) -> argp
 
 
 def main() -> int:
+    args: Optional[argparse.Namespace] = None
+
     try:
         args = _parse_arguments()
 
@@ -182,7 +185,12 @@ def main() -> int:
     except (KeyboardInterrupt, ValueError) as e:
         print('')
         if isinstance(e, ValueError):
-            print(str(e))
+            if args is not None and getattr(args, 'verbose', False):
+                exception = format_exc()
+            else:
+                exception = str(e)
+
+            print(exception)
 
         print('\n!! aborted grizzly-cli')
         return 1

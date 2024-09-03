@@ -639,7 +639,7 @@ the following variables was used in ../second.feature#second but was not declare
 
     Scenario: second
         Given a variable with value "{{ {$ foo $}foobar }}"
-        {% scenario "fourth", feature="../features/fourth.feature", foo="{$ foo $}", bar="foo", condition=True %}
+        {% scenario "fourth", feature="./features/fourth.feature", foo="{$ foo $}", bar="foo", condition=True %}
 
         Then run a bloody test
             \"\"\"
@@ -708,7 +708,7 @@ the following variables was used in ../second.feature#second but was not declare
 
     Scenario: second
         Given a variable with value "{{ {$ foo $}foobar }}"
-        {% scenario "fourth", feature="../features/fourth.feature", foo="{$ foo $}", bar="foo", condition=False %}
+        {% scenario "fourth", feature="./features/fourth.feature", foo="{$ foo $}", bar="foo", condition=False %}
 
         Then run a bloody test
             \"\"\"
@@ -815,20 +815,20 @@ the following variables was used in ../second.feature#second but was not declare
 def test_if_condition_with_scenario_tag_ext(caplog: LogCaptureFixture) -> None:
     environment = Environment(autoescape=False, extensions=[ScenarioTag])
 
-    template = environment.from_string('{% if False %}hello{% endif %}')
+    template = environment.from_string("{% if False %}hello {{ name }}!{% endif %}")
     with caplog.at_level(logging.DEBUG):
         assert template.render() == ''
 
-    template = environment.from_string('{% if True %}hello{% endif %}')
-    assert template.render() == 'hello'
+    template = environment.from_string("{% if True %}hello {{ name }}!{% endif %}")
+    assert template.render() == 'hello {{ name }}!'
 
     template = environment.from_string("""foobar
 
 {%- if True %}
-hello
+hello {{ name }}!
 {%- endif %}
-world!""")
-    assert template.render() == 'foobar\nhello\nworld!'
+world""")
+    assert template.render() == 'foobar\nhello {{ name }}!\nworld'
 
     template = environment.from_string("""Feature: a fourth feature
     Background: common
@@ -839,7 +839,7 @@ world!""")
 
         # <!-- this step is conditional -->
         {%- if True %}
-        Then alert me!
+        Then show me the "{{ money }}"
         {%- endif %}""")
 
     assert template.render() == """Feature: a fourth feature
@@ -850,7 +850,8 @@ world!""")
         Then could it be "{$ foo $}" and "{$ bar $}"
 
         # <!-- this step is conditional -->
-        Then alert me!"""
+        Then show me the "{{ money }}"
+        """.rstrip()
 
     template = environment.from_string("""Feature: a fourth feature
     Background: common
@@ -861,7 +862,7 @@ world!""")
 
         # <!-- this step is conditional -->
         {%- if False %}
-        Then alert me!
+        Then show me the "{{ money }}"
         {%- endif %}""")
 
     assert template.render() == """Feature: a fourth feature
@@ -872,3 +873,70 @@ world!""")
         Then could it be "{$ foo $}" and "{$ bar $}"
 
         # <!-- this step is conditional -->"""
+
+
+class TestScenarioTag:
+    def test_get_scenario_text(self, tmp_path_factory: TempPathFactory) -> None:
+        original_tmp_path = tmp_path_factory._basetemp
+        tmp_path_factory._basetemp = Path.cwd() / '.pytest_tmp'
+        test_context = tmp_path_factory.mktemp('context')
+        test_feature = test_context / 'test.feature'
+
+        try:
+            test_feature.write_text("""Feature: test
+    Background: common
+        Then some steps here
+        And other useful stuff
+
+    Scenario: first
+        \"\"\"
+        this is just some comments
+        for the scenario, that spans
+        multiple lines.
+        \"\"\"
+        Given the first scenario
+        And it's steps
+
+    Scenario: second
+        Given the second scenario
+
+        # <!-- comment -->
+        And it's steps
+        \"\"\"
+        step text
+        \"\"\"
+
+    Scenario: third
+        \"\"\"
+        this is just some comments
+        for the scenario, that spans
+        multiple lines.
+        \"\"\"
+        Given the third scenario
+        And it's steps
+        | foo | bar |
+        | bar | foo |
+
+        And one more step
+""")
+
+            assert ScenarioTag.get_scenario_text('first', test_feature) == """Given the first scenario
+        And it's steps"""
+
+            assert ScenarioTag.get_scenario_text('second', test_feature) == """Given the second scenario
+
+        # <!-- comment -->
+        And it's steps
+        \"\"\"
+        step text
+        \"\"\""""
+
+            assert ScenarioTag.get_scenario_text('third', test_feature) == """Given the third scenario
+        And it's steps
+        | foo | bar |
+        | bar | foo |
+
+        And one more step"""
+        finally:
+            tmp_path_factory._basetemp = original_tmp_path
+            rm_rf(test_context)
