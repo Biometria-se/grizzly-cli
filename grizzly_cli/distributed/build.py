@@ -32,6 +32,20 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         required=False,
         help='push built image to this registry, if the registry has authentication you need to login first',
     )
+    build_parser.add_argument(
+        '--no-progress',
+        action='store_true',
+        default=False,
+        required=False,
+        help='do not show a progress spinner while building',
+    )
+    build_parser.add_argument(
+        '--verbose',
+        action='store_true',
+        default=False,
+        required=False,
+        help='show more information',
+    )
     # <!-- used during development, hide from help
     build_parser.add_argument(
         '--local-install',
@@ -131,7 +145,9 @@ def build(args: Arguments) -> int:
     if args.container_system == 'docker':
         build_env['DOCKER_BUILDKIT'] = '1'
 
-    result = run_command(build_command, env=build_env, spinner='building')
+    spinner = 'building' if not args.no_progress else None
+
+    result = run_command(build_command, env=build_env, spinner=spinner, verbose=args.verbose)
 
     if result.return_code == 0:
         print(f'\nbuilt image {image_name}')
@@ -147,7 +163,7 @@ def build(args: Arguments) -> int:
         f'{args.registry}{image_name}',
     ]
 
-    result = run_command(tag_command, env=build_env)
+    result = run_command(tag_command, env=build_env, verbose=args.verbose)
 
     if result.return_code != 0:
         print(f'\n!! failed to tag image {image_name} -> {args.registry}{image_name}')
@@ -162,7 +178,9 @@ def build(args: Arguments) -> int:
         f'{args.registry}{image_name}',
     ]
 
-    result = run_command(push_command, env=build_env, spinner='pushing')
+    spinner = 'pushing' if not args.no_progress else None
+
+    result = run_command(push_command, env=build_env, spinner=spinner, verbose=args.verbose)
 
     if result.return_code != 0:
         print(f'\n!! failed to push image {args.registry}{image_name}')

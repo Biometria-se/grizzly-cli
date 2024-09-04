@@ -19,7 +19,7 @@ from packaging import version as versioning
 from tempfile import mkdtemp
 from hashlib import sha1
 from math import ceil
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -93,7 +93,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
 
     def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:
         if result.abort_timestamp is None:
-            result.abort_timestamp = datetime.utcnow()
+            result.abort_timestamp = datetime.now(timezone.utc)
             process.terminate()
 
     with SignalHandler(sig_handler, psignal.SIGINT, psignal.SIGTERM):
@@ -111,7 +111,8 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
                     break
 
                 if result.output is None:
-                    logger.info(output.decode().rstrip())
+                    if spinner is None:
+                        logger.info(output.decode().rstrip())
                 else:
                     result.output.append(output)
 
@@ -125,6 +126,9 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
                 pass
 
     process.wait()
+
+    if spinner is not None:
+        logger.info('')
 
     result.return_code = process.returncode
 
