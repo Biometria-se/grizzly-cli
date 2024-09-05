@@ -532,11 +532,11 @@ class TestBashCompleteAction:
         [
             (
                 'grizzly-cli dist build',
-                '-h\n--help\n--no-cache\n--registry',
+                '-h\n--help\n--no-cache\n--registry\n--no-progress\n--verbose',
             ),
             (
                 'grizzly-cli dist build --',
-                '--help\n--no-cache\n--registry',
+                '--help\n--no-cache\n--registry\n--no-progress\n--verbose',
             ),
             (
                 'grizzly-cli dist build --help',
@@ -544,7 +544,7 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli dist build --no-cache',
-                '-h\n--help\n--registry',
+                '-h\n--help\n--registry\n--no-progress\n--verbose',
             ),
             (
                 'grizzly-cli dist build --no-cache --registry',
@@ -552,7 +552,7 @@ class TestBashCompleteAction:
             ),
             (
                 'grizzly-cli dist build --no-cache --registry asdf',
-                '-h\n--help',
+                '-h\n--help\n--no-progress\n--verbose',
             ),
         ],
     )

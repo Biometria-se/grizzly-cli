@@ -206,7 +206,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         ])
         setattr(getattr(build, '__wrapped__'), '__value__', str(test_context))
 
-        test_args = Namespace(container_system='test', force_build=False, project_name=None, local_install=False)
+        test_args = Namespace(container_system='test', force_build=False, project_name=None, local_install=False, no_progress=False, verbose=False)
 
         static_context = path.realpath(path.join(path.dirname(getfile(_create_build_command)), '..', 'static'))
 
@@ -246,7 +246,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
         assert actual_env is not None
         assert actual_env.get('DOCKER_BUILDKIT', None) == environ.get('DOCKER_BUILDKIT', None)
 
-        test_args = Namespace(container_system='docker', force_build=True, local_install=True, project_name='foobar')
+        test_args = Namespace(container_system='docker', force_build=True, local_install=True, project_name='foobar', no_progress=False, verbose=False)
 
         mocker.patch('grizzly_cli.distributed.build.get_dependency_versions', return_value=(('1.1.1', ['mq', 'dev'], ), '2.8.4'))
 
@@ -291,6 +291,8 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             local_install=False,
             project_name=None,
             registry='ghcr.io/biometria-se/',
+            no_progress=False,
+            verbose=False,
         )
 
         assert build(test_args) == 1
@@ -324,6 +326,8 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
             registry='ghcr.io/biometria-se/',
             project_name='foobar',
             local_install=True,
+            no_progress=False,
+            verbose=False,
         )
 
         image_name = 'foobar:test-user'

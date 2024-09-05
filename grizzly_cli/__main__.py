@@ -131,8 +131,8 @@ def _parse_arguments() -> argparse.Namespace:
         setattr(args, 'force_build', args.no_cache)
         setattr(args, 'build', not args.no_cache)
 
-    if hasattr(args, 'log_file'):
-        setup_logging(args.log_file)
+    log_file = getattr(args, 'log_file', None)
+    setup_logging(log_file)
 
     return args
 

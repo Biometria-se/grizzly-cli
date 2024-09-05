@@ -106,6 +106,8 @@ def test__create_parser() -> None:
         '--local-install',
         '--no-cache',
         '--registry',
+        '--no-progress',
+        '--verbose',
     ])
 
     dist_clean_parser = cast(Dict[str, Optional[CoreArgumentParser]], dist_subparser.choices).get('clean', None)

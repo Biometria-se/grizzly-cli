@@ -1,14 +1,14 @@
 ARG GRIZZLY_EXTRA=base
 ARG GRIZZLY_INSTALL_TYPE=remote
 
-FROM python:3.12-slim as base
+FROM python:3.12-slim AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update
 
 # <!-- mq
-FROM base as mq
+FROM base AS mq
 
 ARG IBM_MQ_LIB_HOST=https://ibm.biz
 ARG IBM_MQ_LIB=IBM-MQC-Redist-LinuxX64targz
@@ -35,18 +35,18 @@ RUN cp /tmp/mqm/inc/*.h* /opt/mqm/inc/ \
 # mq -->
 
 # <!-- python-base-remote (no extras, remote install)
-FROM base as python-base-remote
+FROM base AS python-base-remote
 ## NOOP
 # python-base-remote (no extras) -->
 
 # <!-- python-base-local (no extras, local install)
-FROM base as python-base-local
+FROM base AS python-base-local
 
 COPY . /tmp/grizzly
 # python-base-local (get code from build machine) -->
 
 # <!-- python-mq (with mq extras -> pymqi)
-FROM python-base-${GRIZZLY_INSTALL_TYPE} as python-mq
+FROM python-base-${GRIZZLY_INSTALL_TYPE} AS python-mq
 
 COPY --from=mq /opt/mqm /opt/mqm
 
@@ -54,12 +54,12 @@ ENV LD_LIBRARY_PATH="/opt/mqm/lib64:${LD_LIBRARY_PATH}"
 # python-mq (with mq extras -> pymqi) -->
 
 # <!-- python-mq-local (with mq extras -> pymqi, local install)
-FROM python-mq as python-mq-local
+FROM python-mq AS python-mq-local
 # NOOP
 # python-mq-local (with mq extras -> pymqi, local install) -->
 
 # <!-- python-mq-remote (with mq extras -> pymqi, remote install)
-FROM python-mq as python-mq-remote
+FROM python-mq AS python-mq-remote
 # python-mq-remote (with mq extras -> pymqi, remote install) -->
 
 # <!-- python-venv
@@ -89,19 +89,19 @@ RUN python -m pip install wheel
 # python-venv -->
 
 # <!-- python-venv-base-local (no mq extras, local install)
-FROM python-venv as python-venv-base-local
+FROM python-venv AS python-venv-base-local
 
 RUN python -m pip --disable-pip-version-check --no-cache-dir install /tmp/grizzly
 # python-venv-base-local (no mq extras, local install) -->
 
 # <!-- python-venv-mq-local (mq extras, local install)
-FROM python-venv as python-venv-mq-local
+FROM python-venv AS python-venv-mq-local
 
 RUN python -m pip --disable-pip-version-check --no-cache-dir install /tmp/grizzly[mq]
 # python-venv-mq-local (mq extras, local install) -->
 
 # <!-- python-venv-base-remote (no mq extras, remote install)
-FROM python-venv as python-venv-base-remote
+FROM python-venv AS python-venv-base-remote
 
 COPY requirements.txt /tmp
 
@@ -110,12 +110,12 @@ RUN --mount=type=ssh GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=no' python -m
 
 
 # <!-- python-venv-mq-remote (no mq extras, remote install)
-FROM python-venv-base-remote as python-venv-mq-remote
+FROM python-venv-base-remote AS python-venv-mq-remote
 # NOOP, same as without mq extras, installed from requirements.txt
 # python-venv-mq-remote (no mq extras, remote install) -->
 
 # <!-- python (simple reference to copy from)
-FROM python-venv-${GRIZZLY_EXTRA}-${GRIZZLY_INSTALL_TYPE} as python
+FROM python-venv-${GRIZZLY_EXTRA}-${GRIZZLY_INSTALL_TYPE} AS python
 # NOOP
 # python (simple reference to copy from) -->
 
@@ -184,7 +184,7 @@ RUN mkdir -p /home/grizzly/IBM/MQ/data && \
 # grizzly-mq -->
 
 # <!-- grizzly
-FROM grizzly-${GRIZZLY_EXTRA} as grizzly
+FROM grizzly-${GRIZZLY_EXTRA} AS grizzly
 
 USER grizzly
 
