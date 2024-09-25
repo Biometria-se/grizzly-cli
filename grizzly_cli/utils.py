@@ -185,14 +185,22 @@ def rm_rf(path: Union[str, Path], *, missing_ok: bool = False) -> None:
             raise
 
 
-def get_dependency_versions() -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
+def get_dependency_versions(local_install: bool | str) -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
     grizzly_requirement: Optional[str] = None
     grizzly_requirement_egg: str
     locust_version: Optional[str] = None
     grizzly_version: Optional[str] = None
     grizzly_extras: Optional[List[str]] = None
 
-    project_requirements = path.join(grizzly_cli.EXECUTION_CONTEXT, 'requirements.txt')
+    args: tuple[str, ...] = (grizzly_cli.EXECUTION_CONTEXT,)
+    if isinstance(local_install, str):
+        args += (local_install,)
+        if not local_install.endswith('requirements.txt'):
+            args += ('requirements.txt',)
+    else:
+        args += ('requirements.txt',)
+
+    project_requirements = path.join(*args)
 
     try:
         with open(project_requirements, encoding='utf-8') as fd:

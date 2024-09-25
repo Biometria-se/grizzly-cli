@@ -69,7 +69,7 @@ def _parse_arguments() -> argparse.Namespace:
         grizzly_versions: Optional[Tuple[Optional[str], Optional[List[str]]]] = None
 
         if args.version == 'all':
-            grizzly_versions, locust_version = get_dependency_versions()
+            grizzly_versions, locust_version = get_dependency_versions(False)
         else:
             grizzly_versions, locust_version = None, None
 
