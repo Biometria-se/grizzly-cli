@@ -185,7 +185,7 @@ def rm_rf(path: Union[str, Path], *, missing_ok: bool = False) -> None:
             raise
 
 
-def get_dependency_versions(local_install: bool | str) -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
+def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
     grizzly_requirement: Optional[str] = None
     grizzly_requirement_egg: str
     locust_version: Optional[str] = None
