@@ -49,7 +49,8 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
     # <!-- used during development, hide from help
     build_parser.add_argument(
         '--local-install',
-        action='store_true',
+        nargs='?',
+        const=True,
         default=False,
         help=SUPPRESS,
     )
@@ -74,17 +75,19 @@ def getgid() -> int:
 
 
 def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
-    (_, grizzly_extras, ), _ = get_dependency_versions()
+    local_install = getattr(args, 'local_install', False)
+
+    if local_install:
+        install_type = 'local'
+    else:
+        install_type = 'remote'
+
+    (_, grizzly_extras, ), _ = get_dependency_versions(local_install)
 
     if grizzly_extras is not None and 'mq' in grizzly_extras:
         grizzly_extra = 'mq'
     else:
         grizzly_extra = 'base'
-
-    if getattr(args, 'local_install', False):
-        install_type = 'local'
-    else:
-        install_type = 'remote'
 
     extra_args: List[str] = []
 
@@ -145,7 +148,7 @@ def build(args: Arguments) -> int:
     if args.container_system == 'docker':
         build_env['DOCKER_BUILDKIT'] = '1'
 
-    spinner = 'building' if not args.no_progress else None
+    spinner = 'building' if not getattr(args, 'no_progress', False) else None
 
     result = run_command(build_command, env=build_env, spinner=spinner, verbose=args.verbose)
 
