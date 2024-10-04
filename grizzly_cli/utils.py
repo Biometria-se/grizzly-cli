@@ -672,8 +672,8 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         identifier: str
         user: Optional[str]
         weight: float
-        iterations: int
-        user_count: int
+        _iterations: Optional[int]
+        _user_count: Optional[int]
 
         def __init__(
             self,
@@ -687,10 +687,34 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             self.name = name
             self.index = index
             self.user = user
-            self.iterations = iterations or 1
+            self._iterations = iterations
             self.weight = weight or 1.0
             self.identifier = f'{index:03}'
-            self.user_count = user_count or 0
+            self._user_count = user_count
+
+        @property
+        def iterations(self) -> int:
+            if self._iterations is None:
+                raise ValueError('iterations has not been set')
+
+            return self._iterations
+
+        @iterations.setter
+        def iterations(self, value: int) -> None:
+            self._iterations = value
+
+        @property
+        def user_count(self) -> int:
+            if self._user_count is None:
+                raise ValueError('user count has not been set')
+            return self._user_count
+
+        @user_count.setter
+        def user_count(self, value: int) -> None:
+            self._user_count = value
+
+        def is_fulfilled(self) -> bool:
+            return self.user is not None and self._iterations is not None and self._user_count is not None
 
     distribution: Dict[str, ScenarioProperties] = {}
     variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
@@ -709,6 +733,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     use_weights = True
 
     for index, scenario in enumerate(grizzly_cli.SCENARIOS):
+        scenario_variables: Dict[str, Any] = {}
         if len(scenario.steps) < 1:
             raise ValueError(f'scenario "{scenario.name}" does not have any steps')
 
@@ -725,24 +750,37 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             use_weights = False
             scenario_user_count_total = 0
 
-        for step in scenario.steps:
-            if step.name.startswith('a user of type'):
+        for step in (scenario.background_steps or []) + scenario.steps:
+            if step.name.startswith('value for variable'):
+                match = re.match(r'value for variable "([^"]*)" is "([^"]*)"', step.name)
+                if match:
+                    try:
+                        variable_name = match.group(1)
+                        variable_value = Template(match.group(2)).render(**variables, **scenario_variables)
+                        scenario_variables.update({variable_name: variable_value})
+                    except:
+                        continue
+            elif step.name.startswith('a user of type'):
                 match = re.match(r'a user of type "([^"]*)" (with weight "([^"]*)")?.*', step.name)
                 if match:
                     distribution[scenario.name].user = match.group(1)
-                    distribution[scenario.name].weight = int(float(Template(match.group(3) or '1.0').render(**variables)))
+                    distribution[scenario.name].weight = int(float(Template(match.group(3) or '1.0').render(**variables, **scenario_variables)))
             elif step.name.startswith('repeat for'):
                 match = re.match(r'repeat for "([^"]*)" iteration[s]?', step.name)
                 if match:
-                    distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables)), 0))
+                    distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables, **scenario_variables)), 0))
+                    (distribution[scenario.name].iterations)
             elif any([pattern in step.name for pattern in ['users of type', 'user of type']]):
                 match = re.match(r'"([^"]*)" user[s]? of type "([^"]*)".*', step.name)
                 if match:
-                    scenario_user_count = int(round(float(Template(match.group(1)).render(**variables)), 0))
+                    scenario_user_count = int(round(float(Template(match.group(1)).render(**variables, **scenario_variables)), 0))
                     scenario_user_count_total += scenario_user_count
 
                     distribution[scenario.name].user_count = scenario_user_count
                     distribution[scenario.name].user = match.group(2)
+
+            if distribution[scenario.name].is_fulfilled():
+                break
 
     scenario_count = len(distribution.keys())
     assert scenario_user_count_total is not None

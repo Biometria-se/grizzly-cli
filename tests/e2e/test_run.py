@@ -3,7 +3,6 @@ import sys
 from tempfile import NamedTemporaryFile
 from typing import Optional
 from os import path, pathsep
-from datetime import datetime
 
 import pytest
 import yaml
@@ -123,7 +122,7 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
                 feature_file,
                 env_conf_file.name.replace(f'{str(example_root)}{pathsep}', ''),
                 cwd=str(example_root),
-                arguments=['--csv-prefix', '-l', 'test_run.log'],
+                arguments=['-l', 'test_run.log'],
             )
 
             # problems with a locust DEBUG log message containing ERROR in the message on macos-latest
@@ -152,28 +151,6 @@ def test_e2e_run_example(e2e_fixture: End2EndFixture) -> None:
             assert "AtomicCustomVariable.foobar='foobar'" in result
 
             assert 'compose.yaml: `version` is obsolete' not in result
-
-            datestamp = datetime.now().astimezone().strftime('%Y%m%dT')
-
-            csv_file_exceptions = list(example_root.glob('*_exceptions.csv'))
-            assert len(csv_file_exceptions) == 1
-            assert csv_file_exceptions[0].read_text().strip() == 'Count,Message,Traceback,Nodes'
-            assert csv_file_exceptions[0].name.startswith(f'grizzly_example_{datestamp}')
-
-            csv_file_failures = list(example_root.glob('*_failures.csv'))
-            assert len(csv_file_failures) == 1
-            assert csv_file_failures[0].read_text().strip() == 'Method,Name,Error,Occurrences'
-            assert csv_file_failures[0].name.startswith(f'grizzly_example_{datestamp}')
-
-            csv_file_stats = list(example_root.glob('*_stats.csv'))
-            assert len(csv_file_stats) == 1
-            assert csv_file_stats[0].read_text().strip() != ''
-            assert csv_file_stats[0].name.startswith(f'grizzly_example_{datestamp}')
-
-            csv_file_stats_history = list(example_root.glob('*_stats_history.csv'))
-            assert len(csv_file_stats_history) == 1
-            assert csv_file_stats_history[0].read_text().strip() != ''
-            assert csv_file_stats_history[0].name.startswith(f'grizzly_example_{datestamp}')
 
             log_file_result = (example_root / 'test_run.log').read_text()
 

@@ -426,6 +426,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
             ],
             [
                 'Given a user of type "RestApi" load testing "https://localhost"',
+                'And repeat for "1" iteration',
                 'And ask for value of variable "test_variable_2"',
                 'And ask for value of variable "test_variable_1"',
             ],
@@ -437,6 +438,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
             ],
             [
                 'Given a user of type "MessageQueueUser" load testing "mqs://localhost"',
+                'And repeat for "1" iteration',
                 'And ask for value of variable "foo"',
             ],
         )
@@ -456,6 +458,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
             ],
             [
                 'Given a user of type "RestApi" load testing "https://localhost"',
+                'And repeat for "1" iteration',
                 'And ask for value of variable "test_variable_2"',
                 'And ask for value of variable "test_variable_1"',
             ],
@@ -467,6 +470,7 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
             ],
             [
                 'Given a user of type "MessageQueueUser" load testing "mqs://localhost"',
+                'And repeat for "1" iteration',
                 'And ask for value of variable "foo"',
             ],
         )
