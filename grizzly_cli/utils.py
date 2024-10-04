@@ -754,9 +754,12 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             if step.name.startswith('value for variable'):
                 match = re.match(r'value for variable "([^"]*)" is "([^"]*)"', step.name)
                 if match:
-                    variable_name = match.group(1)
-                    variable_value = Template(match.group(2)).render(**variables, **scenario_variables)
-                    scenario_variables.update({variable_name: variable_value})
+                    try:
+                        variable_name = match.group(1)
+                        variable_value = Template(match.group(2)).render(**variables, **scenario_variables)
+                        scenario_variables.update({variable_name: variable_value})
+                    except:
+                        continue
             elif step.name.startswith('a user of type'):
                 match = re.match(r'a user of type "([^"]*)" (with weight "([^"]*)")?.*', step.name)
                 if match:
