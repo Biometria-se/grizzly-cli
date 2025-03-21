@@ -4,7 +4,18 @@ import sys
 import os
 import re
 
-from typing import Iterable, List, Dict, Any, Callable, Optional, TextIO, Union, Set, cast
+from typing import (
+    Iterable,
+    List,
+    Dict,
+    Any,
+    Callable,
+    Optional,
+    TextIO,
+    Union,
+    Set,
+    cast,
+)
 from argparse import Namespace as Arguments
 from platform import node as get_hostname
 from datetime import datetime

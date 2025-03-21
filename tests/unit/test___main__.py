@@ -187,6 +187,8 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert err[0].startswith('usage: grizzly-cli')
         assert err[1] == (
             "grizzly-cli: error: argument --version: invalid choice: 'foo' (choose from 'all')"
+        ) or (
+            "grizzly-cli: error: argument --version: invalid choice: 'foo' (choose from all)"
         )
         assert err[2] == ''
         assert capture.out == ''
