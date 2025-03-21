@@ -682,6 +682,25 @@ def test_distribution_of_users_per_scenario(capsys: CaptureFixture, mocker: Mock
     ])
     capsys.readouterr()
 
+    arguments = Namespace(file='integration.feature', yes=True, environment_file='environments/local.yaml')
+    distribution_of_users_per_scenario(arguments, {})
+    capture = capsys.readouterr()
+
+    assert capture.out == ''
+    assert capture.err == ''.join([
+        '\n',
+        'feature file integration.feature will execute in total 1 iterations divided on 1 scenarios with environment file environments/local.yaml\n'
+        '\n',
+        'each scenario will execute accordingly:\n',
+        '\n',
+        'ident   weight  #iter  #user  description\n',
+        '------|-------|------|------|-------------|\n'
+        '001         25      1      1  scenario-1 \n',
+        '------|-------|------|------|-------------|\n',
+        '\n',
+    ])
+    capsys.readouterr()
+
     mocker.patch('grizzly_cli.SCENARIOS', [
         create_scenario(
             'scenario-1 testing a lot of stuff',
