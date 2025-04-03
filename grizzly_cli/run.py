@@ -231,7 +231,7 @@ class ScenarioTag(StandaloneTag):
                     in_condition = False
 
 
-class MergeYamlTag(StandaloneTag):
+class MergeYamlTag(StandaloneTag):  # pragma: no cover
     tags: ClassVar[set[str]] = {'merge'}
 
     def preprocess(
