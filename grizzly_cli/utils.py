@@ -7,7 +7,7 @@ import logging.config
 import stat
 import os
 
-from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, cast
+from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, ClassVar, cast
 from types import TracebackType, FrameType
 from os import path, environ
 from shutil import which, rmtree
@@ -22,6 +22,8 @@ from math import ceil
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
+from copy import deepcopy
+from collections.abc import Mapping
 
 import requests
 import tomli
@@ -29,6 +31,7 @@ import tomli
 from behave.model import Scenario
 from jinja2 import Template
 from progress.spinner import Spinner
+from yaml import Dumper
 
 import grizzly_cli
 
@@ -978,3 +981,85 @@ def setup_logging(logfile: Optional[str] = None) -> None:
         logging_config['root']['handlers'].append('file')
 
     logging.config.dictConfig(logging_config)
+
+
+def flatten(node: dict[str, Any], parents: Optional[list[str]] = None) -> dict[str, Any]:
+    """Flatten a dictionary so each value key is the path down the nested dictionary structure."""
+    flat: dict[str, Any] = {}
+    if parents is None:
+        parents = []
+
+    for key, value in node.items():
+        parents.append(key)
+        if isinstance(value, dict):
+            flat = {**flat, **flatten(value, parents)}
+        else:
+            flat['.'.join(parents)] = value
+
+        parents.pop()
+
+    return flat
+
+
+def unflatten(key: str, value: Any) -> dict[str, Any]:
+    paths: list[str] = key.split('.')
+
+    # last node should have the value
+    path = paths.pop()
+    struct = {path: value}
+
+    # build the struct from the inside out
+    paths.reverse()
+
+    for path in paths:
+        struct = {path: {**struct}}
+
+    return struct
+
+
+def merge_dicts(merged: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+    """Merge two dicts recursively, where `source` values takes precedance over `merged` values."""
+    merged = deepcopy(merged)
+    source = deepcopy(source)
+
+    for key in source:
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(source[key], Mapping)
+        ):
+            merged[key] = merge_dicts(merged[key], source[key])
+        else:
+            value = source[key]
+            if isinstance(value, str) and value.lower() == 'none':
+                value = None
+            merged[key] = value
+
+    return merged
+
+
+def get_indentation(file: Path) -> int:
+    try:
+        first_indent_line = file.read_text().splitlines()[1]
+        return len(first_indent_line.rstrip()) - len(first_indent_line.strip())
+    except IndexError:
+        # use 2 as default indentation when it is not possible to detect from file
+        return 2
+
+
+class IndentDumper(Dumper):
+    use_indent: ClassVar[int]
+
+    @classmethod
+    def use_indentation(cls, file: Path) -> type['IndentDumper']:
+        cls.use_indent = get_indentation(file)
+
+        return cls
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        self.best_indent = self.use_indent
+
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+        return super().increase_indent(flow, False)

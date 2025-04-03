@@ -20,7 +20,9 @@ dependencies = [
     "tomli ==2.0.1",
     "pyotp ==2.9.0",
     "progress ==1.6",
-    "jinja2-simple-tags ==0.6.1"
+    "jinja2-simple-tags ==0.6.1",
+    "azure-keyvault-secrets ==4.8.0",
+    "azure-identity ==1.17.1"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
