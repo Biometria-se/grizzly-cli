@@ -10,7 +10,7 @@ authors = [
     {name = "biometria", email="opensource@biometria.se"}
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "behave ==1.2.6",
     "Jinja2 ==3.1.4",
@@ -19,8 +19,11 @@ dependencies = [
     "chardet ==5.2.0",
     "tomli ==2.0.1",
     "pyotp ==2.9.0",
+    "PyYAML ==6.0.1",
     "progress ==1.6",
-    "jinja2-simple-tags ==0.6.1"
+    "jinja2-simple-tags ==0.6.1",
+    "azure-keyvault-secrets ==4.8.0",
+    "azure-identity ==1.17.1"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -28,7 +31,6 @@ classifiers = [
     "Natural Language :: English",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",

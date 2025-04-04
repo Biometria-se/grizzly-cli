@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import sys
 import subprocess
@@ -7,7 +9,7 @@ import logging.config
 import stat
 import os
 
-from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, cast
+from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, ClassVar, cast
 from types import TracebackType, FrameType
 from os import path, environ
 from shutil import which, rmtree
@@ -22,6 +24,8 @@ from math import ceil
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
+from copy import deepcopy
+from collections.abc import Mapping
 
 import requests
 import tomli
@@ -29,6 +33,7 @@ import tomli
 from behave.model import Scenario
 from jinja2 import Template
 from progress.spinner import Spinner
+from yaml import Dumper
 
 import grizzly_cli
 
@@ -88,10 +93,10 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
 
     _spinner: Optional[Spinner] = None
 
-    if spinner is not None:
+    if spinner is not None:  # pragma: no cover
         _spinner = Spinner(f'{spinner} ')
 
-    def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:
+    def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:  # pragma: no cover
         if result.abort_timestamp is None:
             result.abort_timestamp = datetime.now(timezone.utc)
             process.terminate()
@@ -103,7 +108,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
                 if stdout is None:
                     break
 
-                if _spinner is not None:
+                if _spinner is not None:  # pragma: no cover
                     _spinner.next()
 
                 output = stdout.readline()
@@ -127,7 +132,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
 
     process.wait()
 
-    if spinner is not None:
+    if spinner is not None:  # pragma: no cover
         logger.info('')
 
     result.return_code = process.returncode
@@ -135,7 +140,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
     return result
 
 
-def get_docker_compose_version() -> Tuple[int, int, int]:
+def get_docker_compose_version() -> Tuple[int, int, int]:  # pragma: no cover
     output = subprocess.getoutput('docker compose version')
 
     version_line = output.splitlines()[0]
@@ -153,7 +158,7 @@ def get_docker_compose_version() -> Tuple[int, int, int]:
 def onerror(func: Callable, path: str, exc_info: Union[
         BaseException,
         Tuple[Type[BaseException], BaseException, Optional[TracebackType]],
-]) -> None:  # noqa: ARG001
+]) -> None:  # noqa: ARG001  # pragma: no cover
     """Error handler for shutil.rmtree.
 
     If the error is due to an access error (read only file)
@@ -178,9 +183,9 @@ def rm_rf(path: Union[str, Path], *, missing_ok: bool = False) -> None:
     try:
         if sys.version_info >= (3, 12):
             rmtree(p, onexc=onerror)
-        else:
+        else:  # pragma: no cover
             rmtree(p, onerror=onerror)
-    except FileNotFoundError:
+    except FileNotFoundError:  # pragma: no cover
         if not missing_ok:
             raise
 
@@ -280,14 +285,14 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                         universal_newlines=True,
                         stderr=subprocess.STDOUT,
                     ).strip()
-                except subprocess.CalledProcessError as cpe:
+                except subprocess.CalledProcessError as cpe:  # pragma: no cover
                     if 'Not a valid object name' in cpe.output:
                         git_object_type = 'branch'  # assume remote branch
                     else:
                         print(f'!! unable to determine git object type for {branch}')
                         raise RuntimeError()
 
-                if git_object_type == 'tag':
+                if git_object_type == 'tag':  # pragma: no cover
                     rc += subprocess.check_call(
                         [
                             'git', 'checkout',
@@ -300,7 +305,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                         stderr=subprocess.DEVNULL,
                     )
 
-                    if rc != 0:
+                    if rc != 0:  # pragma: no cover
                         print(f'!! unable to checkout tag {branch} from git repo {url}', file=sys.stderr)
                         raise RuntimeError()  # abort
                 elif git_object_type == 'commit':
@@ -315,7 +320,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                         stderr=subprocess.DEVNULL,
                     )
 
-                    if rc != 0:
+                    if rc != 0:  # pragma: no cover
                         print(f'!! unable to checkout commit {branch} from git repo {url}', file=sys.stderr)
                         raise RuntimeError()  # abort
                 else:
@@ -357,7 +362,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                 except FileNotFoundError:
                     try:
                         import setuptools_scm  # pylint: disable=unused-import  # noqa: F401  # type: ignore
-                    except ModuleNotFoundError:
+                    except ModuleNotFoundError:  # pragma: no cover
                         rc = subprocess.check_call([
                             sys.executable,
                             '-m',
@@ -377,7 +382,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                             universal_newlines=True,
                             cwd=repo_destination,
                         ).strip()
-                    except subprocess.CalledProcessError:
+                    except subprocess.CalledProcessError:  # pragma: no cover
                         print(f'!! unable to get setuptools_scm version from {url}', file=sys.stderr)
                         raise RuntimeError()  # abort
 
@@ -398,7 +403,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                     print(f'!! unable to find locust version in "{version_raw[-1].strip()}" specified in requirements.txt from {url}', file=sys.stderr)
                 else:
                     locust_version = match.group(1).strip()
-            except FileNotFoundError:
+            except FileNotFoundError:  # pragma: no cover
                 with open(path.join(repo_destination, 'pyproject.toml'), 'rb') as fdt:
                     toml_dict = tomli.load(fdt)
                     dependencies = toml_dict.get('project', {}).get('dependencies', [])
@@ -694,7 +699,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
         @property
         def iterations(self) -> int:
-            if self._iterations is None:
+            if self._iterations is None:  # pragma: no cover
                 raise ValueError('iterations has not been set')
 
             return self._iterations
@@ -705,7 +710,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
         @property
         def user_count(self) -> int:
-            if self._user_count is None:
+            if self._user_count is None:  # pragma: no cover
                 raise ValueError('user count has not been set')
             return self._user_count
 
@@ -751,7 +756,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             scenario_user_count_total = 0
 
         for step in (scenario.background_steps or []) + scenario.steps:
-            if step.name.startswith('value for variable'):
+            if step.name.startswith('value for variable'):  # pragma: no cover
                 match = re.match(r'value for variable "([^"]*)" is "([^"]*)"', step.name)
                 if match:
                     try:
@@ -967,7 +972,7 @@ def setup_logging(logfile: Optional[str] = None) -> None:
         },
     }
 
-    if logfile is not None:
+    if logfile is not None:  # pragma: no cover
         logging_config['handlers']['file'] = {
             'class': 'logging.FileHandler',
             'filename': logfile,
@@ -978,3 +983,67 @@ def setup_logging(logfile: Optional[str] = None) -> None:
         logging_config['root']['handlers'].append('file')
 
     logging.config.dictConfig(logging_config)
+
+
+def unflatten(key: str, value: Any) -> dict[str, Any]:
+    paths: list[str] = key.split('.')
+
+    # last node should have the value
+    path = paths.pop()
+    struct = {path: value}
+
+    # build the struct from the inside out
+    paths.reverse()
+
+    for path in paths:
+        struct = {path: {**struct}}
+
+    return struct
+
+
+def merge_dicts(merged: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+    """Merge two dicts recursively, where `source` values takes precedance over `merged` values."""
+    merged = deepcopy(merged)
+    source = deepcopy(source)
+
+    for key in source:
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(source[key], Mapping)
+        ):
+            merged[key] = merge_dicts(merged[key], source[key])
+        else:
+            value = source[key]
+            if isinstance(value, str) and value.lower() == 'none':  # pragma: no cover
+                value = None
+            merged[key] = value
+
+    return merged
+
+
+def get_indentation(file: Path) -> int:
+    try:
+        first_indent_line = file.read_text().splitlines()[1]
+        return len(first_indent_line.rstrip()) - len(first_indent_line.strip())
+    except IndexError:
+        # use 2 as default indentation when it is not possible to detect from file
+        return 2
+
+
+class IndentDumper(Dumper):
+    use_indent: ClassVar[int]
+
+    @classmethod
+    def use_indentation(cls, file: Path) -> type['IndentDumper']:
+        cls.use_indent = get_indentation(file)
+
+        return cls
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        self.best_indent = self.use_indent
+
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+        return super().increase_indent(flow, False)

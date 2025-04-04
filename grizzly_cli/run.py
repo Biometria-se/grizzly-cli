@@ -3,8 +3,10 @@ from __future__ import annotations
 import sys
 import os
 import re
+import logging
 
 from typing import (
+    ClassVar,
     Iterable,
     List,
     Dict,
@@ -23,6 +25,10 @@ from pathlib import Path
 from contextlib import suppress
 from textwrap import dedent
 
+import yaml
+from azure.core.exceptions import ClientAuthenticationError, ServiceRequestError
+from azure.identity import AzureCliCredential, ManagedIdentityCredential, ChainedTokenCredential
+from azure.keyvault.secrets import SecretClient
 from jinja2 import Environment
 from jinja2.lexer import Token, TokenStream
 from jinja2_simple_tags import StandaloneTag
@@ -31,13 +37,16 @@ from behave.model import Scenario
 
 import grizzly_cli
 from .utils import (
+    logger,
     find_variable_names_in_questions,
     ask_yes_no, get_input,
     distribution_of_users_per_scenario,
     requirements,
     find_metadata_notices,
     parse_feature_file,
-    logger,
+    merge_dicts,
+    unflatten,
+    IndentDumper,
 )
 from .argparse import ArgumentSubParser
 from .argparse.bashcompletion import BashCompletionTypes
@@ -222,6 +231,190 @@ class ScenarioTag(StandaloneTag):
                     in_condition = False
 
 
+class MergeYamlTag(StandaloneTag):  # pragma: no cover
+    tags: ClassVar[set[str]] = {'merge'}
+
+    def preprocess(
+        self, source: str, name: Optional[str], filename: Optional[str] = None,
+    ) -> str:
+        self._source = source
+        return cast(str, super().preprocess(source, name, filename))
+
+    def render(self, filename: str, *filenames: str) -> str:
+        buffer: list[str] = []
+
+        files = [filename, *filenames]
+
+        for file in files:
+            merge_file = Path(file)
+
+            # check if relative to parent feature file
+            if not merge_file.exists():
+                merge_file = (self.environment.source_file.parent / merge_file).resolve()
+
+            if not merge_file.exists():
+                raise FileNotFoundError(merge_file)
+
+            merge_content = merge_file.read_text()
+
+            if merge_content[0:3] != '---':
+                buffer.append('---')
+
+            buffer.append(merge_content)
+
+        if self._source[0:3] != '---':
+            buffer.append('---')
+
+        return '\n'.join(buffer)
+
+    def filter_stream(self, stream: TokenStream) -> Union[TokenStream, Iterable[Token]]:  # type: ignore[return]
+        """Everything outside of `{% merge ... %}` should be treated as "data", e.g. plain text."""
+        in_merge = False
+        in_variable = False
+        in_block_comment = False
+
+        variable_begin_pos = -1
+        variable_end_pos = 0
+        block_begin_pos = -1
+        block_end_pos = 0
+        source_lines = self._source.splitlines()
+
+        for token in stream:
+            if token.type == 'block_begin' and stream.current.value in self.tags:
+                in_merge = True
+                current_line = source_lines[token.lineno - 1].lstrip()
+                in_block_comment = current_line.startswith('#')
+                block_begin_pos = self._source.index(token.value, block_begin_pos + 1)
+
+            if not in_merge:
+                if token.type == 'variable_end':
+                    # Find variable end in the source
+                    variable_end_pos = self._source.index(token.value, variable_begin_pos)
+                    # Extract the variable definition substring and use as token value
+                    token_value = self._source[variable_begin_pos:variable_end_pos + len(token.value)]
+                    in_variable = False
+                elif token.type == 'variable_begin':
+                    # Find variable start in the source
+                    variable_begin_pos = self._source.index(token.value, variable_begin_pos + 1)
+                    in_variable = True
+                else:
+                    token_value = token.value
+
+                if in_variable:
+                    # While handling in-variable tokens, withhold values until
+                    # the end of the variable is reached
+                    continue
+
+                filtered_token = Token(token.lineno, 'data', token_value)
+            elif token.type == 'block_end' and in_block_comment:
+                in_block_comment = False
+                block_end_pos = self._source.index(token.value, block_begin_pos)
+                token_value = self._source[block_begin_pos:block_end_pos + len(token.value)]
+                filtered_token = Token(token.lineno, 'data', token_value)
+            elif in_block_comment:
+                continue
+            else:
+                filtered_token = token
+
+            yield filtered_token
+
+            if in_merge and token.type == 'block_end':
+                in_merge = False
+
+
+def load_configuration(configuration_file: str) -> str:
+    file = Path(configuration_file)
+
+    if not file.exists():
+        logger.error(f'{file.as_posix()} does not exist')
+        raise SystemExit(1)
+
+    if file.suffix not in ['.yml', '.yaml']:
+        logger.error('configuration file must have file extension yml or yaml')
+        raise SystemExit(1)
+
+    configuration = load_configuration_file(file)
+
+    load_from_keyvault = ((configuration or {}).get('configuration', None) or {}).get('keyvault', None)
+
+    if load_from_keyvault is not None:
+        environment = configuration.get('configuration', {}).get('env', file.stem)
+        configuration = merge_dicts(load_configuration_keyvault(url=load_from_keyvault, environment=environment), configuration)
+
+    environment_lock_file = file.parent / f'{file.stem}.lock{file.suffix}'
+
+    with environment_lock_file.open('w') as fd:
+        yaml.dump(configuration, fd, Dumper=IndentDumper.use_indentation(file), default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+    return configuration_file.replace(file.name, f'{file.stem}.lock{file.suffix}')
+
+
+def load_configuration_file(file: Path) -> dict[str, Any]:
+    """Load a grizzly environment file and flatten the structure."""
+    configuration: dict[str, Any] = {}
+
+    environment = Environment(autoescape=False, extensions=[MergeYamlTag])
+    environment.extend(source_file=file)
+    loader = yaml.SafeLoader
+
+    yaml_template = environment.from_string(file.read_text())
+    yaml_content = yaml_template.render()
+
+    yaml_configurations = list(yaml.load_all(yaml_content, Loader=loader))
+    yaml_configurations.reverse()
+    for yaml_configuration in yaml_configurations:
+        configuration = merge_dicts(configuration, yaml_configuration)
+
+    return configuration
+
+
+def load_configuration_keyvault(*, url: str, environment: str) -> dict[str, Any]:
+    """Load grizzly environment configuration from the specified keyvault."""
+
+    # disable azure.identity warning logs if authentication fails
+    azure_logger = logging.getLogger('azure.identity')
+    azure_logger.setLevel(logging.ERROR)
+
+    environment_filter = ['global', environment]
+
+    try:
+        credential = ChainedTokenCredential(AzureCliCredential(), ManagedIdentityCredential())
+        client = SecretClient(vault_url=url, credential=credential)
+
+        secret_properties = client.list_properties_of_secrets()
+
+        keys: dict[str, str] = {}
+        configuration: dict[str, Any] = {}
+
+        # loop through all secrets to find the ones that we are interested in
+        for secret_property in secret_properties:
+            if secret_property.name is None or not secret_property.name.startswith('grizzly--'):
+                continue
+
+            _, target_environment, name = secret_property.name.split('--', 2)
+
+            name = name.replace('-', '.')
+
+            if target_environment not in environment_filter:
+                continue
+
+            keys.update({secret_property.name: name})
+
+        # get value for all secrets that we found
+        for secret_key, conf_key in keys.items():
+            secret = client.get_secret(secret_key)
+            conf = unflatten(conf_key, secret.value)
+            configuration = merge_dicts(conf, configuration)
+
+        return {'configuration': configuration}
+    except ClientAuthenticationError:
+        logger.error('authentication failed, run `az login [--identity]` first.')
+        raise SystemExit(1)
+    except ServiceRequestError:
+        logger.error(f'{url} does not resolve to an azure keyvault')
+        raise SystemExit(1)
+
+
 def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
     # grizzly-cli ... run ...
     run_parser = sub_parser.add_parser('run', description='execute load test scenarios specified in a feature file.')
@@ -331,6 +524,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
     environment = Environment(autoescape=False, extensions=[ScenarioTag])
     feature_file = Path(args.file)
+    environment_lock_file: str | None = None
 
     # during execution, create a temporary .lock.feature file that will be removed when done
     original_feature_lines = feature_file.read_text().splitlines()
@@ -413,7 +607,8 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
         if args.environment_file is not None:
             environment_file = os.path.realpath(args.environment_file)
-            environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_file})
+            environment_lock_file = load_configuration(environment_file)
+            environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_lock_file})
 
         if args.dry_run:
             environ.update({'GRIZZLY_DRY_RUN': 'true'})
@@ -453,4 +648,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
 
         return run_func(args, environ, run_arguments)
     finally:
+        if environment_lock_file is not None:
+            Path(environment_lock_file).unlink(missing_ok=True)
+
         feature_lock_file.unlink(missing_ok=True)
