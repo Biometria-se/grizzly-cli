@@ -23,11 +23,15 @@ class BashCompletionTypes:
     class File:
         _cwd: str = getcwd()
 
-        def __init__(self, *args: str) -> None:
+        def __init__(self, *args: str, missing_ok: bool = False) -> None:
             self.patterns = list(args)
             self.cwd = BashCompletionTypes.File._cwd
+            self.missing_ok = missing_ok
 
         def __call__(self, value: str) -> str:
+            if self.missing_ok:
+                return value
+
             if not exists(value):
                 raise ArgumentTypeError(f'{value} does not exist')
 

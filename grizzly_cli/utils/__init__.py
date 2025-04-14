@@ -1001,6 +1001,24 @@ def unflatten(key: str, value: Any) -> dict[str, Any]:
     return struct
 
 
+def flatten(node: dict[str, Any], parents: Optional[list[str]] = None) -> dict[str, Any]:
+    """Flatten a dictionary so each value key is the path down the nested dictionary structure."""
+    flat: dict[str, Any] = {}
+    if parents is None:
+        parents = []
+
+    for key, value in node.items():
+        parents.append(key)
+        if isinstance(value, dict):
+            flat = {**flat, **flatten(value, parents)}
+        else:
+            flat['.'.join(parents)] = value
+
+        parents.pop()
+
+    return flat
+
+
 def merge_dicts(merged: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
     """Merge two dicts recursively, where `source` values takes precedance over `merged` values."""
     merged = deepcopy(merged)
@@ -1022,6 +1040,12 @@ def merge_dicts(merged: dict[str, Any], source: dict[str, Any]) -> dict[str, Any
     return merged
 
 
+def chunker(value: str, size: int) -> list[str]:
+    return list(
+        map(lambda x: value[x * size:x * size + size],
+            list(range(ceil(len(value) / size)))))
+
+
 def get_indentation(file: Path) -> int:
     try:
         first_indent_line = file.read_text().splitlines()[1]
@@ -1035,8 +1059,8 @@ class IndentDumper(Dumper):
     use_indent: ClassVar[int]
 
     @classmethod
-    def use_indentation(cls, file: Path) -> type['IndentDumper']:
-        cls.use_indent = get_indentation(file)
+    def use_indentation(cls, target: Path | int) -> type['IndentDumper']:
+        cls.use_indent = get_indentation(target) if isinstance(target, Path) else target
 
         return cls
 

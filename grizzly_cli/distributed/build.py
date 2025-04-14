@@ -5,9 +5,9 @@ from argparse import SUPPRESS, Namespace as Arguments
 from getpass import getuser
 from socket import gethostbyname, gaierror
 
-from ..utils import get_dependency_versions, requirements, run_command
-from ..argparse import ArgumentSubParser
-from .. import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
+from grizzly_cli.utils import get_dependency_versions, requirements, run_command
+from grizzly_cli.argparse import ArgumentSubParser
+from grizzly_cli import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
 
 
 def create_parser(sub_parser: ArgumentSubParser) -> None:

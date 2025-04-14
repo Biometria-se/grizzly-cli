@@ -13,16 +13,16 @@ from json import loads as jsonloads
 from io import StringIO
 from pathlib import Path
 
-from .. import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
-from ..utils import (
+from grizzly_cli import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
+from grizzly_cli.utils import (
     run_command,
     get_default_mtu,
     list_images,
 )
+from grizzly_cli.run import create_parser as run_create_parser, run
+from grizzly_cli.argparse import ArgumentSubParser
 from .build import build as do_build, create_parser as build_create_parser
 from .clean import clean as do_clean, create_parser as clean_create_parser
-from ..run import create_parser as run_create_parser, run
-from ..argparse import ArgumentSubParser
 
 
 @register_parser(order=3)
