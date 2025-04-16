@@ -362,7 +362,7 @@ def _write_file(root: Path, content_type: str, encoded_content: str) -> str:
     if complete:
         content = b64decode(encoded_content)
         file.write_bytes(content)
-        logger.info('wrote %s (size %d)', relative_file, len(content))
+        logger.debug('%% wrote %s (size %d)', relative_file, len(content))
 
     return relative_file
 
@@ -415,8 +415,13 @@ def load_configuration(configuration_file: str) -> str:
         client = get_keyvault_client(load_from_keyvault)
         context_root = get_context_root()
         environment = configuration.get('configuration', {}).get('env', file.stem)
-        keyvault_configuration = {'configuration': load_configuration_keyvault(client, environment, context_root)}
+
+        loaded_keyvault_configuration, number_of_keyvault_secrets = load_configuration_keyvault(client, environment, context_root)
+        keyvault_configuration = {'configuration': loaded_keyvault_configuration}
+
         configuration = merge_dicts(keyvault_configuration, configuration)
+
+        logger.info('loaded %d secrets from keyvault %s', number_of_keyvault_secrets, load_from_keyvault)
 
     environment_lock_file = file.parent / f'{file.stem}.lock{file.suffix}'
 
@@ -458,7 +463,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
         if (
             secret_property.name is None
             or not secret_property.name.startswith('grizzly--')
-            or 'chunk' in (secret_property.content_type or '')  # skip chunked secrets, we'll get them later
+            or 'noconf' in (secret_property.content_type or '')  # skip chunked secrets, we'll get them later
         ):
             continue
 
@@ -466,6 +471,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
 
         # hm, chunk suffix but no chunk in name?
         if '--' in name:
+            logger.debug(f'secret {secret_property.name} with name {name} contains `--`, skipping')
             continue
 
         name = name.replace('-', '.')
@@ -498,7 +504,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
                 conf_value = _import_files(client, root, secret)
                 if all(keyword in secret_key for keyword in ['mq', 'key']):
                     conf_value = Path(conf_value).with_suffix('').as_posix()
-            elif content_type is not None and content_type.startswith('file:'):
+            elif content_type.startswith('file:'):
                 conf_value = _write_file(root, content_type, secret.value)
             else:
                 message = f'unknown content type for secret {secret_key}: {content_type}'

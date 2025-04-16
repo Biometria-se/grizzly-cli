@@ -838,7 +838,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
 
     message = f'\nfeature file {args.file} will execute in total {total_iterations} iterations divided on {len(grizzly_cli.SCENARIOS)} scenarios'
     if hasattr(args, 'environment_file') and args.environment_file is not None:
-        message = f'{message} with environment file {args.environment_file}'
+        message = f'{message} with environment file {environ["GRIZZLY_CONFIGURATION_FILE"]}'
 
     logger.info(f'{message}\n')
 

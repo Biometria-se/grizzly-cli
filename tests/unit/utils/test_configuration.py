@@ -220,7 +220,7 @@ def test__import_files(mocker: MockerFixture, tmp_path_factory: TempPathFactory)
 def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
 
-    load_configuration_keyvault_mock = mocker.patch('grizzly_cli.utils.configuration.load_configuration_keyvault', return_value={})
+    load_configuration_keyvault_mock = mocker.patch('grizzly_cli.utils.configuration.load_configuration_keyvault', return_value=({}, 0))
     context_root = test_context.parent
 
     mocker.patch('grizzly_cli.utils.configuration.get_context_root', return_value=context_root)
