@@ -37,7 +37,7 @@ def test__create_parser() -> None:
     subparser = parser._subparsers._group_actions[0]
     assert subparser is not None
     assert subparser.choices is not None
-    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 4
+    assert len(cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).keys()) == 5
 
     init_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('init', None)
     assert init_parser is not None
@@ -56,6 +56,15 @@ def test__create_parser() -> None:
     assert getattr(auth_parser, 'prog', None) == 'grizzly-cli auth'
     assert sorted([option_string for action in auth_parser._actions for option_string in action.option_strings]) == sorted([
         '-h', '--help',
+    ])
+
+    keyvault_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('keyvault', None)
+    assert keyvault_parser is not None
+    print(keyvault_parser._subparsers)
+    assert keyvault_parser._subparsers is not None
+    assert getattr(keyvault_parser, 'prog', None) == 'grizzly-cli keyvault'
+    assert sorted([option_string for action in keyvault_parser._actions for option_string in action.option_strings]) == sorted([
+        '--file', '-f', '-h', '--help', '--vault-name',
     ])
 
     local_parser = cast(Dict[str, Optional[CoreArgumentParser]], subparser.choices).get('local', None)
@@ -183,14 +192,15 @@ def test__parse_argument(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert se.value.code == 2
         capture = capsys.readouterr()
         err = capture.err.split('\n')
-        assert len(err) == 3
+        assert len(err) == 4
         assert err[0].startswith('usage: grizzly-cli')
-        assert err[1] == (
+        assert 'init,local,dist,auth,keyvault' in err[1]
+        assert err[2] == (
             "grizzly-cli: error: argument --version: invalid choice: 'foo' (choose from 'all')"
         ) or (
             "grizzly-cli: error: argument --version: invalid choice: 'foo' (choose from all)"
         )
-        assert err[2] == ''
+        assert err[3] == ''
         assert capture.out == ''
 
         requirements_file = test_context / 'requirements.txt'

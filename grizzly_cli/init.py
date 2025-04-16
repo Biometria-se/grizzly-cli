@@ -5,8 +5,8 @@ from pathlib import Path
 from packaging.version import Version
 
 from .utils import ask_yes_no
-from . import EXECUTION_CONTEXT, register_parser
 from .argparse import ArgumentSubParser
+from . import EXECUTION_CONTEXT, register_parser
 
 # prefix components:
 space = '    '

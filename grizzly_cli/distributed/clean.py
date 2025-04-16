@@ -4,9 +4,9 @@ from argparse import Namespace as Arguments
 from getpass import getuser
 from shutil import get_terminal_size
 
-from ..argparse import ArgumentSubParser
-from ..utils import run_command
-from .. import PROJECT_NAME, STATIC_CONTEXT
+from grizzly_cli.argparse import ArgumentSubParser
+from grizzly_cli.utils import run_command
+from grizzly_cli import PROJECT_NAME, STATIC_CONTEXT
 
 
 def create_parser(sub_parser: ArgumentSubParser) -> None:

@@ -12,6 +12,7 @@ from .init import init
 from .local import local
 from .distributed import distributed
 from .auth import auth
+from .keyvault import keyvault
 from . import __version__, register_parser
 
 
@@ -167,7 +168,7 @@ def main() -> int:
     try:
         args = _parse_arguments()
 
-        if getattr(args, 'file', None) is not None:
+        if getattr(args, 'file', None) is not None and args.command not in ['keyvault']:
             args = _inject_additional_arguments_from_metadata(args)
 
         if args.command == 'local':
@@ -178,6 +179,8 @@ def main() -> int:
             rc = init(args)
         elif args.command == 'auth':
             rc = auth(args)
+        elif args.command == 'keyvault':
+            rc = keyvault(args)
         else:
             raise ValueError(f'unknown command {args.command}')
 
