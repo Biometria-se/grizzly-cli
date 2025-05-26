@@ -329,6 +329,10 @@ def _write_file(root: Path, content_type: str, encoded_content: str) -> str:
 
     file = root / 'files' / file_name
     file.parent.mkdir(parents=True, exist_ok=True)
+    file.parent.chmod(0o700)
+    file.touch()
+    file.chmod(0o600)
+
     complete = True
 
     if 'chunk' in content_type:  # 0 = chunk:N, 1 = chunks:T
@@ -424,6 +428,8 @@ def load_configuration(configuration_file: str) -> str:
         logger.info('loaded %d secrets from keyvault %s', number_of_keyvault_secrets, load_from_keyvault)
 
     environment_lock_file = file.parent / f'{file.stem}.lock{file.suffix}'
+    environment_lock_file.touch()
+    environment_lock_file.chmod(0o600)
 
     with environment_lock_file.open('w') as fd:
         yaml.dump(configuration, fd, Dumper=IndentDumper.use_indentation(file), default_flow_style=False, sort_keys=False, allow_unicode=True)
