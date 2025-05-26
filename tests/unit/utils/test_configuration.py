@@ -136,7 +136,10 @@ def test__write_file(tmp_path_factory: TempPathFactory) -> None:
 
     try:
         assert _write_file(test_context, 'file:foo/bar.txt', b64encode(b'foo bar').decode('utf-8')) == 'files/foo/bar.txt'
-        assert (test_context / 'files' / 'foo' / 'bar.txt').read_text() == 'foo bar'
+        f = test_context / 'files' / 'foo' / 'bar.txt'
+        assert f.read_text() == 'foo bar'
+        assert f.parent.stat().st_mode & 0x000FFF == 0o700
+        assert f.stat().st_mode & 0x000FFF == 0o600
 
         f = test_context / 'files' / 'foobar.txt'
         f.touch()
@@ -157,6 +160,9 @@ def test__write_file(tmp_path_factory: TempPathFactory) -> None:
                 expected = 'foobarfoobarfoobar'
 
             assert f.read_text() == expected
+
+        assert f.parent.stat().st_mode & 0x000FFF == 0o700
+        assert f.stat().st_mode & 0x000FFF == 0o600
 
         with pytest.raises(ValueError, match='could not find `file:` in content type'):
             _write_file(test_context, 'noconf,chunk:0,chunks:2', 'foobar')
@@ -240,6 +246,7 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
 
         env_file_lock = Path(env_file_lock_name)
 
+        assert env_file_lock.stat().st_mode & 0x000FFF == 0o600
         assert env_file_lock.read_text() == env_file_local.read_text()
         load_configuration_keyvault_mock.assert_not_called()
 
