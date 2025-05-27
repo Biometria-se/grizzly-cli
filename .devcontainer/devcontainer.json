@@ -44,7 +44,10 @@
           "tests/"
         ],
         "coverage-gutters.xmlname": "coverage.xml",
-        "coverage-gutters.ignoredPathGlobs": "**/tests/**"
+        "coverage-gutters.ignoredPathGlobs": "**/tests/**",
+        "github.copilot.enable": {
+          "*": false
+        }
       },
       // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
