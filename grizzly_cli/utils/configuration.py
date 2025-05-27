@@ -20,11 +20,22 @@ from grizzly_cli.utils import IndentDumper, merge_dicts, logger, unflatten
 
 
 def get_context_root() -> Path:
-    possible_context_root = Path.cwd().rglob('environment.py')
-    try:
-        return next(possible_context_root).parent
-    except StopIteration:
+    possible_context_roots = Path.cwd().rglob('environment.py')
+
+    context_root: Path | None = None
+
+    for possible_context_root in possible_context_roots:
+        if context_root is None:
+            context_root = possible_context_root
+            continue
+
+        if possible_context_root.as_posix().count('/') < context_root.as_posix().count('/'):
+            context_root = possible_context_root
+
+    if context_root is None:
         raise ValueError('context root not found, are you in a grizzly project?')
+
+    return context_root.parent
 
 
 class ScenarioTag(StandaloneTag):

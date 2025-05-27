@@ -22,6 +22,7 @@ from grizzly_cli.utils.configuration import (
     _get_metadata,
     _write_file,
     _import_files,
+    get_context_root,
 )
 
 from tests.helpers import rm_rf, cwd, ANY
@@ -130,6 +131,34 @@ def test__get_metadata() -> None:
     assert _get_metadata('hello', 'file') is None
     assert _get_metadata('file:foo.bar.txt', 'file') == 'foo.bar.txt'
     assert _get_metadata('foobar,file:test.txt,noconf', 'file') == 'test.txt'
+
+
+def test_get_context_root(tmp_path_factory: TempPathFactory, mocker: MockerFixture) -> None:
+    test_context = tmp_path_factory.mktemp('test_context')
+
+    test_path = Path(test_context.as_posix())
+    mocker.patch('grizzly_cli.utils.configuration.Path.cwd', return_value=test_path)
+    rglob_mock = mocker.patch('grizzly_cli.utils.configuration.Path.rglob', return_value=None)
+
+    try:
+        actual_context_root = test_context / 'features' / 'environment.py'
+        rglob_mock.return_value = iter([actual_context_root])
+
+        assert get_context_root().as_posix() == actual_context_root.parent.as_posix()
+
+        fake_context_root1 = test_context / 'asomething' / '.env' / 'environment.py'
+        fake_context_root2 = test_context / 'asomething' / '.env' / 'lib' / 'python3.1337' / 'site-packages' / 'library' / 'environment.py'
+
+        rglob_mock.return_value = iter([fake_context_root1, fake_context_root2, actual_context_root])
+
+        assert get_context_root().as_posix() == actual_context_root.parent.as_posix()
+
+        rglob_mock.return_value = iter([])
+
+        with pytest.raises(ValueError, match='context root not found, are you in a grizzly project?'):
+            get_context_root()
+    finally:
+        rm_rf(test_context)
 
 
 def test__write_file(tmp_path_factory: TempPathFactory) -> None:
