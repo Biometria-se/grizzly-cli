@@ -6,6 +6,12 @@ from contextlib import suppress
 from textwrap import dedent
 from typing import Any, Iterable, ClassVar, cast
 from base64 import b64decode
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.hazmat.primitives._serialization import PBES, KeySerializationEncryptionBuilder, PrivateFormat, KeySerializationEncryption
+from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+from cryptography.x509 import Certificate
+from cryptography.hazmat.primitives import serialization
+from shutil import which
 
 import yaml
 from azure.identity import AzureCliCredential, ManagedIdentityCredential, ChainedTokenCredential
@@ -16,7 +22,7 @@ from jinja2_simple_tags import StandaloneTag
 from behave.parser import parse_feature
 from behave.model import Scenario
 
-from grizzly_cli.utils import IndentDumper, merge_dicts, logger, unflatten
+from grizzly_cli.utils import IndentDumper, merge_dicts, logger, unflatten, run_command
 
 
 def get_context_root() -> Path:
@@ -310,6 +316,7 @@ class MergeYamlTag(StandaloneTag):  # pragma: no cover
 
 def get_keyvault_client(url: str) -> SecretClient:
     credential = ChainedTokenCredential(ManagedIdentityCredential(), AzureCliCredential())
+
     return SecretClient(vault_url=url, credential=credential)
 
 
@@ -332,17 +339,127 @@ def _get_metadata(content_type: str, name: str) -> str | None:
     return value
 
 
+def _create_safe_file_and_parent(file: Path) -> Path:
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.parent.chmod(0o700)
+    file.touch()
+    file.chmod(0o600)
+
+    return file
+
+
+def _create_relative_path(root: Path, file: Path, *, no_suffix: bool = False) -> str:
+    if no_suffix:
+        file = file.with_suffix('')
+
+    return file.as_posix().replace(root.as_posix(), '')[1:]
+
+
+def _write_mqm_cert(
+    root: Path,
+    label: str,
+    password: str | None,
+    private_key: pkcs12.PKCS12PrivateKeyTypes | None,
+    public_certificate: Certificate | None,
+    additional_certificates: list[Certificate] | None,
+    encryption_algorithm: KeySerializationEncryption,
+) -> str:
+    p12_file = _create_safe_file_and_parent(root / 'files' / f'{label}.p12')
+    cms_file = p12_file.parent / f'{label}.kdb'
+
+    if cms_file.exists():
+        cms_file.unlink(missing_ok=True)
+
+        for file_ext in ['rdb', 'sth']:
+            cms_file.with_suffix(f'.{file_ext}').unlink(missing_ok=True)
+
+    logger.debug('p12 file: %s', p12_file.as_posix())
+
+    p12_data = pkcs12.serialize_key_and_certificates(
+        name=label.encode('utf-8'),
+        key=private_key,
+        cert=public_certificate,
+        cas=additional_certificates,
+        encryption_algorithm=encryption_algorithm,
+    )
+
+    p12_file.write_bytes(p12_data)
+
+    runmqakm_path = which('runmqakm')
+
+    if runmqakm_path is None:
+        raise ValueError('runmqakm could not be found, install IBM MQC Redist, and make sure that it\'s bin/ directory is added to PATH')
+
+    runmqakm_cmd: list[str] = [
+        runmqakm_path,
+        '-keydb',
+        '-convert',
+        '-new_format', 'cms',
+        '-old_format', 'p12',
+        '-db', p12_file.as_posix(),
+        '-target', cms_file.as_posix(),
+    ]
+
+    if password is not None:
+        runmqakm_cmd += [
+            '-pw', password,
+            '-stash',
+        ]
+
+    relative_file = cms_file.as_posix().replace(root.as_posix(), '')[1:]
+
+    try:
+        result = run_command(runmqakm_cmd, silent=True)
+
+        if result.return_code != 0:
+            for line in result.output or []:
+                logger.error(line.decode('utf-8').strip())
+
+            raise ValueError(f'failed to create {relative_file}')
+    finally:
+        p12_file.unlink()
+        cms_file.with_suffix('.crl').unlink(missing_ok=True)
+
+    logger.info('wrote %s', relative_file)
+
+    return _create_relative_path(root, cms_file, no_suffix=True)
+
+
+def _write_pem_private(root: Path, name: str, encryption_algorithm: KeySerializationEncryption, private_key: PrivateKeyTypes) -> str:
+    private_key_file = _create_safe_file_and_parent(root / 'files' / f'{name}.key')
+
+    private_key_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=encryption_algorithm,
+    )
+
+    private_key_file.write_bytes(private_key_pem)
+
+    return _create_relative_path(root, private_key_file)
+
+
+def _write_pem_public(root: Path, name: str, public_certificate: Certificate, additional_certificates: list[Certificate]) -> str:
+    certificate_file = _create_safe_file_and_parent(root / 'files' / f'{name}.crt')
+
+    certificate_data: list[bytes] = []
+
+    for certificate in [public_certificate] + additional_certificates:
+        certificate_pem = certificate.public_bytes(encoding=serialization.Encoding.PEM)
+        certificate_data.append(certificate_pem)
+
+    certificate_file.write_bytes(b''.join(certificate_data))
+
+    return _create_relative_path(root, certificate_file)
+
+
 def _write_file(root: Path, content_type: str, encoded_content: str) -> str:
     file_name = _get_metadata(content_type, 'file')
 
     if file_name is None:
         raise ValueError('could not find `file:` in content type')
 
-    file = root / 'files' / file_name
-    file.parent.mkdir(parents=True, exist_ok=True)
-    file.parent.chmod(0o700)
-    file.touch()
-    file.chmod(0o600)
+    file = _create_safe_file_and_parent(root / 'files' / file_name)
 
     complete = True
 
@@ -372,7 +489,7 @@ def _write_file(root: Path, content_type: str, encoded_content: str) -> str:
             encoded_content = ''.join(content_buffer)
             complete = True
 
-    relative_file = file.as_posix().replace(root.as_posix(), '')[1:]
+    relative_file = _create_relative_path(root, file)
 
     if complete:
         content = b64decode(encoded_content)
@@ -431,16 +548,14 @@ def load_configuration(configuration_file: str) -> str:
         context_root = get_context_root()
         environment = configuration.get('configuration', {}).get('env', file.stem)
 
-        loaded_keyvault_configuration, number_of_keyvault_secrets = load_configuration_keyvault(client, environment, context_root)
+        loaded_keyvault_configuration, number_of_keyvault_secrets = load_configuration_keyvault(client, environment, context_root, filter_keys=None)
         keyvault_configuration = {'configuration': loaded_keyvault_configuration}
 
         configuration = merge_dicts(keyvault_configuration, configuration)
 
         logger.info('loaded %d secrets from keyvault %s', number_of_keyvault_secrets, load_from_keyvault)
 
-    environment_lock_file = file.parent / f'{file.stem}.lock{file.suffix}'
-    environment_lock_file.touch()
-    environment_lock_file.chmod(0o600)
+    environment_lock_file = _create_safe_file_and_parent(file.parent / f'{file.stem}.lock{file.suffix}')
 
     with environment_lock_file.open('w') as fd:
         yaml.dump(configuration, fd, Dumper=IndentDumper.use_indentation(file), default_flow_style=False, sort_keys=False, allow_unicode=True)
@@ -467,7 +582,7 @@ def load_configuration_file(file: Path) -> dict[str, Any]:
     return configuration
 
 
-def load_configuration_keyvault(client: SecretClient, environment: str, root: Path) -> tuple[dict[str, Any], int]:
+def load_configuration_keyvault(client: SecretClient, environment: str, root: Path, *, filter_keys: list[str] | None) -> tuple[dict[str, Any], int]:
     environment_filter = ['global', environment]
 
     secret_properties = client.list_properties_of_secrets()
@@ -504,6 +619,9 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
     for secret_key, conf_key in keys.items():
         secret = client.get_secret(secret_key)
 
+        if filter_keys is not None and conf_key not in filter_keys:
+            continue
+
         content_type = secret.properties.content_type
 
         if secret.value is None:
@@ -523,6 +641,69 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
                     conf_value = Path(conf_value).with_suffix('').as_posix()
             elif content_type.startswith('file:'):
                 conf_value = _write_file(root, content_type, secret.value)
+            elif content_type.startswith('format:') and secret.value.startswith('cert:'):
+                arguments: dict[str, str] = {}
+
+                for part in secret.value.split(',', 1) + content_type.split(','):
+                    argument, value = part.split(':', 1)
+                    arguments.update({argument: value})
+
+                cert_key = arguments['cert']
+                cert_secret = client.get_secret(cert_key)
+
+                if arguments.get('name') is None:
+                    name, _ = cert_key.split('-', 1)
+                    arguments.update({'name': name.lower()})
+                if cert_secret.value is None:
+                    message = f'unable to download certificate secret {cert_key}'
+                    raise ValueError(message)
+
+                certificate = b64decode(cert_secret.value)
+
+                private_key, public_certificate, additional_certificates = pkcs12.load_key_and_certificates(data=certificate, password=None)
+
+                # build encryption algorithm
+                password_key = arguments.get('pass')
+                if password_key is not None:
+                    password_secret = client.get_secret(password_key)
+                    password = password_secret.value
+                else:
+                    password = None
+
+                if password is not None:
+                    encryption_algorithm = KeySerializationEncryptionBuilder(
+                        PrivateFormat.PKCS12,
+                        _key_cert_algorithm=PBES.PBESv1SHA1And3KeyTripleDESCBC,
+                    ).build(password.encode('utf-8'))
+                else:
+                    encryption_algorithm = serialization.NoEncryption()
+
+                # write files
+                cert_format = arguments.get('format')
+                match cert_format:
+                    case 'pem-private':
+                        if private_key is None:
+                            raise ValueError(f'could not find a private key in {cert_key}')
+
+                        conf_value = _write_pem_private(root, arguments['name'], encryption_algorithm, private_key)
+                    case 'pem-public':
+                        if public_certificate is None:
+                            raise ValueError(f'could not find a public certificate in {cert_key}')
+
+                        conf_value = _write_pem_public(root, arguments['name'], public_certificate, additional_certificates)
+                    case 'mqm':
+                        conf_value = _write_mqm_cert(
+                            root,
+                            arguments['name'],
+                            password,
+                            cast(pkcs12.PKCS12PrivateKeyTypes | None, private_key),
+                            public_certificate,
+                            additional_certificates,
+                            encryption_algorithm,
+                        )
+                    case _:
+                        message = f'{cert_format} is not a supported certificate format'
+                        raise ValueError(message)
             else:
                 message = f'unknown content type for secret {secret_key}: {content_type}'
                 raise ValueError(message)

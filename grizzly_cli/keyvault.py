@@ -88,6 +88,15 @@ def add_generic_arguments(parser: CoreArgumentParser) -> None:
         help='do not write to keyvault',
     )
 
+    parser.add_argument(
+        '-k', '--key',
+        action='append',
+        dest='keys',
+        type=str,
+        required=False,
+        help='filter on specified keys',
+    )
+
 
 def create_diff_parser(sub_parser: ArgumentSubParser) -> None:
     # grizzly-cli keyvault diff
@@ -269,12 +278,15 @@ def keyvault_import(client: SecretClient, environment: str, args: Arguments, roo
     configuration_unflatten: dict[str, Any] = {}
 
     for conf_key, conf_value in configuration.items():
+        if args.keys is not None and conf_key not in args.keys:
+            continue
+
         configuration_branch = unflatten(conf_key, conf_value)
         configuration_unflatten = merge_dicts(configuration_branch, configuration_unflatten)
 
     configuration = configuration_unflatten
 
-    keyvault_configuration, imported_secrets = load_configuration_keyvault(client, environment, root)
+    keyvault_configuration, imported_secrets = load_configuration_keyvault(client, environment, root, filter_keys=args.keys)
 
     configuration = merge_dicts(keyvault_configuration, configuration)
 
@@ -299,6 +311,9 @@ def keyvault_export(client: SecretClient, environment: str, args: Arguments, roo
     for key, secret in configuration.items():
         if not _should_export(key, secret):
             safe_configuration.update({key: secret})
+            continue
+
+        if args.keys is not None and key not in args.keys:
             continue
 
         key_environment = _determine_environment(args.global_configuration, environment, key)
@@ -414,9 +429,9 @@ def keyvault(args: Arguments) -> int:
     client = get_keyvault_client(keyvault)
 
     try:
-        if args.subcommand == 'import':
+        if args.subcommand == 'import':  # from keyvault
             return keyvault_import(client, environment, args, grizzly_context_root, configuration)
-        elif args.subcommand == 'export':
+        elif args.subcommand == 'export':  # to keyvault
             return keyvault_export(client, environment, args, grizzly_context_root, configuration)
         elif args.subcommand == 'diff':
             return diff(args.env_file, args.orig_file)

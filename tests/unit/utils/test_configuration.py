@@ -307,7 +307,7 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
         env_file_lock = Path(env_file_lock_name)
 
         assert env_file_lock.read_text() == env_file_local.read_text()
-        load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'local', context_root)
+        load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'local', context_root, filter_keys=None)
         load_configuration_keyvault_mock.reset_mock()
 
         env_file_local.write_text('''configuration:
@@ -325,7 +325,7 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
         env_file_lock = Path(env_file_lock_name)
 
         assert env_file_lock.read_text() == env_file_local.read_text()
-        load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'test', context_root)
+        load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'test', context_root, filter_keys=None)
         load_configuration_keyvault_mock.reset_mock()
     finally:
         rm_rf(test_context)
@@ -396,7 +396,7 @@ def test_load_configuration_keyvault(mocker: MockerFixture, tmp_path_factory: Te
     # <!-- no matching secrets
     client_mock.list_properties_of_secrets.return_value = [create_secret_property('grizzly--none--foo-bar')]
 
-    assert load_configuration_keyvault(client_mock, 'local', context_root) == ({}, 0)
+    assert load_configuration_keyvault(client_mock, 'local', context_root, filter_keys=None) == ({}, 0)
 
     client_mock.list_properties_of_secrets.assert_called_once_with()
     client_mock.get_secret.assert_not_called()
@@ -409,7 +409,7 @@ def test_load_configuration_keyvault(mocker: MockerFixture, tmp_path_factory: Te
         'grizzly--local--bar-foo-bar-foo': ('barfoo', None),
         'grizzly--remote--bar-foo-bar-foo': ('foobar', None),
     })
-    keyvault_configuration, imported_from_keyvault = load_configuration_keyvault(client_mock, 'local', context_root)
+    keyvault_configuration, imported_from_keyvault = load_configuration_keyvault(client_mock, 'local', context_root, filter_keys=None)
     assert keyvault_configuration == {
         'foo': {
             'bar': 'foobar',
@@ -425,16 +425,36 @@ def test_load_configuration_keyvault(mocker: MockerFixture, tmp_path_factory: Te
     assert imported_from_keyvault == 2
     # // -->
 
+    # <!-- one global, one environment specific, filter on one
+    mock_keyvault(client_mock, {
+        'some--random--key': ('rando', None),
+        'grizzly--global--foo-bar': ('foobar', None),
+        'grizzly--local--bar-foo-bar-foo': ('barfoo', None),
+        'grizzly--remote--bar-foo-bar-foo': ('foobar', None),
+    })
+    keyvault_configuration, imported_from_keyvault = load_configuration_keyvault(client_mock, 'local', context_root, filter_keys=['bar.foo.bar.foo'])
+    assert keyvault_configuration == {
+        'bar': {
+            'foo': {
+                'bar': {
+                    'foo': 'barfoo',
+                },
+            },
+        },
+    }
+    assert imported_from_keyvault == 1
+    # // -->
+
     # <!-- ClientAuthenticationError
     client_mock.list_properties_of_secrets.side_effect = [ClientAuthenticationError]
 
     with pytest.raises(ClientAuthenticationError):
-        load_configuration_keyvault(client_mock, 'local', context_root)
+        load_configuration_keyvault(client_mock, 'local', context_root, filter_keys=None)
     # // -->
 
     # <!-- ServiceRequestError
     client_mock.list_properties_of_secrets.side_effect = [ServiceRequestError(message='error')]
 
     with pytest.raises(ServiceRequestError):
-        load_configuration_keyvault(client_mock, 'local', context_root)
+        load_configuration_keyvault(client_mock, 'local', context_root, filter_keys=None)
     # // -->
