@@ -88,6 +88,15 @@ def add_generic_arguments(parser: CoreArgumentParser) -> None:
         help='do not write to keyvault',
     )
 
+    parser.add_argument(
+        '-k', '--key',
+        action='append',
+        dest='keys',
+        type=str,
+        required=False,
+        help='filter on specified keys',
+    )
+
 
 def create_diff_parser(sub_parser: ArgumentSubParser) -> None:
     # grizzly-cli keyvault diff
@@ -233,6 +242,22 @@ def _build_key_name(environment: str, key: str) -> str:
     return f'grizzly--{environment}--{_keyvault_normalize(key)}'
 
 
+def _dict_to_yaml(file: Path, content: dict[str, Any], *, indentation: Path | int) -> None:
+    file.write_text('')  # make sure file is empty
+
+    with file.open('w') as fd:
+        yaml.dump(content, fd, Dumper=IndentDumper.use_indentation(indentation), default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def _extract_metadata(env_file: str) -> tuple[str, str | None, dict[str, Any]]:
+    file = Path(env_file)
+    configuration = load_configuration_file(file).get('configuration', {})
+
+    keyvault = configuration.get('keyvault', None)
+
+    return (configuration.get('env', None) or file.stem, keyvault, flatten(configuration))
+
+
 def diff(left_file_name: str, right_file_name: str) -> int:
     left_config_file = Path(left_file_name)
     right_config_file = Path(right_file_name)
@@ -269,17 +294,22 @@ def keyvault_import(client: SecretClient, environment: str, args: Arguments, roo
     configuration_unflatten: dict[str, Any] = {}
 
     for conf_key, conf_value in configuration.items():
+        if args.keys is not None and conf_key not in args.keys:
+            continue
+
         configuration_branch = unflatten(conf_key, conf_value)
         configuration_unflatten = merge_dicts(configuration_branch, configuration_unflatten)
 
     configuration = configuration_unflatten
 
-    keyvault_configuration, imported_secrets = load_configuration_keyvault(client, environment, root)
+    keyvault_configuration, imported_secrets = load_configuration_keyvault(client, environment, root, filter_keys=args.keys)
 
     configuration = merge_dicts(keyvault_configuration, configuration)
 
     env_file = Path(args.env_file)
-    _dict_to_yaml(env_file, {'configuration': configuration}, indentation=env_file)
+
+    if not args.dry_run:  # do not rewrite environment file on dry-run
+        _dict_to_yaml(env_file, {'configuration': configuration}, indentation=env_file)
 
     logger.info('\nimported %d secrets from %s to %s', imported_secrets, client.vault_url, env_file.as_posix())
 
@@ -289,6 +319,21 @@ def keyvault_import(client: SecretClient, environment: str, args: Arguments, roo
 def keyvault_export(client: SecretClient, environment: str, args: Arguments, root: Path, configuration: dict[str, Any]) -> int:
     """
     From grizzly to keyvault.
+
+    If the specified secret starts with `cert:`, it indicates that it should reference a keyvault certificate (the name). This value
+    can have metadata (secret content type) appended after the actual value the `#` separator. If the output certificate should be
+    password protected, `pass:` should reference a keyvault secret which contains the password.
+
+    `cert:<keyvault certificate name>[,pass:<keyvault secret name for password>][#format:[mqm|pem-public|pem-private]]`
+
+    Supported certificate output formats:
+    - `mqm`, MQ CMS keystore
+    - `pem-public`, public certificate in PEM format
+    - `pem-private`, private key in PEM format
+
+    If the configuration key contains `file` in the path, the configuration value will be base64 encoded and, optionally, chunked into
+    keyvault secrets. If the path also contains `mq`, all MQ keystore/CMS files will be encoded, chunked and then references to the
+    actual configuration key.
     """
     secrets: list[KeyvaultSecretHolder] = []
 
@@ -301,10 +346,33 @@ def keyvault_export(client: SecretClient, environment: str, args: Arguments, roo
             safe_configuration.update({key: secret})
             continue
 
+        if args.keys is not None and key not in args.keys:
+            continue
+
         key_environment = _determine_environment(args.global_configuration, environment, key)
         key_name = _build_key_name(key_environment, key)
 
-        if 'file' in key:
+        if secret.startswith('cert:'):
+            if '#' in secret:
+                secret, content_type = secret.split('#', 1)
+            else:
+                content_type = None
+
+            if 'pass:' in secret:
+                _, password_ref = secret.split(',', 1)
+                _, password_key = password_ref.split(':', 1)
+                try:
+                    client.get_secret(password_key)
+                except ResourceNotFoundError:
+                    message = f'key {password_key} referenced in value for {key} does not exist'
+                    raise ValueError(message)
+
+            secrets.append(KeyvaultSecretHolder(
+                name=key_name,
+                content_type=content_type,
+                value=secret,
+            ))
+        elif 'file' in key:
             if 'mq' in key:
                 secrets.extend(encode_mq_certificate(root, key_environment, key_name, secret))
             else:
@@ -365,22 +433,6 @@ def keyvault_export(client: SecretClient, environment: str, args: Arguments, roo
     return 0
 
 
-def _dict_to_yaml(file: Path, content: dict[str, Any], *, indentation: Path | int) -> None:
-    file.write_text('')
-
-    with file.open('w') as fd:
-        yaml.dump(content, fd, Dumper=IndentDumper.use_indentation(indentation), default_flow_style=False, sort_keys=False, allow_unicode=True)
-
-
-def _extract_metadata(env_file: str) -> tuple[str, str | None, dict[str, Any]]:
-    file = Path(env_file)
-    configuration = load_configuration_file(file).get('configuration', {})
-
-    keyvault = configuration.get('keyvault', None)
-
-    return (configuration.get('env', None) or file.stem, keyvault, flatten(configuration))
-
-
 def keyvault(args: Arguments) -> int:
     grizzly_context_root = get_context_root()
 
@@ -414,9 +466,9 @@ def keyvault(args: Arguments) -> int:
     client = get_keyvault_client(keyvault)
 
     try:
-        if args.subcommand == 'import':
+        if args.subcommand == 'import':  # from keyvault
             return keyvault_import(client, environment, args, grizzly_context_root, configuration)
-        elif args.subcommand == 'export':
+        elif args.subcommand == 'export':  # to keyvault
             return keyvault_export(client, environment, args, grizzly_context_root, configuration)
         elif args.subcommand == 'diff':
             return diff(args.env_file, args.orig_file)
