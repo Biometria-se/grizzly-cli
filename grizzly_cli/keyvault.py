@@ -242,6 +242,22 @@ def _build_key_name(environment: str, key: str) -> str:
     return f'grizzly--{environment}--{_keyvault_normalize(key)}'
 
 
+def _dict_to_yaml(file: Path, content: dict[str, Any], *, indentation: Path | int) -> None:
+    file.write_text('')  # make sure file is empty
+
+    with file.open('w') as fd:
+        yaml.dump(content, fd, Dumper=IndentDumper.use_indentation(indentation), default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def _extract_metadata(env_file: str) -> tuple[str, str | None, dict[str, Any]]:
+    file = Path(env_file)
+    configuration = load_configuration_file(file).get('configuration', {})
+
+    keyvault = configuration.get('keyvault', None)
+
+    return (configuration.get('env', None) or file.stem, keyvault, flatten(configuration))
+
+
 def diff(left_file_name: str, right_file_name: str) -> int:
     left_config_file = Path(left_file_name)
     right_config_file = Path(right_file_name)
@@ -415,22 +431,6 @@ def keyvault_export(client: SecretClient, environment: str, args: Arguments, roo
     logger.warning(f'! the unsafe environment configuration is still present in {unsafe_environment_file.as_posix()}')
 
     return 0
-
-
-def _dict_to_yaml(file: Path, content: dict[str, Any], *, indentation: Path | int) -> None:
-    file.write_text('')  # make sure file is empty
-
-    with file.open('w') as fd:
-        yaml.dump(content, fd, Dumper=IndentDumper.use_indentation(indentation), default_flow_style=False, sort_keys=False, allow_unicode=True)
-
-
-def _extract_metadata(env_file: str) -> tuple[str, str | None, dict[str, Any]]:
-    file = Path(env_file)
-    configuration = load_configuration_file(file).get('configuration', {})
-
-    keyvault = configuration.get('keyvault', None)
-
-    return (configuration.get('env', None) or file.stem, keyvault, flatten(configuration))
 
 
 def keyvault(args: Arguments) -> int:

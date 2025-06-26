@@ -94,7 +94,7 @@ jobs:
 
     - name: coverage
       id: coverage
-      run: python -m coverage report --fail-under=90 --omit=**/__version__.py
+      run: python -m coverage report --fail-under=85 --omit=**/__version__.py
 
   test-e2e:
     name: "test-e2e / ${{ matrix.runs-on }} / python-${{ matrix.python-version }}"

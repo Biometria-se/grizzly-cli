@@ -327,6 +327,15 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
         assert env_file_lock.read_text() == env_file_local.read_text()
         load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'test', context_root, filter_keys=None)
         load_configuration_keyvault_mock.reset_mock()
+
+        with pytest.raises(ValueError, match='dummy.txt does not exist'):
+            load_configuration('dummy.txt')
+
+        dummy_file = test_context / 'dummy.txt'
+        dummy_file.touch()
+
+        with pytest.raises(ValueError, match='configuration file must have file extension yml or yaml'):
+            load_configuration(dummy_file.as_posix())
     finally:
         rm_rf(test_context)
 
