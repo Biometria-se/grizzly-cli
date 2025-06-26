@@ -680,30 +680,29 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
 
                 # write files
                 cert_format = arguments.get('format')
-                match cert_format:
-                    case 'pem-private':
-                        if private_key is None:
-                            raise ValueError(f'could not find a private key in {cert_key}')
+                if cert_format == 'pem-private':
+                    if private_key is None:
+                        raise ValueError(f'could not find a private key in {cert_key}')
 
-                        conf_value = _write_pem_private(root, arguments['name'], encryption_algorithm, private_key)
-                    case 'pem-public':
-                        if public_certificate is None:
-                            raise ValueError(f'could not find a public certificate in {cert_key}')
+                    conf_value = _write_pem_private(root, arguments['name'], encryption_algorithm, private_key)
+                elif cert_format == 'pem-public':
+                    if public_certificate is None:
+                        raise ValueError(f'could not find a public certificate in {cert_key}')
 
-                        conf_value = _write_pem_public(root, arguments['name'], public_certificate, additional_certificates)
-                    case 'mqm':
-                        conf_value = _write_mqm_cert(
-                            root,
-                            arguments['name'],
-                            password,
-                            cast(pkcs12.PKCS12PrivateKeyTypes | None, private_key),
-                            public_certificate,
-                            additional_certificates,
-                            encryption_algorithm,
-                        )
-                    case _:
-                        message = f'{cert_format} is not a supported certificate format'
-                        raise ValueError(message)
+                    conf_value = _write_pem_public(root, arguments['name'], public_certificate, additional_certificates)
+                elif cert_format == 'mqm':
+                    conf_value = _write_mqm_cert(
+                        root,
+                        arguments['name'],
+                        password,
+                        cast(pkcs12.PKCS12PrivateKeyTypes | None, private_key),
+                        public_certificate,
+                        additional_certificates,
+                        encryption_algorithm,
+                    )
+                else:
+                    message = f'{cert_format} is not a supported certificate format'
+                    raise ValueError(message)
             else:
                 message = f'unknown content type for secret {secret_key}: {content_type}'
                 raise ValueError(message)
