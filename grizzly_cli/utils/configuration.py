@@ -420,7 +420,9 @@ def _write_mqm_cert(
         p12_file.unlink()
         cms_file.with_suffix('.crl').unlink(missing_ok=True)
 
-    logger.info('wrote %s', relative_file)
+    for file in cms_file.parent.glob(f'{cms_file.stem}.*'):
+        relative_cms_file = _create_relative_path(root, file)
+        logger.info('wrote %s', relative_cms_file)
 
     return _create_relative_path(root, cms_file, no_suffix=True)
 
