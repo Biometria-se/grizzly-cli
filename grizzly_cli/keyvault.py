@@ -300,18 +300,25 @@ def keyvault_import(client: SecretClient, environment: str, args: Arguments, roo
         configuration_branch = unflatten(conf_key, conf_value)
         configuration_unflatten = merge_dicts(configuration_branch, configuration_unflatten)
 
+    if len(configuration_unflatten) < 1:
+        logger.error('environment file %s did not contain any configuration', args.env_file)
+        return 1
+
     configuration = configuration_unflatten
 
     keyvault_configuration, imported_secrets = load_configuration_keyvault(client, environment, root, filter_keys=args.keys)
 
     configuration = merge_dicts(keyvault_configuration, configuration)
 
-    env_file = Path(args.env_file)
+    environment_file = Path(args.env_file)
 
     if not args.dry_run:  # do not rewrite environment file on dry-run
-        _dict_to_yaml(env_file, {'configuration': configuration}, indentation=env_file)
+        unsafe_environment_file = environment_file.rename(environment_file.with_suffix(f'.unsafe{environment_file.suffix}'))
+        _dict_to_yaml(environment_file, {'configuration': configuration}, indentation=environment_file)
+    else:
+        unsafe_environment_file = environment_file.with_suffix(f'.unsafe{environment_file.suffix}')
 
-    logger.info('\nimported %d secrets from %s to %s', imported_secrets, client.vault_url, env_file.as_posix())
+    logger.info('\nimported %d secrets from %s to %s, saved original in %s', imported_secrets, client.vault_url, environment_file.as_posix(), unsafe_environment_file.as_posix())
 
     return 0
 
