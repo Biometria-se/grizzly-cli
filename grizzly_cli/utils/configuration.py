@@ -420,7 +420,9 @@ def _write_mqm_cert(
         p12_file.unlink()
         cms_file.with_suffix('.crl').unlink(missing_ok=True)
 
-    logger.info('wrote %s', relative_file)
+    for file in cms_file.parent.glob(f'{cms_file.stem}.*'):
+        relative_cms_file = _create_relative_path(root, file)
+        logger.info('wrote %s', relative_cms_file)
 
     return _create_relative_path(root, cms_file, no_suffix=True)
 
@@ -579,6 +581,8 @@ def load_configuration_file(file: Path) -> dict[str, Any]:
     for yaml_configuration in yaml_configurations:
         configuration = merge_dicts(configuration, yaml_configuration)
 
+    logger.debug('configuration: %r', configuration)
+
     return configuration
 
 
@@ -619,7 +623,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
     for secret_key, conf_key in keys.items():
         secret = client.get_secret(secret_key)
 
-        if filter_keys is not None and conf_key not in filter_keys:
+        if filter_keys is not None and not any(conf_key.startswith(filter_key) for filter_key in filter_keys):
             continue
 
         content_type = secret.properties.content_type
@@ -712,5 +716,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
             configuration_branch = unflatten(conf_key, conf_value)
             configuration = merge_dicts(configuration_branch, configuration)
             imported_secrets += 1
+
+    logger.debug('keyvault configuration: %r', configuration)
 
     return configuration, imported_secrets

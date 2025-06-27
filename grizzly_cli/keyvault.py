@@ -255,7 +255,11 @@ def _extract_metadata(env_file: str) -> tuple[str, str | None, dict[str, Any]]:
 
     keyvault = configuration.get('keyvault', None)
 
-    return (configuration.get('env', None) or file.stem, keyvault, flatten(configuration))
+    configuration = flatten(configuration)
+
+    logger.debug('flatten configuration: %r', configuration)
+
+    return (configuration.get('env', None) or file.stem, keyvault, configuration)
 
 
 def diff(left_file_name: str, right_file_name: str) -> int:
@@ -293,25 +297,41 @@ def keyvault_import(client: SecretClient, environment: str, args: Arguments, roo
     # unflatten existing configuration
     configuration_unflatten: dict[str, Any] = {}
 
-    for conf_key, conf_value in configuration.items():
-        if args.keys is not None and conf_key not in args.keys:
-            continue
+    original_key_count = len(configuration)
 
+    for conf_key, conf_value in configuration.items():
         configuration_branch = unflatten(conf_key, conf_value)
         configuration_unflatten = merge_dicts(configuration_branch, configuration_unflatten)
 
+    if len(configuration_unflatten) < 1:
+        logger.error('environment file %s did not contain any configuration', args.env_file)
+        return 1
+
     configuration = configuration_unflatten
+
+    logger.debug('exploded configuration: %r', configuration)
 
     keyvault_configuration, imported_secrets = load_configuration_keyvault(client, environment, root, filter_keys=args.keys)
 
     configuration = merge_dicts(keyvault_configuration, configuration)
 
-    env_file = Path(args.env_file)
+    logger.debug('merged configuration: %r', configuration)
+
+    environment_file = Path(args.env_file)
 
     if not args.dry_run:  # do not rewrite environment file on dry-run
-        _dict_to_yaml(env_file, {'configuration': configuration}, indentation=env_file)
+        flatten_configuration = flatten(configuration)
+        written_keys = len(flatten_configuration) - original_key_count
+        unsafe_environment_file = environment_file.rename(environment_file.with_suffix(f'.unsafe{environment_file.suffix}'))
+        _dict_to_yaml(environment_file, {'configuration': configuration}, indentation=environment_file)
+    else:
+        written_keys = 0
+        unsafe_environment_file = environment_file.with_suffix(f'.unsafe{environment_file.suffix}')
 
-    logger.info('\nimported %d secrets from %s to %s', imported_secrets, client.vault_url, env_file.as_posix())
+    logger.info(
+        '\nimported %d secrets from %s and wrote %d new keys to %s, saved original in %s',
+        imported_secrets, client.vault_url, written_keys, environment_file.as_posix(), unsafe_environment_file.as_posix(),
+    )
 
     return 0
 

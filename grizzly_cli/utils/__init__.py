@@ -1028,9 +1028,9 @@ def merge_dicts(merged: dict[str, Any], source: dict[str, Any]) -> dict[str, Any
         if (
             key in merged
             and isinstance(merged[key], dict)
-            and isinstance(source[key], Mapping)
+            and (isinstance(source[key], Mapping) or source[key] is None)
         ):
-            merged[key] = merge_dicts(merged[key], source[key])
+            merged[key] = merge_dicts(merged[key], source[key] or {})
         else:
             value = source[key]
             if isinstance(value, str) and value.lower() == 'none':  # pragma: no cover
