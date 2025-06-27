@@ -581,6 +581,8 @@ def load_configuration_file(file: Path) -> dict[str, Any]:
     for yaml_configuration in yaml_configurations:
         configuration = merge_dicts(configuration, yaml_configuration)
 
+    logger.debug('configuration: %r', configuration)
+
     return configuration
 
 
@@ -621,7 +623,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
     for secret_key, conf_key in keys.items():
         secret = client.get_secret(secret_key)
 
-        if filter_keys is not None and conf_key not in filter_keys:
+        if filter_keys is not None and not any(conf_key.startswith(filter_key) for filter_key in filter_keys):
             continue
 
         content_type = secret.properties.content_type
@@ -714,5 +716,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
             configuration_branch = unflatten(conf_key, conf_value)
             configuration = merge_dicts(configuration_branch, configuration)
             imported_secrets += 1
+
+    logger.debug('keyvault configuration: %r', configuration)
 
     return configuration, imported_secrets
