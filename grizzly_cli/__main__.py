@@ -1,19 +1,23 @@
-import argparse
+from __future__ import annotations
+
 import os
 import sys
-
+from pathlib import Path
 from shutil import which
-from typing import Tuple, Optional, List
 from traceback import format_exc
+from typing import TYPE_CHECKING, Optional
 
-from .argparse import ArgumentParser
-from .utils import ask_yes_no, get_distributed_system, get_dependency_versions, setup_logging
-from .init import init
-from .local import local
-from .distributed import distributed
-from .auth import auth
-from .keyvault import keyvault
-from . import __version__, register_parser
+from grizzly_cli import __version__, register_parser
+from grizzly_cli.argparse import ArgumentParser
+from grizzly_cli.auth import auth
+from grizzly_cli.distributed import distributed
+from grizzly_cli.init import init
+from grizzly_cli.keyvault import keyvault
+from grizzly_cli.local import local
+from grizzly_cli.utils import ask_yes_no, get_dependency_versions, get_distributed_system, setup_logging
+
+if TYPE_CHECKING:
+    import argparse
 
 
 def _create_parser() -> ArgumentParser:
@@ -53,40 +57,65 @@ def _create_parser() -> ArgumentParser:
     return parser
 
 
+def _parse_show_version(args: argparse.Namespace) -> None:
+    version = '(development)' if __version__ == '0.0.0' else __version__
+
+    grizzly_versions: Optional[tuple[Optional[str], Optional[list[str]]]] = None
+
+    if args.version == 'all':
+        grizzly_versions, locust_version = get_dependency_versions(local_install=False)
+    else:
+        grizzly_versions, locust_version = None, None
+
+    print(f'grizzly-cli {version}')
+    if grizzly_versions is not None:
+        grizzly_version, grizzly_extras = grizzly_versions
+        if grizzly_version is not None:
+            print(f'└── grizzly {grizzly_version}', end='')
+            if grizzly_extras is not None and len(grizzly_extras) > 0:
+                print(f' ── extras: {", ".join(grizzly_extras)}', end='')
+            print()
+
+    if locust_version is not None:
+        print(f'    └── locust {locust_version}')
+
+    raise SystemExit(0)
+
+
+def _parse_run(parser: ArgumentParser, args: argparse.Namespace) -> None:
+    if args.command == 'dist':
+        if args.limit_nofile < 10001 and not args.yes:
+            print('!! this will cause warning messages from locust later on')
+            ask_yes_no('are you sure you know what you are doing?')
+    elif args.command == 'local' and which('behave') is None:
+        parser.error_no_help('"behave" not found in PATH, needed when running local mode')
+
+    if args.testdata_variable is not None:
+        for variable in args.testdata_variable:
+            try:
+                [name, value] = variable.split('=', 1)
+                os.environ[f'TESTDATA_VARIABLE_{name}'] = value
+            except ValueError:  # noqa: PERF203
+                parser.error_no_help('-T/--testdata-variable needs to be in the format NAME=VALUE')
+
+    if args.csv_prefix is None:
+        if args.csv_interval is not None:
+            parser.error_no_help('--csv-interval can only be used in combination with --csv-prefix')
+
+        if args.csv_flush_interval is not None:
+            parser.error_no_help('--csv-flush-interval can only be used in combination with --csv-prefix')
+
+
 def _parse_arguments() -> argparse.Namespace:
     parser = _create_parser()
     args = parser.parse_args()
 
     if hasattr(args, 'file'):
         # needed to support file names with spaces, which is escaped (sh-style)
-        setattr(args, 'file', ' '.join(args.file))
+        args.file = ' '.join(args.file)
 
     if args.version:
-        if __version__ == '0.0.0':
-            version = '(development)'
-        else:
-            version = __version__
-
-        grizzly_versions: Optional[Tuple[Optional[str], Optional[List[str]]]] = None
-
-        if args.version == 'all':
-            grizzly_versions, locust_version = get_dependency_versions(False)
-        else:
-            grizzly_versions, locust_version = None, None
-
-        print(f'grizzly-cli {version}')
-        if grizzly_versions is not None:
-            grizzly_version, grizzly_extras = grizzly_versions
-            if grizzly_version is not None:
-                print(f'└── grizzly {grizzly_version}', end='')
-                if grizzly_extras is not None and len(grizzly_extras) > 0:
-                    print(f' ── extras: {", ".join(grizzly_extras)}', end='')
-                print('')
-
-        if locust_version is not None:
-            print(f'    └── locust {locust_version}')
-
-        raise SystemExit(0)
+        _parse_show_version(args)
 
     if args.command is None:
         parser.error('no command specified')
@@ -101,36 +130,15 @@ def _parse_arguments() -> argparse.Namespace:
             parser.error_no_help('cannot run distributed')
 
         if args.registry is not None and not args.registry.endswith('/'):
-            setattr(args, 'registry', f'{args.registry}/')
+            args.registry = f'{args.registry}/'
     elif args.command in ['init', 'auth']:
-        setattr(args, 'subcommand', None)
+        args.subcommand = None
 
     if args.subcommand == 'run':
-        if args.command == 'dist':
-            if args.limit_nofile < 10001 and not args.yes:
-                print('!! this will cause warning messages from locust later on')
-                ask_yes_no('are you sure you know what you are doing?')
-        elif args.command == 'local':
-            if which('behave') is None:
-                parser.error_no_help('"behave" not found in PATH, needed when running local mode')
-
-        if args.testdata_variable is not None:
-            for variable in args.testdata_variable:
-                try:
-                    [name, value] = variable.split('=', 1)
-                    os.environ[f'TESTDATA_VARIABLE_{name}'] = value
-                except ValueError:
-                    parser.error_no_help('-T/--testdata-variable needs to be in the format NAME=VALUE')
-
-        if args.csv_prefix is None:
-            if args.csv_interval is not None:
-                parser.error_no_help('--csv-interval can only be used in combination with --csv-prefix')
-
-            if args.csv_flush_interval is not None:
-                parser.error_no_help('--csv-flush-interval can only be used in combination with --csv-prefix')
+        _parse_run(parser, args)
     elif args.command == 'dist' and args.subcommand == 'build':
-        setattr(args, 'force_build', args.no_cache)
-        setattr(args, 'build', not args.no_cache)
+        args.force_build = args.no_cache
+        args.build = not args.no_cache
 
     log_file = getattr(args, 'log_file', None)
     setup_logging(log_file)
@@ -139,8 +147,8 @@ def _parse_arguments() -> argparse.Namespace:
 
 
 def _inject_additional_arguments_from_metadata(args: argparse.Namespace) -> argparse.Namespace:
-    with open(args.file) as fd:
-        file_metadata = [line.strip().replace('# grizzly-cli ', '').split(' ') for line in fd.readlines() if line.strip().startswith('# grizzly-cli ')]
+    with Path(args.file).open() as fd:
+        file_metadata = [line.strip().replace('# grizzly-cli ', '').split(' ') for line in fd if line.strip().startswith('# grizzly-cli ')]
 
     if len(file_metadata) < 1:
         return args
@@ -149,12 +157,12 @@ def _inject_additional_arguments_from_metadata(args: argparse.Namespace) -> argp
     for additional_arguments in file_metadata:
         try:
             if additional_arguments[0].strip().startswith('-'):
-                raise ValueError()
+                raise ValueError
 
             index = argv.index(additional_arguments[0]) + 1
             for zindex, additional_argument in enumerate(additional_arguments[1:]):
                 argv.insert(index + zindex, additional_argument)
-        except ValueError:
+        except ValueError:  # noqa: PERF203
             print('?? ignoring {}'.format(' '.join(additional_arguments)))
 
     sys.argv = sys.argv[0:1] + argv
@@ -182,18 +190,16 @@ def main() -> int:
         elif args.command == 'keyvault':
             rc = keyvault(args)
         else:
-            raise ValueError(f'unknown command {args.command}')
-
-        return rc
+            message = f'unknown command {args.command}'
+            raise ValueError(message)
     except (KeyboardInterrupt, ValueError) as e:
-        print('')
+        print()
         if isinstance(e, ValueError):
-            if args is not None and getattr(args, 'verbose', False):
-                exception = format_exc()
-            else:
-                exception = str(e)
+            exception = format_exc() if args is not None and getattr(args, 'verbose', False) else str(e)
 
             print(exception)
 
         print('\n!! aborted grizzly-cli')
         return 1
+    else:
+        return rc

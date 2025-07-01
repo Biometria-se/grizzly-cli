@@ -1,12 +1,18 @@
-from typing import Generator
-from argparse import Namespace as Arguments
-from os import path
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
 from packaging.version import Version
 
-from .utils import ask_yes_no
-from .argparse import ArgumentSubParser
-from . import EXECUTION_CONTEXT, register_parser
+from grizzly_cli import EXECUTION_CONTEXT, register_parser
+from grizzly_cli.utils import ask_yes_no
+
+if TYPE_CHECKING:  # pragma: no cover
+    from argparse import Namespace as Arguments
+    from collections.abc import Generator
+
+    from grizzly_cli.argparse import ArgumentSubParser
 
 # prefix components:
 space = '    '
@@ -35,7 +41,7 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         type=str,
         required=False,
         default=None,
-        help='specify which grizzly version to use for project, default is latest'
+        help='specify which grizzly version to use for project, default is latest',
     )
 
     init_parser.add_argument(
@@ -59,13 +65,14 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
 
 
 def tree(dir_path: Path, prefix: str = '') -> Generator[str, None, None]:
-    '''A recursive generator, given a directory Path object
+    """Recursive generator, given a directory Path object
     will yield a visual tree structure line by line
-    with each line prefixed by the same characters
+    with each line prefixed by the same characters.
 
     credit: https://stackoverflow.com/a/59109706
-    '''
-    contents = sorted(list(dir_path.iterdir()))
+
+    """
+    contents = sorted(dir_path.iterdir())
     # contents each get pointers that are ├── with a final └── :
     pointers = [tee] * (len(contents) - 1) + [last]
     for pointer, sub_path in zip(pointers, contents):
@@ -77,18 +84,18 @@ def tree(dir_path: Path, prefix: str = '') -> Generator[str, None, None]:
 
 
 def init(args: Arguments) -> int:
-    if path.exists(path.join(EXECUTION_CONTEXT, args.project)):
+    if Path.joinpath(Path(EXECUTION_CONTEXT), args.project).exists():
         print(f'"{args.project}" already exists in {EXECUTION_CONTEXT}')
         return 1
 
-    if all([path.exists(path.join(EXECUTION_CONTEXT, p)) for p in ['environments', 'features', 'requirements.txt']]):
+    if all(Path.joinpath(Path(EXECUTION_CONTEXT), p).exists() for p in ['environments', 'features', 'requirements.txt']):
         print('oops, looks like you are already in a grizzly project directory', end='\n\n')
         print(EXECUTION_CONTEXT)
         for line in tree(Path(EXECUTION_CONTEXT)):
             print(line)
         return 1
 
-    layout = f'''
+    layout = f"""
     {args.project}
     ├── environments
     │   └── {args.project}.yaml
@@ -99,7 +106,7 @@ def init(args: Arguments) -> int:
     │   ├── {args.project}.feature
     │   └── requests
     └── requirements.txt
-'''
+"""
 
     message = f'the following structure will be created:\n{layout}'
 
@@ -109,7 +116,7 @@ def init(args: Arguments) -> int:
         print(message)
 
     # create project root
-    structure = Path(path.join(EXECUTION_CONTEXT, args.project))
+    structure = Path.joinpath(Path(EXECUTION_CONTEXT), args.project)
     structure.mkdir()
 
     # create requirements.txt
@@ -128,20 +135,20 @@ def init(args: Arguments) -> int:
     structure_environments.mkdir()
 
     # create environments/<project>.yaml
-    (structure_environments / f'{args.project}.yaml').write_text('''configuration:
+    (structure_environments / f'{args.project}.yaml').write_text("""configuration:
   template:
     host: https://localhost
-''')
+""")
 
     # create features/ directory
     structure_features = structure / 'features'
     structure_features.mkdir()
 
     # create features/<project>.feature
-    (structure_features / f'{args.project}.feature').write_text('''Feature: Template feature file
+    (structure_features / f'{args.project}.feature').write_text("""Feature: Template feature file
   Scenario: Template scenario
     Given a user of type "RestApi" with weight "1" load testing "$conf::template.host"
-''')
+""")
 
     # create features/environment.py
     if args.grizzly_version is not None:

@@ -1,18 +1,26 @@
-import sys
+from __future__ import annotations
+
 import re
+import sys
+from argparse import ArgumentParser as CoreArgumentParser
+from argparse import Namespace, _SubParsersAction
+from typing import TYPE_CHECKING, Any, Optional, cast
 
-from typing import Any, Optional, IO, Sequence, cast
-from argparse import ArgumentParser as CoreArgumentParser, Namespace, _SubParsersAction
+from grizzly_cli.argparse.bashcompletion import BashCompletionAction
+from grizzly_cli.argparse.bashcompletion import hook as bashcompletion_hook
+from grizzly_cli.argparse.markdown import MarkdownFormatter, MarkdownHelpAction
 
-from .markdown import MarkdownFormatter, MarkdownHelpAction
-from .bashcompletion import BashCompletionAction, hook as bashcompletion_hook
+if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Sequence
+    from typing import IO
 
+    from _typeshed import SupportsWrite
 
 ArgumentSubParser = _SubParsersAction
 
 
 class ArgumentParser(CoreArgumentParser):
-    def __init__(self, markdown_help: bool = False, bash_completion: bool = False, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, markdown_help: bool = False, bash_completion: bool = False, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self.markdown_help = markdown_help
@@ -27,17 +35,17 @@ class ArgumentParser(CoreArgumentParser):
         self._optionals.title = 'optional arguments'
 
     def error_no_help(self, message: str) -> None:
-        sys.stderr.write('{}: error: {}\n'.format(self.prog, message))
+        sys.stderr.write(f'{self.prog}: error: {message}\n')
         sys.exit(2)
 
-    def print_help(self, file: Optional[IO[str]] = None) -> None:
-        '''Hook to make help more command line friendly, if there is markdown markers in the text.
-        '''
+    def print_help(self, file: Optional[SupportsWrite[str]] = None) -> None:
+        """Make help more command line friendly, if there is markdown markers in the text."""
+        file = cast('Optional[IO[str]]', file)
         if not self.markdown_help:
             super().print_help(file)
             return
 
-        if cast(type, self.formatter_class) is not MarkdownFormatter:
+        if self.formatter_class is not MarkdownFormatter:
             original_description = self.description
             original_actions = self._actions
 
@@ -53,14 +61,12 @@ class ArgumentParser(CoreArgumentParser):
 
         super().print_help(file)
 
-        if cast(type, self.formatter_class) is not MarkdownFormatter:
+        if self.formatter_class is not MarkdownFormatter:
             self.description = original_description
             self._actions = original_actions
 
-    def parse_args(self, args: Optional[Sequence[str]] = None, namespace: Optional[Namespace] = None) -> Namespace:  # type: ignore
-        """
-        Hook to add `--bash-complete` to all parsers, if enabled for parser.
-        """
+    def parse_args(self, args: Optional[Sequence[str]] = None, namespace: Optional[Namespace] = None) -> Namespace:  # type: ignore[override]
+        """Add `--bash-complete` to all parsers, if enabled for parser."""
         if self.bash_completion:
             bashcompletion_hook(self)
 

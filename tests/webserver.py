@@ -1,16 +1,18 @@
+from __future__ import annotations
+
 import csv
 import logging
-
-from typing import Any, Optional, Type, cast
-from typing_extensions import Literal
-from types import TracebackType
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
 
 import gevent
-
+from flask import Flask, jsonify, request
+from flask import Response as FlaskResponse
 from gevent.pywsgi import WSGIServer
+from typing_extensions import Literal, Self
 
-from flask import Flask, request, jsonify, Response as FlaskResponse
+if TYPE_CHECKING:
+    from types import TracebackType
 
 logger = logging.getLogger('webserver')
 
@@ -34,7 +36,8 @@ def app_get_cat_fact() -> FlaskResponse:
 
 @app.route('/books/<book>.json')
 def app_get_book(book: str) -> FlaskResponse:
-    with open(f'{Path.cwd()}/features/requests/books/books.csv', 'r') as fd:
+    books = Path.joinpath(Path.cwd(), 'features', 'requests', 'books', 'books.csv')
+    with books.open('r') as fd:
         reader = csv.DictReader(fd)
         for row in reader:
             if row['book'] == book:
@@ -43,7 +46,7 @@ def app_get_book(book: str) -> FlaskResponse:
                     'isbn_10': [row['isbn_10']] * 2,
                     'authors': [
                         {'key': '/author/' + row['author'].replace(' ', '_').strip() + '|' + row['isbn_10'].strip()},
-                    ]
+                    ],
                 })
 
     response = jsonify({'success': False})
@@ -57,7 +60,7 @@ def app_get_author(author_key: str) -> FlaskResponse:
     name, _ = author_key.rsplit('|', 1)
 
     return jsonify({
-        'name': name.replace('_', ' ')
+        'name': name.replace('_', ' '),
     })
 
 
@@ -75,31 +78,34 @@ class Webserver:
             app,
             log=None,
         )
-        logger.debug(f'created webserver on port {port}')
+        logger.debug('created webserver on port %d', port)
 
     @property
     def port(self) -> int:
-        return cast(int, self._web_server.server_port)
+        port = self._web_server.server_port
+        assert port is not None
+
+        return port  # type: ignore[no-any-return]
 
     def start(self) -> None:
         gevent.spawn(lambda: self._web_server.serve_forever())
         gevent.sleep(0.01)
-        logger.debug(f'started webserver on port {self.port}')
+        logger.debug('started webserver on port %d', self.port)
 
-    def __enter__(self) -> 'Webserver':
+    def __enter__(self) -> Self:
         self.start()
 
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> Literal[True]:
         self._web_server.stop_accepting()
         self._web_server.stop()
 
-        logger.debug(f'stopped webserver on port {self.port}')
+        logger.debug('stopped webserver on port %d', self.port)
 
         return True

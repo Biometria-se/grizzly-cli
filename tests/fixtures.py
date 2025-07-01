@@ -1,26 +1,29 @@
+from __future__ import annotations
+
 import inspect
 import re
 import socket
 import sys
-
-from typing import Optional, Callable, Any, List, Tuple, Type, Dict, cast
-from typing_extensions import Literal
-from types import TracebackType
-from os import environ, getcwd, pathsep, linesep
+from contextlib import closing, suppress
+from cProfile import Profile
+from getpass import getuser
+from hashlib import sha1
+from os import environ, linesep
 from pathlib import Path
 from textwrap import dedent, indent
-from hashlib import sha1
-from getpass import getuser
-from contextlib import closing
-from cProfile import Profile
+from typing import TYPE_CHECKING, Any, Callable, Optional, cast
 
-from _pytest.tmpdir import TempPathFactory
-from behave.runner import Context
-from behave.model import Feature
+from typing_extensions import Literal, Self
+
 from grizzly_cli.utils import rm_rf
+from tests.helpers import run_command
 
-from .helpers import run_command
+if TYPE_CHECKING:
+    from types import TracebackType
 
+    from _pytest.tmpdir import TempPathFactory
+    from behave.model import Feature
+    from behave.runner import Context
 
 __all__ = [
     'End2EndFixture',
@@ -33,13 +36,13 @@ BehaveKeyword = Literal['Then', 'Given', 'And', 'When']
 class End2EndValidator:
     name: str
     implementation: Any
-    table: Optional[List[Dict[str, str]]]
+    table: Optional[list[dict[str, str]]]
 
     def __init__(
         self,
         name: str,
         implementation: Callable[[Context], None],
-        table: Optional[List[Dict[str, str]]] = None,
+        table: Optional[list[dict[str, str]]] = None,
     ) -> None:
         self.name = name
         self.implementation = implementation
@@ -47,12 +50,10 @@ class End2EndValidator:
 
     @property
     def expression(self) -> str:
-        lines: List[str] = [f'Then run validator {self.name}_{self.implementation.__name__}']
+        lines: list[str] = [f'Then run validator {self.name}_{self.implementation.__name__}']
         if self.table is not None and len(self.table) > 0:
-            lines.append(f'  | {" | ".join([key for key in self.table[0].keys()])} |')
-
-            for row in self.table:
-                lines.append(f'  | {" | ".join([value for value in row.values()])} |')
+            lines.append(f'  | {" | ".join(list(self.table[0].keys()))} |')
+            lines.extend(f'  | {" | ".join(list(row.values()))} |' for row in self.table)
 
         return '\n'.join(lines)
 
@@ -62,22 +63,22 @@ class End2EndValidator:
         source_lines[0] = dedent(source_lines[0].replace('def ', f'def {self.name}_'))
         source = '\n'.join(source_lines)
 
-        return f'''@then(u'run validator {self.name}_{self.implementation.__name__}')
+        return f"""@then(u'run validator {self.name}_{self.implementation.__name__}')
 def {self.name}_{self.implementation.__name__}_wrapper(context: Context) -> None:
     {dedent(source)}
     if on_local(context) or on_worker(context):
         {self.name}_{self.implementation.__name__}(context)
-'''
+"""
 
 
 class End2EndFixture:
     _tmp_path_factory: TempPathFactory
-    _env: Dict[str, str]
-    _validators: Dict[Optional[str], List[End2EndValidator]]
+    _env: dict[str, str]
+    _validators: dict[Optional[str], list[End2EndValidator]]
     _distributed: bool
 
-    _after_features: Dict[str, Callable[[Context, Feature], None]]
-    _before_features: Dict[str, Callable[[Context, Feature], None]]
+    _after_features: dict[str, Callable[[Context, Feature], None]]
+    _before_features: dict[str, Callable[[Context, Feature], None]]
 
     _root: Optional[Path]
     _port: Optional[int] = None
@@ -87,9 +88,9 @@ class End2EndFixture:
 
     profile: Optional[Profile]
 
-    def __init__(self, tmp_path_factory: TempPathFactory, distributed: bool) -> None:
+    def __init__(self, tmp_path_factory: TempPathFactory, *, distributed: bool) -> None:
         self._tmp_path_factory = tmp_path_factory
-        self.cwd = Path(getcwd())
+        self.cwd = Path.cwd()
         self._env = {}
         self._validators = {}
         self._root = None
@@ -101,17 +102,19 @@ class End2EndFixture:
     @property
     def mode_root(self) -> Path:
         if self._root is None:
-            raise AttributeError('root is not set')
+            message = 'root is not set'
+            raise AttributeError(message)
 
         if self._distributed:
             return Path('/srv/grizzly')
-        else:
-            return self._root
+
+        return self._root
 
     @property
     def root(self) -> Path:
         if self._root is None:
-            raise AttributeError('root is not set')
+            message = 'root is not set'
+            raise AttributeError(message)
 
         return self._root
 
@@ -128,10 +131,7 @@ class End2EndFixture:
 
     @property
     def host(self) -> str:
-        if self._distributed:
-            host = 'master'
-        else:
-            host = 'localhost'
+        host = 'master' if self._distributed else 'localhost'
 
         return f'{host}:{self.webserver_port}'
 
@@ -139,7 +139,7 @@ class End2EndFixture:
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
             sock.bind(('', 0))
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            return cast(int, sock.getsockname()[1])
+            return cast('int', sock.getsockname()[1])
 
     def inject_webserver_module(self, path: Path) -> None:
         assert self._tmp_path_factory._basetemp is not None
@@ -150,7 +150,7 @@ class End2EndFixture:
         webserver_destination.write_text(webserver_source.read_text())
 
     def start_webserver_step_impl(self, port: int) -> str:
-        return f'''
+        return f"""
 
 @then(u'start webserver on master port "{port}"')
 def step_start_webserver(context: Context) -> None:
@@ -166,9 +166,9 @@ def step_start_webserver(context: Context) -> None:
 
     webserver = webserver_module.Webserver({port})
     webserver.start()
-'''
+"""
 
-    def __enter__(self) -> 'End2EndFixture':
+    def __enter__(self) -> Self:
         if environ.get('PROFILE', None) is not None:
             self.profile = Profile()
             self.profile.enable()
@@ -184,7 +184,7 @@ def step_start_webserver(context: Context) -> None:
         # create virtualenv
         rc, output = run_command(
             [sys.executable, '-m', 'venv', virtual_env_path.name],
-            cwd=str(self.root),
+            cwd=self.root,
         )
 
         try:
@@ -202,7 +202,7 @@ def step_start_webserver(context: Context) -> None:
             virtual_env_bin_dir = 'bin'
 
         self._env.update({
-            'PATH': f'{str(virtual_env_path / virtual_env_bin_dir)}{pathsep}{path}',
+            'PATH': Path.joinpath(virtual_env_path, virtual_env_bin_dir, path).as_posix(),
             'VIRTUAL_ENV': str(virtual_env_path),
             'PYTHONPATH': environ.get('PYTHONPATH', '.'),
             'HOME': environ.get('HOME', '/'),
@@ -225,7 +225,7 @@ def step_start_webserver(context: Context) -> None:
         # python 3.6.x is vendord with pip 18.x, which is too old!
         rc, output = run_command(
             ['python', '-m', 'pip', 'install', '--upgrade', 'pip'],
-            cwd=str(Path.cwd()),
+            cwd=Path.cwd(),
             env=self._env,
         )
 
@@ -237,7 +237,7 @@ def step_start_webserver(context: Context) -> None:
 
         rc, output = run_command(
             ['python', '-m', 'pip', 'install', '.'],
-            cwd=str(Path.cwd()),
+            cwd=Path.cwd(),
             env=self._env,
         )
 
@@ -251,7 +251,7 @@ def step_start_webserver(context: Context) -> None:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> Literal[True]:
@@ -260,10 +260,8 @@ def step_start_webserver(context: Context) -> None:
 
         if exc is None:
             if environ.get('KEEP_FILES', None) is None:
-                try:
+                with suppress(AttributeError):
                     rm_rf(self.root)
-                except AttributeError:
-                    pass
             else:
                 print(self._root)
 
@@ -277,7 +275,7 @@ def step_start_webserver(context: Context) -> None:
         self,
         implementation: Callable[[Context], None],
         scenario: Optional[str] = None,
-        table: Optional[List[Dict[str, str]]] = None,
+        table: Optional[list[dict[str, str]]] = None,
     ) -> None:
         callee = inspect.stack()[1].function
 
@@ -294,22 +292,10 @@ def step_start_webserver(context: Context) -> None:
         callee = inspect.stack()[1].function
         self._before_features[callee] = implementation
 
-    def create_feature(self, contents: str, name: Optional[str] = None, identifier: Optional[str] = None) -> str:
-        if name is None:
-            name = inspect.stack()[1].function
-
-        if identifier is not None:
-            identifier = sha1(identifier.encode()).hexdigest()[:8]
-            name = f'{name}_{identifier}'
-
-        feature_lines = contents.strip().split('\n')
-        feature_lines[0] = f'Feature: {name}'
-        steps_file = self.root / 'features' / 'steps' / 'steps.py'
-        environment_file = self.root / 'features' / 'environment.py'
-
+    def modify_feature(self, feature_lines: list[str]) -> list[str]:
         scenario: Optional[str] = None
         indentation = '    '
-        modified_feature_lines: List[str] = []
+        modified_feature_lines: list[str] = []
         offset = 0  # number of added steps
 
         for nr, line in enumerate(feature_lines):
@@ -323,9 +309,8 @@ def step_start_webserver(context: Context) -> None:
                     validators = self._validators.get(scenario, self._validators.get(None, None))
                     if validators is not None:
                         for validator in validators:
-                            nr += offset
                             validator_expression = indent(f'{validator.expression}', prefix=indentation * 2)
-                            index = nr
+                            index = nr + offset
                             while modified_feature_lines[index].strip() == '' or 'Scenario:' in modified_feature_lines[index]:
                                 index -= 1
 
@@ -340,21 +325,38 @@ def step_start_webserver(context: Context) -> None:
 
         modified_feature_lines.append('')
 
+        return modified_feature_lines
+
+    def create_feature(self, contents: str, name: Optional[str] = None, identifier: Optional[str] = None) -> str:
+        if name is None:
+            name = inspect.stack()[1].function
+
+        if identifier is not None:
+            identifier = sha1(identifier.encode()).hexdigest()[:8]  # noqa: S324
+            name = f'{name}_{identifier}'
+
+        feature_lines = contents.strip().split('\n')
+        feature_lines[0] = f'Feature: {name}'
+        steps_file = self.root / 'features' / 'steps' / 'steps.py'
+        environment_file = self.root / 'features' / 'environment.py'
+
+        modified_feature_lines = self.modify_feature(feature_lines)
+
         contents = '\n'.join(modified_feature_lines)
 
         # write feature file
-        with open(self.root / 'features' / f'{name}.feature', 'w+') as fd:
+        with (self.root / 'features' / f'{name}.feature').open('w+') as fd:
             fd.write(contents)
 
         feature_file_name = fd.name.replace(f'{self.root}/', '')
 
         # cache current step implementations
-        with open(steps_file, 'r') as fd:
+        with steps_file.open('r') as fd:
             steps_impl = fd.read()
 
         # add step implementations
-        with open(steps_file, 'a') as fd:
-            added_validators: List[str] = []
+        with steps_file.open('a') as fd:
+            added_validators: list[str] = []
             for validators in self._validators.values():
                 for validator in validators:
                     # write expression and step implementation to steps/steps.py
@@ -365,19 +367,19 @@ def step_start_webserver(context: Context) -> None:
             added_validators = []
 
         # add after_feature hook, always write all of 'em
-        with open(environment_file, 'w') as fd:
+        with environment_file.open('w') as fd:
             fd.write('from typing import Any, Tuple, Dict, cast\n\n')
             fd.write('from behave.runner import Context\n')
             fd.write('from behave.model import Feature\n')
             fd.write('from grizzly.context import GrizzlyContext\n')
-            fd.write((
+            fd.write(
                 'from grizzly.environment import before_feature as grizzly_before_feature, '
-                'after_feature as grizzly_after_feature, before_scenario, after_scenario, before_step\n\n'
-            ))
+                'after_feature as grizzly_after_feature, before_scenario, after_scenario, before_step\n\n',
+            )
 
             fd.write('def before_feature(context: Context, feature: Feature, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:\n')
             if len(self._before_features) > 0:
-                for feature_name in self._before_features.keys():
+                for feature_name in self._before_features:
                     fd.write(f'    if feature.name == "{feature_name}":\n')
                     fd.write(f'        {feature_name}_before_feature(context, feature)\n\n')
             fd.write('    grizzly_before_feature(context, feature)\n\n')
@@ -392,7 +394,7 @@ def step_start_webserver(context: Context) -> None:
             fd.write('def after_feature(context: Context, feature: Feature, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:\n')
             fd.write('    grizzly_after_feature(context, feature)\n\n')
             if len(self._after_features) > 0:
-                for feature_name in self._after_features.keys():
+                for feature_name in self._after_features:
                     fd.write(f'    if feature.name == "{feature_name}":\n')
                     fd.write(f'        {feature_name}_after_feature(context, feature)\n\n')
 
@@ -410,26 +412,27 @@ def step_start_webserver(context: Context) -> None:
 
     def execute(
         self,
-        feature_file: str,
+        feature_file: Path,
         env_conf_file: Optional[str] = None,
-        testdata: Optional[Dict[str, str]] = None,
-        cwd: Optional[str] = None,
-        arguments: Optional[List[str]] = None,
-    ) -> Tuple[int, List[str]]:
+        testdata: Optional[dict[str, str]] = None,
+        cwd: Optional[Path] = None,
+        arguments: Optional[list[str]] = None,
+    ) -> tuple[int, list[str]]:
         if arguments is None:
             arguments = []
-        command = [
+
+        command: list[str] = [
             'grizzly-cli',
             self.mode,
             'run',
             *arguments,
             '--yes',
             '--verbose',
-            feature_file,
+            feature_file.as_posix(),
         ]
 
         if self._distributed:
-            command = command[:2] + ['--project-name', self.root.name] + command[2:]
+            command = [*command[:2], '--project-name', self.root.name, *command[2:]]
 
         if env_conf_file is not None:
             command += ['-e', env_conf_file]
@@ -440,7 +443,7 @@ def step_start_webserver(context: Context) -> None:
 
         rc, output = run_command(
             command,
-            cwd=cwd or str(self.mode_root),
+            cwd=cwd or self.mode_root,
             env=self._env,
         )
 
@@ -454,7 +457,7 @@ def step_start_webserver(context: Context) -> None:
                 command = ['docker', 'container', 'logs', f'{self.root.name}-{getuser()}_{container}_1']
                 _, output = run_command(
                     command,
-                    cwd=str(self.root),
+                    cwd=self.root,
                     env=self._env,
                 )
 

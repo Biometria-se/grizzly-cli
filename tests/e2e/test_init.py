@@ -1,14 +1,18 @@
-from typing import List, Dict, Optional
-from packaging.version import Version
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
 
 import pytest
+from packaging.version import Version
 
-from _pytest.tmpdir import TempPathFactory
+from tests.helpers import rm_rf, run_command
 
-from tests.helpers import run_command, rm_rf
+if TYPE_CHECKING:
+    from _pytest.tmpdir import TempPathFactory
 
 
-@pytest.mark.parametrize('arguments,expected', [
+@pytest.mark.parametrize(
+    ('arguments', 'expected'), [
     (
         [],
         {'mq_output': 'without IBM MQ support', 'grizzly_output': 'latest grizzly version', 'grizzly_requirements': 'grizzly-loadtester'},
@@ -26,7 +30,7 @@ from tests.helpers import run_command, rm_rf
         {'mq_output': 'with IBM MQ support', 'grizzly_output': 'pinned to grizzly version 1.1.1', 'grizzly_requirements': 'grizzly-loadtester[mq]==1.1.1'},
     ),
 ])
-def test_e2e_init(arguments: List[str], expected: Dict[str, str], tmp_path_factory: TempPathFactory) -> None:
+def test_e2e_init(arguments: list[str], expected: dict[str, str], tmp_path_factory: TempPathFactory) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
 
     grizzly_version: Optional[Version] = None
@@ -36,22 +40,19 @@ def test_e2e_init(arguments: List[str], expected: Dict[str, str], tmp_path_facto
     except ValueError:
         grizzly_version = None
 
-    if grizzly_version is None or grizzly_version >= Version('2.6.0'):
-        grizzly_behave_module = 'behave'
-    else:
-        grizzly_behave_module = 'environment'
+    grizzly_behave_module = 'behave' if grizzly_version is None or grizzly_version >= Version('2.6.0') else 'environment'
 
     try:
         rc, output = run_command(
-            ['grizzly-cli', 'init', 'foobar', '--yes'] + arguments,
-            cwd=str(test_context),
+            ['grizzly-cli', 'init', 'foobar', '--yes', *arguments],
+            cwd=test_context,
         )
         try:
             assert rc == 0
         except AssertionError:
             print(''.join(output))
             raise
-        assert ''.join(output) == f'''the following structure will be created:
+        assert ''.join(output) == f"""the following structure will be created:
 
     foobar
     ├── environments
@@ -67,7 +68,7 @@ def test_e2e_init(arguments: List[str], expected: Dict[str, str], tmp_path_facto
 successfully created project "foobar", with the following options:
   • {expected["mq_output"]}
   • {expected["grizzly_output"]}
-'''
+"""
 
         assert (test_context / 'foobar').is_dir()
         assert (test_context / 'foobar' / 'environments').is_dir()
@@ -77,10 +78,10 @@ successfully created project "foobar", with the following options:
 
         environments_file = test_context / 'foobar' / 'environments' / 'foobar.yaml'
         assert environments_file.is_file()
-        assert environments_file.read_text() == '''configuration:
+        assert environments_file.read_text() == """configuration:
   template:
     host: https://localhost
-'''
+"""
 
         features_dir = test_context / 'foobar' / 'features'
         assert features_dir.is_dir()
@@ -99,9 +100,9 @@ successfully created project "foobar", with the following options:
 
         feature_file = features_dir / 'foobar.feature'
         assert feature_file.is_file()
-        assert feature_file.read_text() == '''Feature: Template feature file
+        assert feature_file.read_text() == """Feature: Template feature file
   Scenario: Template scenario
     Given a user of type "RestApi" with weight "1" load testing "$conf::template.host"
-'''
+"""
     finally:
         rm_rf(test_context)

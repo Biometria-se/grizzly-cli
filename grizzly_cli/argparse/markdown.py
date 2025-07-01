@@ -1,26 +1,29 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, List, Union, Sequence, Optional, Iterable, Tuple, Callable, Type, cast
-from types import MethodType
-from argparse import Action, SUPPRESS, ArgumentParser, Namespace, HelpFormatter
+
+from argparse import SUPPRESS, Action, ArgumentParser, HelpFormatter, Namespace
 from textwrap import fill as textwrap_fill
+from types import MethodType
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union, cast
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Iterable, Sequence
+
     from typing_extensions import Self
 
 
 __all__ = [
-    'MarkdownHelpAction',
     'MarkdownFormatter',
+    'MarkdownHelpAction',
 ]
 
 
 class MarkdownHelpAction(Action):
     def __init__(
         self,
-        option_strings: List[str],
+        option_strings: list[str],
         dest: str = SUPPRESS,
         default: str = SUPPRESS,
-        help: str = SUPPRESS,
+        help: str = SUPPRESS,  # noqa: A002
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -35,9 +38,9 @@ class MarkdownHelpAction(Action):
     def __call__(
         self,
         parser: ArgumentParser,
-        namespace: Namespace,
-        values: Union[str, Sequence[Any], None],
-        option_string: Optional[str] = None,
+        namespace: Namespace,  # noqa: ARG002
+        values: Union[str, Sequence[Any], None],  # noqa: ARG002
+        option_string: Optional[str] = None,  # noqa: ARG002
     ) -> None:
         self.print_help(parser)
 
@@ -53,10 +56,7 @@ class MarkdownHelpAction(Action):
 
             # usage
             formatter.add_text('\n')
-            formatter.add_usage(self.usage, self._actions,
-                                self._mutually_exclusive_groups)
-
-            # XXX: formatter.add_text(self.description) -- used to be here
+            formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
 
             # positionals, optionals and user-defined groups
             for action_group in self._action_groups:
@@ -73,9 +73,9 @@ class MarkdownHelpAction(Action):
 
         # <!-- monkey patch our parser
         # switch format_help, so that stuff comes in an order that makes more sense in markdown
-        setattr(parser, 'format_help', MethodType(format_help_markdown, parser))
+        setattr(parser, 'format_help', MethodType(format_help_markdown, parser))  # noqa: B010
         # switch formatter class so we'll get markdown
-        setattr(parser, 'formatter_class', MarkdownFormatter.factory(level))
+        setattr(parser, 'formatter_class', MarkdownFormatter.factory(level))  # noqa: B010
         # -->
 
         parser.print_help()
@@ -98,22 +98,22 @@ class MarkdownFormatter(HelpFormatter):
         self._current_section = self._root_section
 
     @staticmethod
-    def factory(level: int) -> Type['MarkdownFormatter']:
+    def factory(level: int) -> type[MarkdownFormatter]:
         return type('MarkdownFormatterInstance', (MarkdownFormatter,), {'level': level})
 
     class _MarkdownSection(HelpFormatter._Section):
-        def __init__(self, formatter: 'MarkdownFormatter', parent: Optional[Self], heading: Optional[str] = None) -> None:
+        def __init__(self, formatter: MarkdownFormatter, parent: Optional[Self], heading: Optional[str] = None) -> None:
             self.formatter = formatter
             self.parent = parent
             self.heading = heading
-            self.items: List[Tuple[Callable[..., str], Iterable[Any]]] = []
+            self.items: list[tuple[Callable[..., str], Iterable[Any]]] = []
 
         def format_help(self) -> str:
             # format the indented section
             if self.parent is not None:
                 self.formatter._indent()
             join = self.formatter._join_parts
-            helps: List[str] = []
+            helps: list[str] = []
 
             # only one table header per section
             print_table_headers = True
@@ -122,16 +122,15 @@ class MarkdownFormatter(HelpFormatter):
                 name = getattr(func, '__name__', repr(func))
 
                 # we need to fix headers for argument tables
-                if name == '_format_action':
-                    if print_table_headers and len(item_help_text) > 0:
-                        helps.extend([
-                            '\n',
-                            '| argument | default | help |',
-                            '\n',
-                            '| -------- | ------- | ---- |',
-                            '\n',
-                        ])
-                        print_table_headers = False
+                if name == '_format_action' and print_table_headers and len(item_help_text) > 0:
+                    helps.extend([
+                        '\n',
+                        '| argument | default | help |',
+                        '\n',
+                        '| -------- | ------- | ---- |',
+                        '\n',
+                    ])
+                    print_table_headers = False
 
                 helps.append(item_help_text)
 
@@ -147,14 +146,14 @@ class MarkdownFormatter(HelpFormatter):
             # add the heading if the section was non-empty
             if self.heading is not SUPPRESS and self.heading is not None:
                 current_indent = self.formatter._current_indent
-                heading = '%*s%s\n' % (current_indent, '', self.heading)
+                heading = '%*s%s\n' % (current_indent, '', self.heading)  # noqa: UP031
 
                 # increase header if we're in a subparser
                 assert isinstance(self.formatter, MarkdownFormatter)
                 if self.formatter.level > 0:
                     # a bit hackish, to get a line break when adding a subparsers help
                     if self.parent is None:
-                        print('')
+                        print()
 
                     heading = f'#{heading}'
             else:
@@ -191,13 +190,13 @@ class MarkdownFormatter(HelpFormatter):
 
     def _format_text(self, text: str) -> str:
         if '%(prog)' in text:
-            text = text % dict(prog=self._prog)
+            text = text % {'prog': self._prog}
 
         if len(text.strip()) > 0:
-            lines: List[str] = []
+            lines: list[str] = []
             for line in text.split('\n'):
-                line = textwrap_fill(line, 120)
-                lines.append(line)
+                filled_line = textwrap_fill(line, 120)
+                lines.append(filled_line)
             text = '\n'.join(lines)
 
         return text
@@ -208,7 +207,7 @@ class MarkdownFormatter(HelpFormatter):
             heading = f'{"#" * self.current_level}# {heading}'
 
         self._indent()
-        section = self._MarkdownSection(self, cast(MarkdownFormatter._MarkdownSection, self._current_section), heading)
+        section = self._MarkdownSection(self, cast('MarkdownFormatter._MarkdownSection', self._current_section), heading)
         self._add_item(section.format_help, [])
         self._current_section = section
 
@@ -218,7 +217,7 @@ class MarkdownFormatter(HelpFormatter):
         if 'help' in action.dest or action.dest == SUPPRESS:
             return ''
 
-        lines: List[str] = []
+        lines: list[str] = []
 
         if action.help is not None:
             expanded_help = self._expand_help(action)
@@ -228,9 +227,9 @@ class MarkdownFormatter(HelpFormatter):
 
         argument = ', '.join(action.option_strings) if getattr(action, 'option_strings', None) is not None and len(action.option_strings) > 0 else action.dest
         default = f'`{action.default}`' if action.default is not None else ''
-        help = '<br/>'.join(help_text)
+        help_value = '<br/>'.join(help_text)
 
         # format arguments as a markdown table row
-        lines.extend([f'| `{argument}` | {default} | {help} |', ''])
+        lines.extend([f'| `{argument}` | {default} | {help_value} |', ''])
 
         return '\n'.join(lines)

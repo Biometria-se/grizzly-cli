@@ -1,11 +1,12 @@
-import subprocess
-import os
-import sys
+from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from abc import ABCMeta
-from typing import Any, Dict, Optional, Tuple, List, Generator, cast
+from contextlib import contextmanager, suppress
 from pathlib import Path
-from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Optional
 
 from behave.model import Scenario, Step
 from setuptools_scm import Configuration as SetuptoolsScmConfiguration
@@ -13,11 +14,16 @@ from setuptools_scm._cli import _get_version as setuptools_scm_get_version
 
 from grizzly_cli.utils import rm_rf
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 __all__ = ['rm_rf']
 
 
-def CaseInsensitive(value: str) -> object:
+def CaseInsensitive(value: str) -> object:  # noqa: N802
     class Wrapped(str):
+        __slots__ = ()
+
         def __eq__(self, other: object) -> bool:
             return isinstance(other, str) and other.lower() == value.lower()
 
@@ -27,16 +33,19 @@ def CaseInsensitive(value: str) -> object:
         def __neq__(self, other: object) -> bool:
             return self.__ne__(other)
 
+        def __hash__(self) -> int:
+            return hash(self)
+
     return Wrapped()
 
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: Optional[str] = None, stdin: Optional[str] = None) -> Tuple[int, List[str]]:
-    output: List[str] = []
+def run_command(command: list[str], env: Optional[dict[str, str]] = None, cwd: Optional[Path] = None, stdin: Optional[str] = None) -> tuple[int, list[str]]:
+    output: list[str] = []
     if env is None:
         env = os.environ.copy()
 
     if cwd is None:
-        cwd = os.getcwd()
+        cwd = Path.cwd()
 
     process = subprocess.Popen(
         command,
@@ -49,7 +58,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: O
 
     if stdin is not None:
         assert process.stdin is not None
-        process.stdin.write(f'{stdin}\n'.encode('utf-8'))
+        process.stdin.write(f'{stdin}\n'.encode())
         process.stdin.close()
 
     try:
@@ -72,30 +81,28 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, cwd: O
     except KeyboardInterrupt:
         pass
     finally:
-        try:
+        with suppress(Exception):
             process.kill()
-        except Exception:
-            pass
 
     process.wait()
 
     return process.returncode, output
 
 
-def create_scenario(name: str, background_steps: List[str], steps: List[str]) -> Scenario:
+def create_scenario(name: str, background_steps: list[str], steps: list[str]) -> Scenario:
     scenario = Scenario('', '', '', name)
 
     for background_step in background_steps:
         [keyword, name] = background_step.split(' ', 1)
-        step = Step('', '', keyword.strip(), keyword.strip(), name.strip())
+        behave_step = Step('', '', keyword.strip(), keyword.strip(), name.strip())
         if scenario._background_steps is None:
             scenario._background_steps = []
-        scenario._background_steps.append(step)
+        scenario._background_steps.append(behave_step)
 
     for step in steps:
         [keyword, name] = step.split(' ', 1)
-        step = Step('', '', keyword.strip(), keyword.strip(), name.strip())
-        scenario.steps.append(step)
+        behave_step = Step('', '', keyword.strip(), keyword.strip(), name.strip())
+        scenario.steps.append(behave_step)
 
     return scenario
 
@@ -103,11 +110,11 @@ def create_scenario(name: str, background_steps: List[str], steps: List[str]) ->
 def get_current_version() -> str:
     root = (Path(__file__).parent / '..').resolve()
 
-    version = setuptools_scm_get_version(SetuptoolsScmConfiguration.from_file(str(root / 'pyproject.toml'), str(root)), True)
+    version = setuptools_scm_get_version(SetuptoolsScmConfiguration.from_file(str(root / 'pyproject.toml'), root.as_posix()), force_write_version_files=True)
 
-    assert version is not None, f'setuptools-scm was not able to get current version for {str(root)}'
+    assert version is not None, f'setuptools-scm was not able to get current version for {root.as_posix()}'
 
-    return cast(str, version)
+    return version  # type: ignore[no-any-return]
 
 
 @contextmanager
@@ -145,6 +152,9 @@ def ANY(*cls: type, message: Optional[str] = None) -> object:  # noqa: N802
 
             return ''.join(representation)
 
+        def __hash__(self) -> int:
+            return hash(self)
+
     for c in cls:
         WrappedAny.register(c)
 
@@ -172,6 +182,9 @@ def SOME(cls: type, *value: Any, **values: Any) -> object:  # noqa: N802
         def __repr__(self) -> str:
             info = ', '.join([f"{key}={value}" for key, value in values.items()])
             return f'<SOME({cls}, {info})>'
+
+        def __hash__(self) -> int:
+            return hash(self)
 
     if len(value) > 0 and len(values) > 0:
         message = 'cannot use both positional and named arguments'

@@ -1,17 +1,21 @@
-import sys
+from __future__ import annotations
 
-from typing import Generator, List
+import sys
 from os import environ
+from typing import TYPE_CHECKING
 
 import pytest
 
-from _pytest.tmpdir import TempPathFactory
-from _pytest.config import Config
-from _pytest.fixtures import SubRequest
-
-from .fixtures import (
+from tests.fixtures import (
     End2EndFixture,
 )
+
+if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Generator
+
+    from _pytest.config import Config
+    from _pytest.fixtures import SubRequest
+    from _pytest.tmpdir import TempPathFactory
 
 E2E_RUN_MODE = environ.get('E2E_RUN_MODE', 'local')
 E2E_RUN_DIST = environ.get('E2E_RUN_DIST', 'False').lower() == 'True'.lower()
@@ -31,7 +35,7 @@ def pytest_configure(config: Config) -> None:
 
 
 # also, add markers for each test function that starts with test_e2e_, if we're running everything
-def pytest_collection_modifyitems(items: List[pytest.Function]) -> None:
+def pytest_collection_modifyitems(items: list[pytest.Function]) -> None:
     for item in items:
         if item.originalname.startswith('test_e2e_') and item.get_closest_marker('timeout') is None:
             item.add_marker(pytest.mark.timeout(PYTEST_TIMEOUT))

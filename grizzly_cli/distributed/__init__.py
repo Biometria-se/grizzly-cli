@@ -1,28 +1,34 @@
-import os
-import sys
+from __future__ import annotations
+
 import argparse
+import os
 import subprocess
-
-from typing import List, Dict, Any, cast
-from tempfile import NamedTemporaryFile
-from getpass import getuser
-from shutil import get_terminal_size
+import sys
 from argparse import Namespace as Arguments
-from socket import gethostname
-from json import loads as jsonloads
+from getpass import getuser
 from io import StringIO
+from json import loads as jsonloads
 from pathlib import Path
+from shutil import get_terminal_size
+from socket import gethostname
+from tempfile import NamedTemporaryFile
+from typing import IO, TYPE_CHECKING
 
-from grizzly_cli import EXECUTION_CONTEXT, STATIC_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, register_parser
+from grizzly_cli import EXECUTION_CONTEXT, MOUNT_CONTEXT, PROJECT_NAME, STATIC_CONTEXT, register_parser
+from grizzly_cli.distributed.build import build as do_build
+from grizzly_cli.distributed.build import create_parser as build_create_parser
+from grizzly_cli.distributed.clean import clean as do_clean
+from grizzly_cli.distributed.clean import create_parser as clean_create_parser
+from grizzly_cli.run import create_parser as run_create_parser
+from grizzly_cli.run import run
 from grizzly_cli.utils import (
-    run_command,
     get_default_mtu,
     list_images,
+    run_command,
 )
-from grizzly_cli.run import create_parser as run_create_parser, run
-from grizzly_cli.argparse import ArgumentSubParser
-from .build import build as do_build, create_parser as build_create_parser
-from .clean import clean as do_clean, create_parser as clean_create_parser
+
+if TYPE_CHECKING:  # pragma: no cover
+    from grizzly_cli.argparse import ArgumentSubParser
 
 
 @register_parser(order=3)
@@ -101,7 +107,7 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         help=(
             'sets enviroment variable LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP, which tells master to wait '
             'this amount of time for worker report'
-        )
+        ),
     )
 
     dist_parser.add_argument(
@@ -144,29 +150,17 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
 def distributed(args: Arguments) -> int:
     if args.subcommand == 'run':
         return run(args, distributed_run)
-    elif args.subcommand == 'build':
+
+    if args.subcommand == 'build':
         return do_build(args)
-    elif args.subcommand == 'clean':
+    if args.subcommand == 'clean':
         return do_clean(args)
-    else:
-        raise ValueError(f'unknown subcommand {args.subcommand}')
+
+    message = f'unknown subcommand {args.subcommand}'
+    raise ValueError(message)
 
 
-def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
-    suffix = '' if args.id is None else f'-{args.id}'
-    tag = getuser()
-
-    if args.project_name is None:
-        project_name = PROJECT_NAME
-    else:
-        project_name = args.project_name
-
-    # default locust project
-    compose_args: List[str] = [
-        '-p', f'{project_name}{suffix}-{tag}',
-        '-f', f'{STATIC_CONTEXT}/compose.yaml',
-    ]
-
+def update_os_environ(args: Arguments, run_arguments: dict[str, list[str]], project_name: str, tag: str) -> None:
     if args.file is not None:
         os.environ['GRIZZLY_RUN_FILE'] = args.file
 
@@ -182,25 +176,25 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
     columns, lines = get_terminal_size()
 
     # set environment variables needed by compose files, when * compose executes
-    os.environ['GRIZZLY_MTU'] = cast(str, mtu)
-    os.environ['GRIZZLY_EXECUTION_CONTEXT'] = EXECUTION_CONTEXT
-    os.environ['GRIZZLY_STATIC_CONTEXT'] = STATIC_CONTEXT
-    os.environ['GRIZZLY_MOUNT_CONTEXT'] = MOUNT_CONTEXT
-    os.environ['GRIZZLY_PROJECT_NAME'] = project_name
-    os.environ['GRIZZLY_USER_TAG'] = tag
-    os.environ['GRIZZLY_EXPECTED_WORKERS'] = str(args.workers)
-    os.environ['GRIZZLY_LIMIT_NOFILE'] = str(args.limit_nofile)
-    os.environ['GRIZZLY_HEALTH_CHECK_RETRIES'] = str(args.health_retries)
-    os.environ['GRIZZLY_HEALTH_CHECK_INTERVAL'] = str(args.health_interval)
-    os.environ['GRIZZLY_HEALTH_CHECK_TIMEOUT'] = str(args.health_timeout)
-    os.environ['GRIZZLY_IMAGE_REGISTRY'] = getattr(args, 'registry', None) or ''
-    os.environ['GRIZZLY_CONTAINER_TTY'] = 'true' if args.tty else 'false'
-    os.environ['COLUMNS'] = str(columns)
-    os.environ['LINES'] = str(lines)
+    os.environ.update({
+        'GRIZZLY_MTU': str(mtu),
+        'GRIZZLY_EXECUTION_CONTEXT': EXECUTION_CONTEXT,
+        'GRIZZLY_STATIC_CONTEXT': STATIC_CONTEXT,
+        'GRIZZLY_MOUNT_CONTEXT': MOUNT_CONTEXT,
+        'GRIZZLY_PROJECT_NAME': project_name,
+        'GRIZZLY_USER_TAG': tag,
+        'GRIZZLY_EXPECTED_WORKERS': str(args.workers),
+        'GRIZZLY_LIMIT_NOFILE': str(args.limit_nofile),
+        'GRIZZLY_HEALTH_CHECK_RETRIES': str(args.health_retries),
+        'GRIZZLY_HEALTH_CHECK_INTERVAL': str(args.health_interval),
+        'GRIZZLY_HEALTH_CHECK_TIMEOUT': str(args.health_timeout),
+        'GRIZZLY_IMAGE_REGISTRY': getattr(args, 'registry', None) or '',
+        'GRIZZLY_CONTAINER_TTY': repr(args.tty).lower(),
+        'COLUMNS': str(columns),
+        'LINES': str(lines),
+    })
 
     grizzly_mount_context_path = ''
-
-    name_template = '{project}{suffix}-{tag}-{node}-{index}'
 
     if EXECUTION_CONTEXT != MOUNT_CONTEXT:
         hostname = gethostname()
@@ -227,53 +221,87 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
     if len(run_arguments.get('common', [])) > 0:
         os.environ['GRIZZLY_COMMON_RUN_ARGS'] = ' '.join(run_arguments['common'])
 
-    # check if we need to build image
+
+def write_env_file(fd: IO[bytes], environ: dict, args: Arguments) -> None:
+    if len(environ) > 0:
+        for key, value in environ.items():
+            transformed_value = value.replace(EXECUTION_CONTEXT, MOUNT_CONTEXT).replace(MOUNT_CONTEXT, '/srv/grizzly') if key == 'GRIZZLY_CONFIGURATION_FILE' else value
+
+            fd.write(f'{key}={transformed_value}\n'.encode())
+
+    fd.write(f'COLUMNS={os.environ["COLUMNS"]}\n'.encode())
+    fd.write(f'LINES={os.environ["LINES"]}\n'.encode())
+    fd.write(f'GRIZZLY_CONTAINER_TTY={os.environ["GRIZZLY_CONTAINER_TTY"]}\n'.encode())
+
+    if args.wait_for_worker is not None:
+        fd.write(f'LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP="{args.wait_for_worker}"'.encode())
+
+    fd.flush()
+
+    os.environ['GRIZZLY_ENVIRONMENT_FILE'] = fd.name
+
+
+def should_validate_config(args: Arguments, compose_args: list[str]) -> int:
+    validate_config = getattr(args, 'validate_config', False)
+
+    compose_command = [
+        args.container_system, 'compose',
+        *compose_args,
+        'config',
+    ]
+
+    result = run_command(compose_command, silent=not validate_config)
+
+    if validate_config or result.return_code != 0:
+        if result.return_code != 0 and not validate_config:
+            print('!! something in the compose project is not valid, check with:')
+            argv = sys.argv[:]
+            argv.insert(argv.index('dist') + 1, '--validate-config')
+            print(f'grizzly-cli {" ".join(argv[1:])}')
+
+        return result.return_code
+
+    return 0
+
+
+def should_build_image(args: Arguments, project_name: str, tag: str) -> int:
     images = list_images(args)
 
-    with NamedTemporaryFile() as fd:
-        # file will be deleted when conContainertext exits
-        if len(environ) > 0:
-            for key, value in environ.items():
-                if key == 'GRIZZLY_CONFIGURATION_FILE':
-                    value = value.replace(EXECUTION_CONTEXT, MOUNT_CONTEXT).replace(MOUNT_CONTEXT, '/srv/grizzly')
+    if images.get(project_name, {}).get(tag, None) is None or args.force_build or args.build:
+        rc = do_build(args)
+        if rc != 0:
+            print(f'!! failed to build {project_name}, rc={rc}')
+            return rc
 
-                fd.write(f'{key}={value}\n'.encode('utf-8'))
+    return 0
 
-        fd.write(f'COLUMNS={columns}\n'.encode('utf-8'))
-        fd.write(f'LINES={lines}\n'.encode('utf-8'))
-        fd.write(f'GRIZZLY_CONTAINER_TTY={os.environ["GRIZZLY_CONTAINER_TTY"]}\n'.encode('utf-8'))
 
-        if args.wait_for_worker is not None:
-            fd.write(f'LOCUST_WAIT_FOR_WORKERS_REPORT_AFTER_RAMP_UP="{args.wait_for_worker}"'.encode('utf-8'))
+def distributed_run(args: Arguments, environ: dict, run_arguments: dict[str, list[str]]) -> int:
+    suffix = '' if args.id is None else f'-{args.id}'
+    tag = getuser()
 
-        fd.flush()
+    project_name = PROJECT_NAME if args.project_name is None else args.project_name
 
-        os.environ['GRIZZLY_ENVIRONMENT_FILE'] = fd.name
+    # default locust project
+    compose_args: list[str] = [
+        '-p', f'{project_name}{suffix}-{tag}',
+        '-f', f'{STATIC_CONTEXT}/compose.yaml',
+    ]
 
-        validate_config = getattr(args, 'validate_config', False)
+    update_os_environ(args, run_arguments, project_name, tag)
 
-        compose_command = [
-            args.container_system, 'compose',
-            *compose_args,
-            'config',
-        ]
+    name_template = '{project}{suffix}-{tag}-{node}-{index}'
 
-        result = run_command(compose_command, silent=not validate_config)
+    with NamedTemporaryFile() as fd:  # file will be deleted when container exists
+        write_env_file(fd, environ, args)
 
-        if validate_config or result.return_code != 0:
-            if result.return_code != 0 and not validate_config:
-                print('!! something in the compose project is not valid, check with:')
-                argv = sys.argv[:]
-                argv.insert(argv.index('dist') + 1, '--validate-config')
-                print(f'grizzly-cli {" ".join(argv[1:])}')
+        rc = should_validate_config(args, compose_args)
+        if rc != 0:
+            return rc
 
-            return result.return_code
-
-        if images.get(project_name, {}).get(tag, None) is None or args.force_build or args.build:
-            rc = do_build(args)
-            if rc != 0:
-                print(f'!! failed to build {project_name}, rc={rc}')
-                return rc
+        rc = should_build_image(args, project_name, tag)
+        if rc != 0:
+            return rc
 
         compose_scale_argument = ['--scale', f'worker={args.workers}']
 
@@ -339,14 +367,14 @@ def distributed_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dic
                     stderr=subprocess.STDOUT,
                 ).split('\n')
 
-                log_file = Path(args.log_file).open('a+') if args.log_file is not None else StringIO()
+                log_file = Path(args.log_file).open('a+') if args.log_file is not None else StringIO()  # noqa: SIM115
 
                 try:
                     for line in missed_output:
                         formatted_line = f'{master_node_name}  | {line}'
                         print(formatted_line)
                         log_file.write(f'{formatted_line}\n')
-                except:
+                except:  # noqa: S110
                     pass
                 finally:
                     log_file.close()

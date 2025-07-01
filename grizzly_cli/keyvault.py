@@ -2,23 +2,27 @@ from __future__ import annotations
 
 import logging
 import re
-
-from typing import Any
-from pathlib import Path
-from argparse import Namespace as Arguments, ArgumentParser as CoreArgumentParser
 from base64 import b64encode
-from dataclasses import dataclass
 from contextlib import suppress
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import yaml
-from azure.core.exceptions import ResourceNotFoundError, ClientAuthenticationError, ServiceRequestError
-from azure.keyvault.secrets import SecretClient
+from azure.core.exceptions import ClientAuthenticationError, ResourceNotFoundError, ServiceRequestError
 
-from . import register_parser
-from .argparse import ArgumentSubParser
-from .argparse.bashcompletion import BashCompletionTypes
-from .utils import flatten, unflatten, IndentDumper, merge_dicts, logger, chunker
-from .utils.configuration import get_context_root, load_configuration_file, load_configuration_keyvault, get_keyvault_client
+from grizzly_cli import register_parser
+from grizzly_cli.argparse.bashcompletion import BashCompletionTypes
+from grizzly_cli.utils import IndentDumper, chunker, flatten, logger, merge_dicts, unflatten
+from grizzly_cli.utils.configuration import get_context_root, get_keyvault_client, load_configuration_file, load_configuration_keyvault
+
+if TYPE_CHECKING:  # pragma: no cover
+    from argparse import ArgumentParser as CoreArgumentParser
+    from argparse import Namespace as Arguments
+
+    from azure.keyvault.secrets import SecretClient
+
+    from grizzly_cli.argparse import ArgumentSubParser
 
 # disable azure.identity warning logs if authentication fails
 azure_logger = logging.getLogger('azure')
@@ -32,9 +36,6 @@ KEYVAULT_MAX_SIZE = 25600 - 100  # 100 bytes buffer
 
 @dataclass
 class KeyvaultSecretHolder:
-    """
-    Keyvault secret holder.
-    """
     name: str
     content_type: str | None
     value: str
@@ -167,7 +168,7 @@ def encode_mq_certificate(root: Path, environment: str, key: str, base_cert_name
             name=key,
             content_type='files',
             value=','.join(references),
-        )
+        ),
     )
 
     return secrets
@@ -222,7 +223,7 @@ def _should_export(key: str, secret: Any) -> bool:
         return False
 
     for keyword in KEYWORDS:
-        key_should = keyword in key.lower() and not f'.{keyword}.' in key
+        key_should = keyword in key.lower() and f'.{keyword}.' not in key
         secret_should = isinstance(secret, str) and keyword in secret.lower() and secret not in COMMON_FALSE_POSITIVES
 
         # if key should be exported, but not the secret and the secret is not a string... it shouldn't
@@ -242,14 +243,14 @@ def _build_key_name(environment: str, key: str) -> str:
     return f'grizzly--{environment}--{_keyvault_normalize(key)}'
 
 
-def _dict_to_yaml(file: Path, content: dict[str, Any], *, indentation: Path | int) -> None:
+def _dict_to_yaml(file: Path, content: dict, *, indentation: Path | int) -> None:
     file.write_text('')  # make sure file is empty
 
     with file.open('w') as fd:
         yaml.dump(content, fd, Dumper=IndentDumper.use_indentation(indentation), default_flow_style=False, sort_keys=False, allow_unicode=True)
 
 
-def _extract_metadata(env_file: str) -> tuple[str, str | None, dict[str, Any]]:
+def _extract_metadata(env_file: str) -> tuple[str, str | None, dict]:
     file = Path(env_file)
     configuration = load_configuration_file(file).get('configuration', {})
 
@@ -267,10 +268,12 @@ def diff(left_file_name: str, right_file_name: str) -> int:
     right_config_file = Path(right_file_name)
 
     if not left_config_file.exists():
-        raise ValueError(f'environment configuration file {left_config_file.as_posix()} does not exist')
+        message = f'environment configuration file {left_config_file.as_posix()} does not exist'
+        raise ValueError(message)
 
     if not right_config_file.exists():
-        raise ValueError(f'environment configuration file {right_config_file.as_posix()} does not exist')
+        message = f'environment configuration file {right_config_file.as_posix()} does not exist'
+        raise ValueError(message)
 
     left_config = flatten(load_configuration_file(right_config_file)['configuration'])
     right_config = flatten(load_configuration_file(left_config_file)['configuration'])
@@ -287,15 +290,15 @@ def diff(left_file_name: str, right_file_name: str) -> int:
             diffed_keys.add(key)
 
     for key, value in right_config.items():
-        if key not in left_config or left_config.get(key, None) != value and key not in diffed_keys:
+        if key not in left_config or (left_config.get(key, None) != value and key not in diffed_keys):
             logger.error(f'+ {key}: {left_config.get(key, None)} != {value}')
 
     return 0
 
 
-def keyvault_import(client: SecretClient, environment: str, args: Arguments, root: Path, configuration: dict[str, Any]) -> int:
+def keyvault_import(client: SecretClient, environment: str, args: Arguments, root: Path, configuration: dict) -> int:
     # unflatten existing configuration
-    configuration_unflatten: dict[str, Any] = {}
+    configuration_unflatten: dict = {}
 
     original_key_count = len(configuration)
 
@@ -336,45 +339,57 @@ def keyvault_import(client: SecretClient, environment: str, args: Arguments, roo
     return 0
 
 
-def keyvault_export(client: SecretClient, environment: str, args: Arguments, root: Path, configuration: dict[str, Any]) -> int:
-    """
-    From grizzly to keyvault.
+def upsert_secrets(client: SecretClient, secrets: list[KeyvaultSecretHolder], *, dry_run: bool) -> int:
+    created_secrets_count = 0
 
-    If the specified secret starts with `cert:`, it indicates that it should reference a keyvault certificate (the name). This value
-    can have metadata (secret content type) appended after the actual value the `#` separator. If the output certificate should be
-    password protected, `pass:` should reference a keyvault secret which contains the password.
+    for secret in secrets:
+        # check if secret already exists
+        try:
+            current_value = client.get_secret(secret.name)
+            if current_value.value != secret.value or current_value.properties.content_type != secret.content_type:
+                raise ResourceNotFoundError
 
-    `cert:<keyvault certificate name>[,pass:<keyvault secret name for password>][#format:[mqm|pem-public|pem-private]]`
+            # it exists with the same value, skip
+            continue
+        except ResourceNotFoundError:  # great, import it into the keyvault
+            pass
 
-    Supported certificate output formats:
-    - `mqm`, MQ CMS keystore
-    - `pem-public`, public certificate in PEM format
-    - `pem-private`, private key in PEM format
+        logger.debug(f'% keyvault secret {secret.name} with content type {secret.content_type}')
 
-    If the configuration key contains `file` in the path, the configuration value will be base64 encoded and, optionally, chunked into
-    keyvault secrets. If the path also contains `mq`, all MQ keystore/CMS files will be encoded, chunked and then references to the
-    actual configuration key.
-    """
+        if not dry_run:
+            client.set_secret(secret.name, secret.value, content_type=secret.content_type)
+
+        created_secrets_count += 1
+
+    return created_secrets_count
+
+
+def prepare_secrets(
+    client: SecretClient,
+    environment: str,
+    root: Path,
+    configuration: dict,
+    *,
+    filter_keys: list[str] | None,
+    global_configuration: list[str],
+) -> tuple[dict, list[KeyvaultSecretHolder]]:
     secrets: list[KeyvaultSecretHolder] = []
-
-    environment_file = Path(args.env_file)
-
-    safe_configuration = {}
+    safe_configuration: dict = {}
 
     for key, secret in configuration.items():
         if not _should_export(key, secret):
             safe_configuration.update({key: secret})
             continue
 
-        if args.keys is not None and key not in args.keys:
+        if filter_keys is not None and key not in filter_keys:
             continue
 
-        key_environment = _determine_environment(args.global_configuration, environment, key)
+        key_environment = _determine_environment(global_configuration, environment, key)
         key_name = _build_key_name(key_environment, key)
 
         if secret.startswith('cert:'):
             if '#' in secret:
-                secret, content_type = secret.split('#', 1)
+                secret, content_type = secret.split('#', 1)  # noqa: PLW2901
             else:
                 content_type = None
 
@@ -385,7 +400,7 @@ def keyvault_export(client: SecretClient, environment: str, args: Arguments, roo
                     client.get_secret(password_key)
                 except ResourceNotFoundError:
                     message = f'key {password_key} referenced in value for {key} does not exist'
-                    raise ValueError(message)
+                    raise ValueError(message) from None
 
             secrets.append(KeyvaultSecretHolder(
                 name=key_name,
@@ -404,32 +419,37 @@ def keyvault_export(client: SecretClient, environment: str, args: Arguments, roo
                 value=secret,
             ))
 
-    created_secrets_count = 0
+    return safe_configuration, secrets
 
-    for secret in secrets:
-        # check if secret already exists
-        try:
-            current_value = client.get_secret(secret.name)
-            if current_value.value != secret.value or current_value.properties.content_type != secret.content_type:
-                raise ResourceNotFoundError
 
-            # it exists with the same value, skip
-            continue
-        except ResourceNotFoundError:  # great, import it into the keyvault
-            pass
+def keyvault_export(client: SecretClient, environment: str, args: Arguments, root: Path, configuration: dict) -> int:
+    """From grizzly to keyvault.
 
-        logger.debug(f'% keyvault secret {secret.name} with content type {secret.content_type}')
+    If the specified secret starts with `cert:`, it indicates that it should reference a keyvault certificate (the name). This value
+    can have metadata (secret content type) appended after the actual value the `#` separator. If the output certificate should be
+    password protected, `pass:` should reference a keyvault secret which contains the password.
 
-        if not args.dry_run:
-            client.set_secret(secret.name, secret.value, content_type=secret.content_type)
+    `cert:<keyvault certificate name>[,pass:<keyvault secret name for password>][#format:[mqm|pem-public|pem-private]]`
 
-        created_secrets_count += 1
+    Supported certificate output formats:
+    - `mqm`, MQ CMS keystore
+    - `pem-public`, public certificate in PEM format
+    - `pem-private`, private key in PEM format
 
+    If the configuration key contains `file` in the path, the configuration value will be base64 encoded and, optionally, chunked into
+    keyvault secrets. If the path also contains `mq`, all MQ keystore/CMS files will be encoded, chunked and then references to the
+    actual configuration key.
+    """
+    environment_file = Path(args.env_file)
+
+    safe_configuration, secrets = prepare_secrets(client, environment, root, configuration, filter_keys=args.keys, global_configuration=args.global_configuration)
+
+    created_secrets_count = upsert_secrets(client, secrets, dry_run=args.dry_run)
     already_exists = len(secrets) - created_secrets_count
 
     if not args.dry_run:
         unsafe_environment_file = environment_file.rename(environment_file.with_suffix(f'.unsafe{environment_file.suffix}'))
-        safe_yaml_configuration: dict[str, Any] = {}
+        safe_yaml_configuration: dict = {}
 
         for key, value in safe_configuration.items():
             safe_yaml_configuration = merge_dicts(safe_yaml_configuration, unflatten(key, value))
@@ -446,7 +466,7 @@ def keyvault_export(client: SecretClient, environment: str, args: Arguments, roo
 
     logger.info(
         f'created {created_secrets_count} ({already_exists} already existed) secrets in keyvault {client.vault_url} '
-        f'and saved the safe environment configuration in {environment_file.as_posix()}'
+        f'and saved the safe environment configuration in {environment_file.as_posix()}',
     )
     logger.warning(f'! the unsafe environment configuration is still present in {unsafe_environment_file.as_posix()}')
 
@@ -465,7 +485,8 @@ def keyvault(args: Arguments) -> int:
     env_file = Path(args.env_file)
     if args.subcommand == 'import' and not env_file.exists():
         if args.keyvault is None:
-            raise ValueError(f'--vault-name not specified and environment configuration file {args.env_file} does not exist')
+            message = f'--vault-name not specified and environment configuration file {args.env_file} does not exist'
+            raise ValueError(message)
 
         _dict_to_yaml(env_file, {'configuration': {'keyvault': args_keyvault}}, indentation=2)
 
@@ -481,19 +502,23 @@ def keyvault(args: Arguments) -> int:
     keyvault = keyvault or args_keyvault
 
     if keyvault is None:
-        raise ValueError('keyvault not specified, please specify a keyvault')
+        message = 'keyvault not specified, please specify a keyvault'
+        raise ValueError(message)
 
     client = get_keyvault_client(keyvault)
 
     try:
         if args.subcommand == 'import':  # from keyvault
             return keyvault_import(client, environment, args, grizzly_context_root, configuration)
-        elif args.subcommand == 'export':  # to keyvault
+
+        if args.subcommand == 'export':  # to keyvault
             return keyvault_export(client, environment, args, grizzly_context_root, configuration)
-        elif args.subcommand == 'diff':
+
+        if args.subcommand == 'diff':
             return diff(args.env_file, args.orig_file)
-        else:
-            raise ValueError(f'unknown subcommand {args.subcommand}')
+
+        message = f'unknown subcommand {args.subcommand}'
+        raise ValueError(message)
     except ClientAuthenticationError:
         logger.error('authentication failed, if you are running from a resource which does not have a managed identity then you must run `az login` first.')
         return 1

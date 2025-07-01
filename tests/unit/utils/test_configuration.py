@@ -1,31 +1,33 @@
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock
 from base64 import b64encode
+from pathlib import Path
 from platform import system
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
-from _pytest.tmpdir import TempPathFactory
-from pytest_mock import MockerFixture
 from azure.core.exceptions import ClientAuthenticationError, ServiceRequestError
 from azure.identity import ChainedTokenCredential
-from azure.keyvault.secrets import SecretClient, SecretProperties, KeyVaultSecret
+from azure.keyvault.secrets import KeyVaultSecret, SecretClient, SecretProperties
 
-from grizzly_cli.utils import setup_logging, chunker
+from grizzly_cli.utils import chunker, setup_logging
 from grizzly_cli.utils.configuration import (
     ScenarioTag,
-    load_configuration_file,
-    load_configuration,
-    load_configuration_keyvault,
-    get_keyvault_client,
     _get_metadata,
-    _write_file,
     _import_files,
+    _write_file,
     get_context_root,
+    get_keyvault_client,
+    load_configuration,
+    load_configuration_file,
+    load_configuration_keyvault,
 )
+from tests.helpers import ANY, cwd, rm_rf
 
-from tests.helpers import rm_rf, cwd, ANY
+if TYPE_CHECKING:
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock import MockerFixture
 
 
 def create_secret_property(name: str, content_type: str | None = None) -> SecretProperties:
@@ -186,10 +188,7 @@ def test__write_file(tmp_path_factory: TempPathFactory) -> None:
 
             assert _write_file(test_context, content_type, chunk) == 'files/foobar.txt'
             f = test_context / 'files' / 'foobar.txt'
-            if index < number_of_chunks - 1:
-                expected = ''.join(processed_chunks)
-            else:
-                expected = 'foobarfoobarfoobar'
+            expected = ''.join(processed_chunks) if index < number_of_chunks - 1 else 'foobarfoobarfoobar'
 
             assert f.read_text() == expected
 
@@ -267,12 +266,12 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
     try:
         env_file_local = test_context / 'local.yaml'
 
-        env_file_local.write_text('''configuration:
+        env_file_local.write_text("""configuration:
     authentication:
         admin:
             username: administrator
             password: hunter
-''')
+""")
 
         env_file_lock_name = load_configuration(env_file_local.as_posix())
         assert env_file_lock_name == f'{test_context.as_posix()}/local.lock.yaml'
@@ -293,13 +292,13 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
             assert env_file_lock.read_text() == env_file_local.read_text()
             load_configuration_keyvault_mock.assert_not_called()
 
-        env_file_local.write_text('''configuration:
+        env_file_local.write_text("""configuration:
     keyvault: https://grizzly.keyvault.azure.com
     authentication:
         admin:
             username: administrator
             password: hunter
-''')
+""")
 
         env_file_lock_name = load_configuration(env_file_local.as_posix())
         assert env_file_lock_name == f'{test_context.as_posix()}/local.lock.yaml'
@@ -310,14 +309,14 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
         load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'local', context_root, filter_keys=None)
         load_configuration_keyvault_mock.reset_mock()
 
-        env_file_local.write_text('''configuration:
+        env_file_local.write_text("""configuration:
     env: test
     keyvault: https://grizzly.keyvault.azure.com
     authentication:
         admin:
             username: administrator
             password: hunter
-''')
+""")
 
         env_file_lock_name = load_configuration(env_file_local.as_posix())
         assert env_file_lock_name == f'{test_context.as_posix()}/local.lock.yaml'
@@ -346,12 +345,12 @@ def test_load_configuration_file(tmp_path_factory: TempPathFactory) -> None:
     try:
         env_file_base = test_context / 'base.yaml'
 
-        env_file_base.write_text('''configuration:
+        env_file_base.write_text("""configuration:
     authentication:
         admin:
             username: administrator
             password: hunter
-''')
+""")
 
         assert load_configuration_file(env_file_base) == {
             'configuration': {
@@ -365,7 +364,7 @@ def test_load_configuration_file(tmp_path_factory: TempPathFactory) -> None:
         }
 
         env_file_local = test_context / 'local.yaml'
-        env_file_local.write_text('''{% merge "./base.yaml" %}
+        env_file_local.write_text("""{% merge "./base.yaml" %}
 configuration:
     authentication:
         admin:
@@ -374,7 +373,7 @@ configuration:
     logging:
         level: DEBUG
         max_size: 10000
-''')
+""")
         assert load_configuration_file(env_file_local) == {
             'configuration': {
                 'authentication': {

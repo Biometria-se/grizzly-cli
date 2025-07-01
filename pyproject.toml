@@ -61,14 +61,12 @@ grizzly-cli = "grizzly_cli.__main__:main"
 [project.optional-dependencies]
 dev = [
     "mypy ==1.11.1",
-    "pylint ==3.2.6",
     "pytest ==8.3.2",
     "coverage[toml] ==7.6.1",
     "pytest-cov ==5.0.0",
     "pytest-mock ==3.14.0",
     "pytest-timeout ==2.3.1",
     "atomicwrites ==1.4.1",
-    "flake8-pyproject ==1.2.3",
     "requests-mock ==1.12.1",
     "pip-licenses ==4.3.4",
     "pytablewriter ==1.2.0",
@@ -79,7 +77,8 @@ dev = [
     "types-requests >=2.27.13,<3.0.0",
     "setuptools-scm==8.1.0",
     "types-pyyaml",
-    "snakeviz"
+    "snakeviz",
+    "ruff ==0.12.1"
 ]
 ci = [
     "build ==1.1.1",
@@ -101,54 +100,6 @@ grizzly_cli = [
     "static/Containerfile",
     "argparse/bashcompletion/bashcompletion.bash"
 ]
-
-[tool.pylint.master]
-ignore = [".env", ".venv", ".pytest_tmp", "tests/e2e/example"]
-jobs = 1
-disable = "all"
-enable = [
-    'F',
-    'unreachable',
-    'duplicate-key',
-    'unnecessary-semicolon',
-    'global-variable-not-assigned',
-    'unused-variable',
-    'unused-wildcard-import',
-    'unused-import',
-    'line-too-long',
-    'binary-op-exception',
-    'bad-format-string',
-    'anomalous-backslash-in-string',
-    'bad-open-mode',
-    'E0001', 'E0011', 'E0012', 'E0100', 'E0101',
-    'E0102', 'E0103', 'E0104', 'E0105', 'E0107',
-    'E0108', 'E0110', 'E0111', 'E0112', 'E0113',
-    'E0114', 'E0115', 'E0116', 'E0117', 'E0118',
-    'E0202', 'E0203', 'E0211', 'E0213', 'E0236',
-    'E0237', 'E0238', 'E0239', 'E0240', 'E0241',
-    'E0301', 'E0302', 'E0303', 'E0401', 'E0402',
-    'E0601', 'E0602', 'E0603', 'E0604', 'E0611',
-    'E0632', 'E0633', 'E0701', 'E0702', 'E0703',
-    'E0704', 'E0710', 'E0711', 'E0712', 'E1003',
-    'E1101', 'E1102', 'E1111', 'E1120', 'E1121',
-    'E1123', 'E1124', 'E1125', 'E1126', 'E1127',
-    'E1128', 'E1129', 'E1130', 'E1131', 'E1132',
-    'E1133', 'E1134', 'E1135', 'E1136', 'E1137',
-    'E1138', 'E1139', 'E1200', 'E1201', 'E1205',
-    'E1206', 'E1300', 'E1301', 'E1302', 'E1303',
-    'E1304', 'E1305', 'E1306', 'E1310', 'E1700',
-    'E1701'
-]
-max-line-length = 180
-msg-template = "{path}:{line}:{column},{category},{symbol}:{msg}"
-reports = "no"
-output-format = "text"
-generated-members = []
-
-[tool.flake8]
-max-line-length = 180
-ignore = ["E722", "W503", "E402", "F405", "F403"]
-exclude = [".git", "__pycache__", "docs", "build", "dist", ".pytest_tmp"]
 
 [tool.mypy]
 exclude = ["tests/e2e/example"]
@@ -202,3 +153,42 @@ addopts = [
     "--cov-report=",
     "--no-cov-on-fail"
 ]
+
+[tool.ruff]
+exclude = [
+    ".env", ".venv", ".pytest_tmp", "build", "dist", "grizzly_cli/__version__.py"
+]
+line-length = 180
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN401",
+    "BLE001",
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D203", "D213", "D205", "D301", "D407", "D417",
+    "DTZ005",
+    "E722", "E402",
+    "F405", "F403",
+    "N801",
+    "PD011",
+    "PLR2004",
+    "UP007", "UP006", "UP045",
+    "Q000",
+    "S101", "S104", "S314", "S603", "S607", "S701",
+    "SLF001",
+    "T201",
+    "TRY301"
+]
+
+[tool.ruff.lint.per-file-ignores]
+"script/**" = ["INP001", "D100"]
+"tests/unit/utils/test___init__.py" = ["W291"]
+"tests/e2e/example/**" = ["ALL"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-branches = 15
+max-args = 10

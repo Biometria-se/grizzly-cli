@@ -1,14 +1,18 @@
-import sys
+from __future__ import annotations
 
+import sys
 from os import environ
-from argparse import Namespace as Arguments
-from typing import Optional
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 from pyotp import TOTP
 
-from . import register_parser
-from .argparse import ArgumentSubParser
+from grizzly_cli import register_parser
+
+if TYPE_CHECKING:  # pragma: no cover
+    from argparse import Namespace as Arguments
+
+    from grizzly_cli.argparse import ArgumentSubParser
 
 
 @register_parser()
@@ -27,7 +31,7 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
         help=(
             'where to read OTP secret, nothing specified means environment variable OTP_SECRET, '
             '`-` means stdin and anything else is considered a file'
-        )
+        ),
     )
 
     if auth_parser.prog != 'grizzly-cli auth':  # pragma: no cover
@@ -40,31 +44,36 @@ def auth(args: Arguments) -> int:
     if args.input is None:
         secret = environ.get('OTP_SECRET', None)
         if secret is None:
-            raise ValueError('environment variable OTP_SECRET is not set')
+            message = 'environment variable OTP_SECRET is not set'
+            raise ValueError(message)
     elif args.input == '-':
         try:
             secret = sys.stdin.read().strip()
-        except:
+        except:  # noqa: S110
             pass
         finally:
             if secret is None or len(secret.strip()) < 1:
-                raise ValueError('OTP secret could not be read from stdin')
+                message = 'OTP secret could not be read from stdin'
+                raise ValueError(message)
     else:
         input_file = Path(args.input)
 
         if not input_file.exists():
-            raise ValueError(f'file {input_file} does not exist')
+            message = f'file {input_file} does not exist'
+            raise ValueError(message)
 
         secret = input_file.read_text().strip()
 
         if ' ' in secret or len(secret.split('\n')) > 1 or secret == '':
-            raise ValueError(f'file {input_file} does not seem to contain a single line with a valid OTP secret')
+            message = f'file {input_file} does not seem to contain a single line with a valid OTP secret'
+            raise ValueError(message)
 
     try:
         totp = TOTP(secret)
 
         print(totp.now())
     except Exception as e:
-        raise ValueError(f'unable to generate TOTP code: {e}')
+        message = f'unable to generate TOTP code: {e!s}'
+        raise ValueError(message) from e
 
     return 0

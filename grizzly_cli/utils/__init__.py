@@ -1,49 +1,50 @@
 from __future__ import annotations
 
-import re
-import sys
-import subprocess
-import signal as psignal
 import logging
 import logging.config
-import stat
 import os
-
-from typing import Optional, List, Set, Union, Dict, Any, Tuple, Callable, Type, ClassVar, cast
-from types import TracebackType, FrameType
-from os import path, environ
-from shutil import which, rmtree
-from behave.parser import parse_file as feature_file_parser
-from argparse import Namespace as Arguments
-from json import loads as jsonloads
-from functools import wraps
-from packaging import version as versioning
-from tempfile import mkdtemp
-from hashlib import sha1
-from math import ceil
-from datetime import datetime, timezone
-from dataclasses import dataclass, field
-from pathlib import Path
-from copy import deepcopy
+import re
+import signal as psignal
+import stat
+import subprocess
+import sys
 from collections.abc import Mapping
+from contextlib import suppress
+from copy import deepcopy
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from functools import wraps
+from hashlib import sha1
+from json import loads as jsonloads
+from math import ceil
+from os import environ
+from pathlib import Path
+from shutil import rmtree, which
+from tempfile import mkdtemp
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Union, cast
 
 import requests
 import tomli
-
-from behave.model import Scenario
+from behave.parser import parse_file as feature_file_parser
 from jinja2 import Template
+from packaging import version as versioning
 from progress.spinner import Spinner
 from yaml import Dumper
 
 import grizzly_cli
 
+if TYPE_CHECKING:  # pragma: no cover
+    from argparse import Namespace as Arguments
+    from types import FrameType, TracebackType
+
+    from behave.model import Scenario
 
 logger = logging.getLogger('grizzly-cli')
 
 
 class SignalHandler:
     handler: Callable[[int, Optional[FrameType]], None]
-    signals: Dict[int, Union[Callable[[int, Optional[FrameType]], Any], int, None]]
+    signals: dict[int, Union[Callable[[int, Optional[FrameType]], Any], int, None]]
 
     def __init__(self, handler: Callable[[int, Optional[FrameType]], None], signal: int, *signals: int) -> None:
         self.handler = handler
@@ -54,11 +55,11 @@ class SignalHandler:
                 self.signals.update({sig: None})
 
     def __enter__(self) -> None:
-        for signal in self.signals.keys():
+        for signal in self.signals:
             self.signals.update({signal: psignal.getsignal(signal)})
             psignal.signal(signal, self.handler)
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc: Optional[BaseException], tb: Optional[TracebackType]) -> bool:
+    def __exit__(self, exc_type: Optional[type[BaseException]], exc: Optional[BaseException], tb: Optional[TracebackType]) -> bool:
         for signal, handler in self.signals.items():
             psignal.signal(signal, handler)
 
@@ -69,15 +70,15 @@ class SignalHandler:
 class RunCommandResult:
     return_code: int
     abort_timestamp: Optional[datetime] = field(init=False, default=None)
-    output: Optional[List[bytes]] = field(init=False, default=None)
+    output: Optional[list[bytes]] = field(init=False, default=None)
 
 
-def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, silent: bool = False, verbose: bool = False, spinner: Optional[str] = None) -> RunCommandResult:
+def run_command(command: list[str], env: Optional[dict[str, str]] = None, *, silent: bool = False, verbose: bool = False, spinner: Optional[str] = None) -> RunCommandResult:
     if env is None:
         env = environ.copy()
 
     if verbose:
-        logger.info(f'run_command: {" ".join(command)}')
+        logger.info('run_command: %s', ' '.join(command))
 
     process = subprocess.Popen(
         command,
@@ -96,7 +97,7 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
     if spinner is not None:  # pragma: no cover
         _spinner = Spinner(f'{spinner} ')
 
-    def sig_handler(signum: int, frame: Optional[FrameType] = None) -> None:  # pragma: no cover
+    def sig_handler(*_args: Any, **_kwargs: Any) -> None:  # pragma: no cover
         if result.abort_timestamp is None:
             result.abort_timestamp = datetime.now(timezone.utc)
             process.terminate()
@@ -125,10 +126,8 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
         except KeyboardInterrupt:
             pass
         finally:
-            try:
+            with suppress(Exception):
                 process.kill()
-            except Exception:
-                pass
 
     process.wait()
 
@@ -140,25 +139,21 @@ def run_command(command: List[str], env: Optional[Dict[str, str]] = None, *, sil
     return result
 
 
-def get_docker_compose_version() -> Tuple[int, int, int]:  # pragma: no cover
-    output = subprocess.getoutput('docker compose version')
+def get_docker_compose_version() -> tuple[int, int, int]:  # pragma: no cover
+    output = subprocess.getoutput('docker compose version')  # noqa: S605
 
     version_line = output.splitlines()[0]
 
     match = re.match(r'.*version [v]?([1-2]\.[0-9]+\.[0-9]+).*$', version_line)
 
-    if match:
-        version = cast(Tuple[int, int, int], tuple([int(part) for part in match.group(1).split('.')]))
-    else:
-        version = (0, 0, 0,)
-
-    return version
+    return cast('tuple[int, int, int]', tuple([int(part) for part in match.group(1).split('.')])) if match else (0, 0, 0)
 
 
-def onerror(func: Callable, path: str, exc_info: Union[
-        BaseException,
-        Tuple[Type[BaseException], BaseException, Optional[TracebackType]],
-]) -> None:  # noqa: ARG001  # pragma: no cover
+def onerror(
+        func: Callable,
+        path: str,
+        exc_info: Union[BaseException, tuple[type[BaseException], BaseException, Optional[TracebackType]],  # noqa: ARG001
+]) -> None:  # pragma: no cover
     """Error handler for shutil.rmtree.
 
     If the error is due to an access error (read only file)
@@ -172,12 +167,13 @@ def onerror(func: Callable, path: str, exc_info: Union[
         _path.chmod(stat.S_IWUSR)
         func(path)
     else:
-        raise  # pylint: disable=E0704
+        raise  # noqa: PLE0704
 
 
 def rm_rf(path: Union[str, Path], *, missing_ok: bool = False) -> None:
     """Remove the path contents recursively, even if some elements
-    are read-only."""
+    are read-only.
+    """
     p = path.as_posix() if isinstance(path, Path) else path
 
     try:
@@ -190,14 +186,14 @@ def rm_rf(path: Union[str, Path], *, missing_ok: bool = False) -> None:
             raise
 
 
-def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Optional[str], Optional[List[str]]], Optional[str]]:
+def get_dependency_versions(*, local_install: Union[bool, str]) -> tuple[tuple[Optional[str], Optional[list[str]]], Optional[str]]:  # noqa: C901, PLR0912, PLR0915
     grizzly_requirement: Optional[str] = None
     grizzly_requirement_egg: str
     locust_version: Optional[str] = None
     grizzly_version: Optional[str] = None
-    grizzly_extras: Optional[List[str]] = None
+    grizzly_extras: Optional[list[str]] = None
 
-    args: tuple[str, ...] = (grizzly_cli.EXECUTION_CONTEXT,)
+    args: tuple[str, ...] = ()
     if isinstance(local_install, str):
         args += (local_install,)
         if not local_install.endswith('requirements.txt'):
@@ -205,20 +201,20 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
     else:
         args += ('requirements.txt',)
 
-    project_requirements = path.join(*args)
+    project_requirements = Path.joinpath(Path(grizzly_cli.EXECUTION_CONTEXT), *args)
 
     try:
-        with open(project_requirements, encoding='utf-8') as fd:
+        with project_requirements.open(encoding='utf-8') as fd:
             for line in fd.readlines():
-                if any([pkg in line for pkg in ['grizzly-loadtester', 'grizzly.git'] if not re.match(r'^([\s]+)?#', line)]):
+                if any(pkg in line for pkg in ['grizzly-loadtester', 'grizzly.git'] if not re.match(r'^([\s]+)?#', line)):
                     grizzly_requirement = line.strip()
                     break
     except:
-        return (None, None,), None
+        return (None, None), None
 
     if grizzly_requirement is None:
         print(f'!! unable to find grizzly dependency in {project_requirements}', file=sys.stderr)
-        return ('(unknown)', None, ), '(unknown)'
+        return ('(unknown)', None), '(unknown)'
 
     # check if it's a repo or not
     if 'git+' in grizzly_requirement:
@@ -231,24 +227,24 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
             url = url.strip()
         else:
             print(f'!! unable to find properly formatted grizzly dependency in {project_requirements}', file=sys.stderr)
-            return ('(unknown)', None, ), '(unknown)'
+            return ('(unknown)', None), '(unknown)'
 
         url, branch = url.rsplit('@', 1)
         url = url[4:]  # remove git+
-        suffix = sha1(grizzly_requirement.encode('utf-8')).hexdigest()
+        suffix = sha1(grizzly_requirement.encode('utf-8')).hexdigest()  # noqa: S324
 
         # extras_requirement normalization
         egg = grizzly_requirement_egg.replace('[', '__').replace(']', '__').replace(',', '_')
 
         tmp_workspace = mkdtemp(prefix='grizzly-cli-')
-        repo_destination = path.join(tmp_workspace, f'{egg}_{suffix}')
+        repo_destination = Path(tmp_workspace) / f'{egg}_{suffix}'
 
         try:
             rc = subprocess.check_call(
                 [
                     'git', 'clone', '--filter=blob:none', '-q',
                     url,
-                    repo_destination
+                    repo_destination,
                 ],
                 shell=False,
                 stdout=subprocess.DEVNULL,
@@ -257,7 +253,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
 
             if rc != 0:
                 print(f'!! unable to clone git repo {url}', file=sys.stderr)
-                raise RuntimeError()  # abort
+                raise RuntimeError  # abort
 
             active_branch = branch
 
@@ -274,7 +270,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
 
             if rc != 0:
                 print(f'!! unable to check branch name of HEAD in git repo {url}', file=sys.stderr)
-                raise RuntimeError()  # abort
+                raise RuntimeError  # abort
 
             if active_branch != branch:
                 try:
@@ -290,7 +286,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                         git_object_type = 'branch'  # assume remote branch
                     else:
                         print(f'!! unable to determine git object type for {branch}')
-                        raise RuntimeError()
+                        raise RuntimeError from cpe
 
                 if git_object_type == 'tag':  # pragma: no cover
                     rc += subprocess.check_call(
@@ -307,7 +303,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
 
                     if rc != 0:  # pragma: no cover
                         print(f'!! unable to checkout tag {branch} from git repo {url}', file=sys.stderr)
-                        raise RuntimeError()  # abort
+                        raise RuntimeError  # abort
                 elif git_object_type == 'commit':
                     rc += subprocess.check_call(
                         [
@@ -322,7 +318,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
 
                     if rc != 0:  # pragma: no cover
                         print(f'!! unable to checkout commit {branch} from git repo {url}', file=sys.stderr)
-                        raise RuntimeError()  # abort
+                        raise RuntimeError  # abort
                 else:
                     rc += subprocess.check_call(
                         [
@@ -338,30 +334,30 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
 
                     if rc != 0:
                         print(f'!! unable to checkout branch {branch} from git repo {url}', file=sys.stderr)
-                        raise RuntimeError()  # abort
+                        raise RuntimeError  # abort
 
-            if not path.exists(path.join(repo_destination, 'pyproject.toml')):
-                with open(path.join(repo_destination, 'grizzly', '__init__.py'), encoding='utf-8') as fd:
+            if not Path.joinpath(repo_destination, 'pyproject.toml').exists():
+                with Path.joinpath(repo_destination, 'grizzly', '__init__.py').open(encoding='utf-8') as fd:
                     version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('__version__ =')]
 
                 if len(version_raw) != 1:
                     print(f'!! unable to find "__version__" declaration in grizzly/__init__.py from {url}', file=sys.stderr)
-                    raise RuntimeError()  # abort
+                    raise RuntimeError  # abort
 
                 _, grizzly_version, _ = version_raw[-1].split("'")
             else:
                 try:
-                    with open(path.join(repo_destination, 'setup.cfg'), encoding='utf-8') as fd:
+                    with Path.joinpath(repo_destination, 'setup.cfg').open(encoding='utf-8') as fd:
                         version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('version = ')]
 
                     if len(version_raw) != 1:
                         print(f'!! unable to find "version" declaration in setup.cfg from {url}', file=sys.stderr)
-                        raise RuntimeError()  # abort
+                        raise RuntimeError  # abort
 
                     _, grizzly_version = version_raw[-1].split(' = ')
                 except FileNotFoundError:
                     try:
-                        import setuptools_scm  # pylint: disable=unused-import  # noqa: F401  # type: ignore
+                        import setuptools_scm  # noqa: F401, PLC0415
                     except ModuleNotFoundError:  # pragma: no cover
                         rc = subprocess.check_call([
                             sys.executable,
@@ -382,20 +378,20 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                             universal_newlines=True,
                             cwd=repo_destination,
                         ).strip()
-                    except subprocess.CalledProcessError:  # pragma: no cover
+                    except subprocess.CalledProcessError as e:  # pragma: no cover
                         print(f'!! unable to get setuptools_scm version from {url}', file=sys.stderr)
-                        raise RuntimeError()  # abort
+                        raise RuntimeError from e  # abort
 
             if grizzly_version == '0.0.0':
                 grizzly_version = '(development)'
 
             try:
-                with open(path.join(repo_destination, 'requirements.txt'), encoding='utf-8') as fd:
+                with Path.joinpath(repo_destination, 'requirements.txt').open(encoding='utf-8') as fd:
                     version_raw = [line.strip() for line in fd.readlines() if line.strip().startswith('locust')]
 
                 if len(version_raw) != 1:
                     print(f'!! unable to find "locust" dependency in requirements.txt from {url}', file=sys.stderr)
-                    raise RuntimeError()  # abort
+                    raise RuntimeError  # abort
 
                 match = re.match(r'^locust.{2}(.*?)$', version_raw[-1].strip().split(' ')[0])
 
@@ -404,7 +400,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
                 else:
                     locust_version = match.group(1).strip()
             except FileNotFoundError:  # pragma: no cover
-                with open(path.join(repo_destination, 'pyproject.toml'), 'rb') as fdt:
+                with Path.joinpath(repo_destination, 'pyproject.toml').open('rb') as fdt:
                     toml_dict = tomli.load(fdt)
                     dependencies = toml_dict.get('project', {}).get('dependencies', [])
                     for dependency in dependencies:
@@ -420,7 +416,8 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
             rm_rf(tmp_workspace)
     else:
         response = requests.get(
-            'https://pypi.org/pypi/grizzly-loadtester/json'
+            'https://pypi.org/pypi/grizzly-loadtester/json',
+            timeout=10,
         )
 
         if response.status_code != 200:
@@ -434,7 +431,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
             if re.match(r'^grizzly-loadtester(\[[^\]]*\])?$', grizzly_requirement):  # latest
                 grizzly_version = pypi.get('info', {}).get('version', None)
             else:
-                conditions: List[Callable[[versioning.Version], bool]] = []
+                conditions: list[Callable[[versioning.Version], bool]] = []
 
                 match = re.match(r'^(grizzly-loadtester(\[[^\]]*\])?)(.*?)$', grizzly_requirement)
 
@@ -457,13 +454,11 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
 
                 matched_version = None
 
-                for available_version in pypi.get('releases', {}).keys():
-                    try:
+                for available_version in pypi.get('releases', {}):
+                    with suppress(versioning.InvalidVersion):
                         version = versioning.parse(available_version)
-                        if len(conditions) > 0 and all([compare(version) for compare in conditions]):
+                        if len(conditions) > 0 and all(compare(version) for compare in conditions):
                             matched_version = version
-                    except versioning.InvalidVersion:
-                        pass
 
                 if matched_version is None:
                     print(f'!! could not resolve {grizzly_requirement} to one specific version available at pypi', file=sys.stderr)
@@ -473,7 +468,8 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
             if grizzly_version is not None:
                 # get version from pypi, to be able to get locust version
                 response = requests.get(
-                    f'https://pypi.org/pypi/grizzly-loadtester/{grizzly_version}/json'
+                    f'https://pypi.org/pypi/grizzly-loadtester/{grizzly_version}/json',
+                    timeout=10,
                 )
 
                 if response.status_code != 200:
@@ -487,10 +483,7 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
 
                         match = re.match(r'^locust \((.*?)\)$', requires_dist.strip())
 
-                        if match:
-                            locust_version = cast(str, match.group(1))
-                        else:
-                            locust_version = requires_dist.replace('locust', '').strip()
+                        locust_version = cast('str', match.group(1)) if match else requires_dist.replace('locust', '').strip()
 
                         if locust_version is not None and locust_version.startswith('=='):
                             locust_version = locust_version[2:]
@@ -508,19 +501,16 @@ def get_dependency_versions(local_install: Union[bool, str]) -> Tuple[Tuple[Opti
     else:
         match = re.match(r'^grizzly-loadtester\[([^\]]*)\]$', grizzly_requirement_egg)
 
-        if match:
-            grizzly_extras = [extra.strip() for extra in match.group(1).split(',')]
-        else:
-            grizzly_extras = []
+        grizzly_extras = [extra.strip() for extra in match.group(1).split(',')] if match else []
 
     if locust_version is None:
         locust_version = '(unknown)'
 
-    return (grizzly_version, grizzly_extras, ), locust_version
+    return (grizzly_version, grizzly_extras), locust_version
 
 
-def list_images(args: Arguments) -> Dict[str, Any]:
-    images: Dict[str, Any] = {}
+def list_images(args: Arguments) -> dict[str, dict[str, str]]:
+    images: dict[str, dict[str, str]] = {}
     output = subprocess.check_output([
         f'{args.container_system}',
         'image',
@@ -542,6 +532,7 @@ def list_images(args: Arguments) -> Dict[str, Any]:
 
         if name not in images:
             images[name] = {}
+
         images[name].update(version)
 
     return images
@@ -559,7 +550,8 @@ def get_default_mtu(args: Arguments) -> Optional[str]:
         ]).decode('utf-8')
 
         line, _ = output.split('\n', 1)
-        network_options: Dict[str, str] = jsonloads(line)
+        network_options: dict[str, str] = jsonloads(line)
+
         return network_options.get('com.docker.network.driver.mtu', '1500')
     except:
         return None
@@ -568,12 +560,12 @@ def get_default_mtu(args: Arguments) -> Optional[str]:
 def requirements(execution_context: str) -> Callable[[Callable[..., int]], Callable[..., int]]:
     def wrapper(func: Callable[..., int]) -> Callable[..., int]:
         @wraps(func)
-        def _wrapper(*args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> int:
+        def _wrapper(*args: Any, **kwargs: Any) -> int:
             return func(*args, **kwargs)
 
         # a bit ugly, but needed for testability
-        setattr(func, '__value__', execution_context)
-        setattr(_wrapper, '__wrapped__', func)
+        setattr(func, '__value__', execution_context)  # noqa: B010
+        setattr(_wrapper, '__wrapped__', func)  # noqa: B010
 
         return _wrapper
 
@@ -590,7 +582,7 @@ def get_distributed_system() -> Optional[str]:
         print('neither "podman" nor "docker" found in PATH')
         return None
 
-    rc, _ = subprocess.getstatusoutput(f'{container_system} compose version')
+    rc, _ = subprocess.getstatusoutput(f'{container_system} compose version')  # noqa: S605
 
     if rc != 0:
         print(f'"{container_system} compose" not found in PATH')
@@ -611,7 +603,7 @@ def ask_yes_no(question: str) -> None:
         answer = get_input(f'{question} [y/n]: ')
 
         if answer == 'n':
-            raise KeyboardInterrupt()
+            raise KeyboardInterrupt
 
 
 def parse_feature_file(file: str) -> None:
@@ -626,13 +618,13 @@ def parse_feature_file(file: str) -> None:
         grizzly_cli.SCENARIOS.append(scenario)
 
 
-def find_metadata_notices(file: str) -> List[str]:
-    with open(file) as fd:
-        return [line.strip().replace('# grizzly-cli:notice ', '') for line in fd.readlines() if line.strip().startswith('# grizzly-cli:notice ')]
+def find_metadata_notices(file: str) -> list[str]:
+    with Path(file).open('r') as fd:
+        return [line.strip().replace('# grizzly-cli:notice ', '') for line in fd if line.strip().startswith('# grizzly-cli:notice ')]
 
 
-def find_variable_names_in_questions(file: str) -> List[str]:
-    unique_variables: Set[str] = set()
+def find_variable_names_in_questions(file: str) -> list[str]:
+    unique_variables: set[str] = set()
 
     parse_feature_file(file)
 
@@ -644,84 +636,90 @@ def find_variable_names_in_questions(file: str) -> List[str]:
             match = re.match(r'ask for value of variable "([^"]*)"', step.name)
 
             if not match:
-                raise ValueError(f'could not find variable name in "{step.name}"')
+                message = f'could not find variable name in "{step.name}"'
+                raise ValueError(message)
 
             unique_variables.add(match.group(1))
 
-    return sorted(list(unique_variables))
+    return sorted(unique_variables)
 
 
-def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any]) -> None:
-    def _guess_datatype(value: str) -> Union[str, int, float, bool]:
-        check_value = value.replace('.', '', 1)
+def _guess_datatype(value: str) -> Union[str, int, float, bool]:
+    check_value = value.replace('.', '', 1)
 
-        if check_value[0] == '-':
-            check_value = check_value[1:]
+    if check_value[0] == '-':
+        check_value = check_value[1:]
 
-        if check_value.isdecimal():
-            if float(value) % 1 == 0:
-                if value.startswith('0'):
-                    return str(value)
-                else:
-                    return int(float(value))
-            else:
-                return float(value)
-        elif value.lower() in ['true', 'false']:
-            return value.lower() == 'true'
-        else:
-            return value
+    if check_value.isdecimal():
+        if float(value) % 1 == 0:
+            if value.startswith('0'):
+                return str(value)
 
-    class ScenarioProperties:
-        name: str
-        index: int
-        identifier: str
-        user: Optional[str]
-        weight: float
-        _iterations: Optional[int]
-        _user_count: Optional[int]
+            return int(float(value))
 
-        def __init__(
-            self,
-            name: str,
-            index: int,
-            weight: Optional[float] = None,
-            user: Optional[str] = None,
-            iterations: Optional[int] = None,
-            user_count: Optional[int] = None,
-        ) -> None:
-            self.name = name
-            self.index = index
-            self.user = user
-            self._iterations = iterations
-            self.weight = weight or 1.0
-            self.identifier = f'{index:03}'
-            self._user_count = user_count
+        return float(value)
 
-        @property
-        def iterations(self) -> int:
-            if self._iterations is None:  # pragma: no cover
-                raise ValueError('iterations has not been set')
+    if value.lower() in ['true', 'false']:
+        return value.lower() == 'true'
 
-            return self._iterations
+    return value
 
-        @iterations.setter
-        def iterations(self, value: int) -> None:
-            self._iterations = value
 
-        @property
-        def user_count(self) -> int:
-            if self._user_count is None:  # pragma: no cover
-                raise ValueError('user count has not been set')
-            return self._user_count
+class ScenarioProperties:
+    name: str
+    index: int
+    identifier: str
+    user: Optional[str]
+    weight: float
+    _iterations: Optional[int]
+    _user_count: Optional[int]
 
-        @user_count.setter
-        def user_count(self, value: int) -> None:
-            self._user_count = value
+    def __init__(
+        self,
+        name: str,
+        index: int,
+        weight: Optional[float] = None,
+        user: Optional[str] = None,
+        iterations: Optional[int] = None,
+        user_count: Optional[int] = None,
+    ) -> None:
+        self.name = name
+        self.index = index
+        self.user = user
+        self._iterations = iterations
+        self.weight = weight or 1.0
+        self.identifier = f'{index:03}'
+        self._user_count = user_count
 
-        def is_fulfilled(self) -> bool:
-            return self.user is not None and self._iterations is not None and self._user_count is not None
+    @property
+    def iterations(self) -> int:
+        if self._iterations is None:  # pragma: no cover
+            message = 'iterations has not been set'
+            raise ValueError(message)
 
-    distribution: Dict[str, ScenarioProperties] = {}
+        return self._iterations
+
+    @iterations.setter
+    def iterations(self, value: int) -> None:
+        self._iterations = value
+
+    @property
+    def user_count(self) -> int:
+        if self._user_count is None:  # pragma: no cover
+            message = 'user count has not been set'
+            raise ValueError(message)
+        return self._user_count
+
+    @user_count.setter
+    def user_count(self, value: int) -> None:
+        self._user_count = value
+
+    def is_fulfilled(self) -> bool:
+        return self.user is not None and self._iterations is not None and self._user_count is not None
+
+
+def distribution_of_users_per_scenario(args: Arguments, environ: dict) -> None:  # noqa: C901, PLR0912, PLR0915
+    distribution: dict[str, ScenarioProperties] = {}
     variables = {key.replace('TESTDATA_VARIABLE_', ''): _guess_datatype(value) for key, value in environ.items() if key.startswith('TESTDATA_VARIABLE_')}
 
     def _pre_populate_scenario(scenario: Scenario, index: int) -> None:
@@ -738,9 +736,10 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     use_weights = True
 
     for index, scenario in enumerate(grizzly_cli.SCENARIOS):
-        scenario_variables: Dict[str, Any] = {}
+        scenario_variables: dict = {}
         if len(scenario.steps) < 1:
-            raise ValueError(f'scenario "{scenario.name}" does not have any steps')
+            message = f'scenario "{scenario.name}" does not have any steps'
+            raise ValueError(message)
 
         _pre_populate_scenario(scenario, index=index + 1)
 
@@ -763,7 +762,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                         variable_name = match.group(1)
                         variable_value = Template(match.group(2)).render(**variables, **scenario_variables)
                         scenario_variables.update({variable_name: variable_value})
-                    except:
+                    except:  # noqa: S112
                         continue
             elif step.name.startswith('a user of type'):
                 match = re.match(r'a user of type "([^"]*)" (with weight "([^"]*)")?.*', step.name)
@@ -774,8 +773,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
                 match = re.match(r'repeat for "([^"]*)" iteration[s]?', step.name)
                 if match:
                     distribution[scenario.name].iterations = int(round(float(Template(match.group(1)).render(**variables, **scenario_variables)), 0))
-                    (distribution[scenario.name].iterations)
-            elif any([pattern in step.name for pattern in ['users of type', 'user of type']]):
+            elif any(pattern in step.name for pattern in ['users of type', 'user of type']):
                 match = re.match(r'"([^"]*)" user[s]? of type "([^"]*)".*', step.name)
                 if match:
                     scenario_user_count = int(round(float(Template(match.group(1)).render(**variables, **scenario_variables)), 0))
@@ -790,13 +788,15 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     scenario_count = len(distribution.keys())
     assert scenario_user_count_total is not None
     if scenario_count > scenario_user_count_total:
-        raise ValueError(f'grizzly needs at least {scenario_count} users to run this feature')
+        message = f'grizzly needs at least {scenario_count} users to run this feature'
+        raise ValueError(message)
 
     total_weight = 0
     total_iterations = 0
     for scenario in distribution.values():
         if scenario.user is None:
-            raise ValueError(f'{scenario.name} does not have a user type')
+            message = f'{scenario.name} does not have a user type'
+            raise ValueError(message)
 
         total_weight += scenario.weight
         total_iterations += scenario.iterations
@@ -830,7 +830,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
             line += ['-' * (max_length_errors + 1), '-|']
         logger.info(''.join(line))
 
-    rows: List[str] = []
+    rows: list[str] = []
     max_length_description = len('description')
     max_length_iterations = len('#iter')
     max_length_users = len('#user')
@@ -840,9 +840,9 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
     if hasattr(args, 'environment_file') and args.environment_file is not None:
         message = f'{message} with environment file {environ["GRIZZLY_CONFIGURATION_FILE"]}'
 
-    logger.info(f'{message}\n')
+    logger.info('%s\n', message)
 
-    errors: Dict[str, List[str]] = {}
+    errors: dict[str, list[str]] = {}
 
     for scenario in distribution.values():
         # check for errors
@@ -876,7 +876,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         row_format.append('   {}')
 
     for scenario in distribution.values():
-        row_format_args: List[Any] = [
+        row_format_args: list = [
             scenario.identifier,
             scenario.weight,
             scenario.iterations,
@@ -899,7 +899,7 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         rows.append(''.join(row_format).format(*row_format_args))
 
     logger.info('each scenario will execute accordingly:\n')
-    header_row_args: List[Any] = [
+    header_row_args: list = [
         'ident',
         'weight',
         '#iter', max_length_iterations,
@@ -926,19 +926,20 @@ def distribution_of_users_per_scenario(args: Arguments, environ: Dict[str, Any])
         arrow_width = len('ident') + 2 + max_length_iterations + 2 + max_length_users + 2 + max_length_description + 2
         if use_weights:
             arrow_width += len('weight') + 2
-        message = f'''{" " * (1 + arrow_width)}^
+        message = f"""{" " * (1 + arrow_width)}^
 +{"-" * arrow_width}+
 |
 +- there were errors when calculating user distribution and iterations per scenario, adjust user "weight", number of users or iterations per scenario
-'''
+"""
 
         raise ValueError(message)
-    else:
-        logger.info('')
+
+    logger.info('')
 
     for scenario in distribution.values():
         if scenario.iterations < scenario.user_count:
-            raise ValueError(f'{scenario.name} will have {scenario.user_count} users to run {scenario.iterations} iterations, increase iterations or lower user count')
+            message = f'{scenario.name} will have {scenario.user_count} users to run {scenario.iterations} iterations, increase iterations or lower user count'
+            raise ValueError(message)
 
     if not args.yes:
         ask_yes_no('continue?')
@@ -985,7 +986,7 @@ def setup_logging(logfile: Optional[str] = None) -> None:
     logging.config.dictConfig(logging_config)
 
 
-def unflatten(key: str, value: Any) -> dict[str, Any]:
+def unflatten(key: str, value: Any) -> dict:
     paths: list[str] = key.split('.')
 
     # last node should have the value
@@ -1001,9 +1002,9 @@ def unflatten(key: str, value: Any) -> dict[str, Any]:
     return struct
 
 
-def flatten(node: dict[str, Any], parents: Optional[list[str]] = None) -> dict[str, Any]:
+def flatten(node: dict, parents: Optional[list[str]] = None) -> dict:
     """Flatten a dictionary so each value key is the path down the nested dictionary structure."""
-    flat: dict[str, Any] = {}
+    flat: dict = {}
     if parents is None:
         parents = []
 
@@ -1019,7 +1020,7 @@ def flatten(node: dict[str, Any], parents: Optional[list[str]] = None) -> dict[s
     return flat
 
 
-def merge_dicts(merged: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+def merge_dicts(merged: dict, source: dict) -> dict:
     """Merge two dicts recursively, where `source` values takes precedance over `merged` values."""
     merged = deepcopy(merged)
     source = deepcopy(source)
@@ -1041,9 +1042,7 @@ def merge_dicts(merged: dict[str, Any], source: dict[str, Any]) -> dict[str, Any
 
 
 def chunker(value: str, size: int) -> list[str]:
-    return list(
-        map(lambda x: value[x * size:x * size + size],
-            list(range(ceil(len(value) / size)))))
+    return [value[x * size:x * size + size] for x in list(range(ceil(len(value) / size)))]
 
 
 def get_indentation(file: Path) -> int:
@@ -1059,7 +1058,7 @@ class IndentDumper(Dumper):
     use_indent: ClassVar[int]
 
     @classmethod
-    def use_indentation(cls, target: Path | int) -> type['IndentDumper']:
+    def use_indentation(cls, target: Path | int) -> type[IndentDumper]:
         cls.use_indent = get_indentation(target) if isinstance(target, Path) else target
 
         return cls
@@ -1069,5 +1068,5 @@ class IndentDumper(Dumper):
 
         self.best_indent = self.use_indent
 
-    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
-        return super().increase_indent(flow, False)
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:  # noqa: ARG002, FBT001, FBT002
+        return super().increase_indent(flow, False)  # noqa: FBT003

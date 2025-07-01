@@ -1,17 +1,18 @@
+from __future__ import annotations
 
-from os import getcwd, environ
 from argparse import ArgumentParser, Namespace
+from contextlib import suppress
+from os import environ
+from typing import TYPE_CHECKING
 
 import pytest
 
-from _pytest.tmpdir import TempPathFactory
-from pytest_mock import MockerFixture
-
+from grizzly_cli.local import create_parser, local, local_run
 from grizzly_cli.utils import RunCommandResult, rm_rf
-from grizzly_cli.local import create_parser, local_run, local
 
-
-CWD = getcwd()
+if TYPE_CHECKING:
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock import MockerFixture
 
 
 def test_local(mocker: MockerFixture) -> None:
@@ -26,9 +27,8 @@ def test_local(mocker: MockerFixture) -> None:
     assert args[1] is local_run
 
     arguments = Namespace(subcommand='foo')
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match='unknown subcommand foo'):
         local(arguments)
-    assert 'unknown subcommand foo' == str(ve.value)
 
 
 def test_local_run(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
@@ -49,7 +49,7 @@ def test_local_run(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> 
             'local', 'run', f'{test_context}/test.feature',
         ])
 
-        setattr(arguments, 'file', ' '.join(arguments.file))
+        arguments.file = ' '.join(arguments.file)
 
         assert local_run(
             arguments,
@@ -101,7 +101,5 @@ def test_local_run(mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> 
         assert environ.get('GRIZZLY_TEST_VAR', None) == 'True'
     finally:
         rm_rf(test_context)
-        try:
+        with suppress(KeyError):
             del environ['GRIZZLY_TEST_VAR']
-        except:
-            pass

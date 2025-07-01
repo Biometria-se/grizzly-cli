@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import sys
+from typing import TYPE_CHECKING
 
-from _pytest.tmpdir import TempPathFactory
-from _pytest.capture import CaptureFixture
-from pytest_mock import MockerFixture
-
-from grizzly_cli.init import tree, init
 from grizzly_cli.__main__ import _parse_arguments
-
+from grizzly_cli.init import init, tree
 from tests.helpers import rm_rf
+
+if TYPE_CHECKING:  # pragma: no cover
+    from _pytest.capture import CaptureFixture
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock import MockerFixture
 
 
 def test_tree(tmp_path_factory: TempPathFactory) -> None:
@@ -26,7 +29,7 @@ def test_tree(tmp_path_factory: TempPathFactory) -> None:
     (test_context / 'root.yaml').touch()
 
     try:
-        assert '\n'.join([line for line in tree(test_context)]) == '''├── a
+        assert '\n'.join(list(tree(test_context))) == """├── a
 │   ├── b
 │   │   ├── c
 │   │   │   ├── file-c1.txt
@@ -34,12 +37,12 @@ def test_tree(tmp_path_factory: TempPathFactory) -> None:
 │   │   └── file-b1.txt
 │   ├── file-a1.txt
 │   └── file-a2.txt
-└── root.yaml'''
+└── root.yaml"""
     finally:
         rm_rf(test_context)
 
 
-def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker: MockerFixture) -> None:
+def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker: MockerFixture) -> None:  # noqa: PLR0915
     test_context = tmp_path_factory.mktemp('test_context')
 
     test_existing = test_context / 'foobar'
@@ -67,13 +70,13 @@ def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker:
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == f'''oops, looks like you are already in a grizzly project directory
+        assert capture.out == f"""oops, looks like you are already in a grizzly project directory
 
 {test_existing}
 ├── environments
 ├── features
 └── requirements.txt
-'''
+"""
 
         rm_rf(test_existing)
 
@@ -84,7 +87,7 @@ def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker:
 
         assert question_mock.call_count == 1
         args, _ = question_mock.call_args_list[-1]
-        assert args[0] == '''the following structure will be created:
+        assert args[0] == """the following structure will be created:
 
     foobar
     ├── environments
@@ -97,32 +100,32 @@ def test_init(tmp_path_factory: TempPathFactory, capsys: CaptureFixture, mocker:
     │   └── requests
     └── requirements.txt
 
-do you want to create grizzly project "foobar"?'''
+do you want to create grizzly project "foobar"?"""
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == '''successfully created project "foobar", with the following options:
+        assert capture.out == """successfully created project "foobar", with the following options:
   • without IBM MQ support
   • latest grizzly version
-'''
+"""
 
         template_root = test_context / 'foobar'
         assert template_root.is_dir()
         assert (template_root / 'environments').is_dir()
         environments_file = template_root / 'environments' / 'foobar.yaml'
         assert environments_file.is_file()
-        assert environments_file.read_text() == '''configuration:
+        assert environments_file.read_text() == """configuration:
   template:
     host: https://localhost
-'''
+"""
 
         assert (template_root / 'features').is_dir()
         feature_file = template_root / 'features' / 'foobar.feature'
         assert feature_file.is_file()
-        assert feature_file.read_text() == '''Feature: Template feature file
+        assert feature_file.read_text() == """Feature: Template feature file
   Scenario: Template scenario
     Given a user of type "RestApi" with weight "1" load testing "$conf::template.host"
-'''
+"""
 
         environment_file = template_root / 'features' / 'environment.py'
         assert environment_file.is_file()
@@ -140,8 +143,8 @@ do you want to create grizzly project "foobar"?'''
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester\n'
 
-        created_structure = '\n'.join([line for line in tree(template_root)])
-        assert created_structure == '''├── environments
+        created_structure = '\n'.join(list(tree(template_root)))
+        assert created_structure == """├── environments
 │   └── foobar.yaml
 ├── features
 │   ├── environment.py
@@ -149,7 +152,7 @@ do you want to create grizzly project "foobar"?'''
 │   ├── requests
 │   └── steps
 │       └── steps.py
-└── requirements.txt'''
+└── requirements.txt"""
 
         rm_rf(template_root)
 
@@ -162,10 +165,10 @@ do you want to create grizzly project "foobar"?'''
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == '''successfully created project "foobar", with the following options:
+        assert capture.out == """successfully created project "foobar", with the following options:
   • with IBM MQ support
   • latest grizzly version
-'''
+"""
         requirements_file = template_root / 'requirements.txt'
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester[mq]\n'
@@ -179,10 +182,10 @@ do you want to create grizzly project "foobar"?'''
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == '''successfully created project "foobar", with the following options:
+        assert capture.out == """successfully created project "foobar", with the following options:
   • without IBM MQ support
   • pinned to grizzly version 1.2.4
-'''
+"""
         requirements_file = template_root / 'requirements.txt'
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester==1.2.4\n'
@@ -190,10 +193,10 @@ do you want to create grizzly project "foobar"?'''
         assert (template_root / 'features').is_dir()
         feature_file = template_root / 'features' / 'foobar.feature'
         assert feature_file.is_file()
-        assert feature_file.read_text() == '''Feature: Template feature file
+        assert feature_file.read_text() == """Feature: Template feature file
   Scenario: Template scenario
     Given a user of type "RestApi" with weight "1" load testing "$conf::template.host"
-'''
+"""
 
         environment_file = template_root / 'features' / 'environment.py'
         assert environment_file.is_file()
@@ -208,10 +211,10 @@ do you want to create grizzly project "foobar"?'''
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == '''successfully created project "foobar", with the following options:
+        assert capture.out == """successfully created project "foobar", with the following options:
   • with IBM MQ support
   • pinned to grizzly version 1.5.0
-'''
+"""
         requirements_file = template_root / 'requirements.txt'
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester[mq]==1.5.0\n'
@@ -225,7 +228,7 @@ do you want to create grizzly project "foobar"?'''
 
         capture = capsys.readouterr()
         assert capture.err == ''
-        assert capture.out == '''the following structure will be created:
+        assert capture.out == """the following structure will be created:
 
     foobar
     ├── environments
@@ -241,7 +244,7 @@ do you want to create grizzly project "foobar"?'''
 successfully created project "foobar", with the following options:
   • without IBM MQ support
   • latest grizzly version
-'''
+"""
         requirements_file = template_root / 'requirements.txt'
         assert requirements_file.is_file()
         assert requirements_file.read_text() == 'grizzly-loadtester\n'

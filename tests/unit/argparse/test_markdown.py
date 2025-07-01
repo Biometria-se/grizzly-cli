@@ -1,13 +1,15 @@
-import argparse
+from __future__ import annotations
 
-from typing import cast
+import argparse
+from typing import TYPE_CHECKING
 
 import pytest
 
-from pytest_mock import MockerFixture
-from _pytest.capture import CaptureFixture
-
 from grizzly_cli.argparse.markdown import MarkdownFormatter, MarkdownHelpAction
+
+if TYPE_CHECKING:
+    from _pytest.capture import CaptureFixture
+    from pytest_mock import MockerFixture
 
 
 class TestMarkdownHelpAction:
@@ -28,7 +30,7 @@ class TestMarkdownHelpAction:
 
         with pytest.raises(SystemExit) as e:
             parser.parse_args(['--md-help'])
-        assert e.type == SystemExit
+        assert e.type is SystemExit
         assert e.value.code == 0
 
         assert print_help.call_count == 1
@@ -53,14 +55,14 @@ class TestMarkdownHelpAction:
         action.print_help(parser)
 
         assert print_help.call_count == 4
-        assert issubclass(parser.formatter_class, MarkdownFormatter)  # type: ignore
+        assert issubclass(parser.formatter_class, MarkdownFormatter)  # type: ignore[arg-type]
         assert parser._subparsers is not None
 
         _subparsers = getattr(parser, '_subparsers', None)
         assert _subparsers is not None
         for subparsers in _subparsers._group_actions:
             for name, subparser in subparsers.choices.items():
-                assert issubclass(subparser.formatter_class, MarkdownFormatter)  # type: ignore
+                assert issubclass(subparser.formatter_class, MarkdownFormatter)  # type: ignore[arg-type]
                 if name == 'a':
                     _subsubparsers = getattr(subparser, '_subparsers', None)
                     assert _subsubparsers is not None
@@ -105,32 +107,32 @@ class TestMarkdownFormatter:
     def test__format_usage(self) -> None:
         formatter = MarkdownFormatter.factory(0)('test')
         usage = formatter._format_usage('test', None, None, 'a prefix')
-        assert usage == '''
+        assert usage == """
 ### Usage
 
 ```bash
 test
 ```
-'''
+"""
         parser = argparse.ArgumentParser(prog='test', description='test parser')
         parser.add_argument('-t', '--test', type=str, required=True, help='test argument')
         parser.add_argument('file', nargs=1, help='file argument')
 
         core_formatter = parser.formatter_class(prog=parser.prog)
 
-        usage = core_formatter._format_usage(cast(str, parser.usage), parser._get_positional_actions(), parser._mutually_exclusive_groups, 'a prefix ')
-        assert usage == '''a prefix test file
+        usage = core_formatter._format_usage(parser.usage, parser._get_positional_actions(), parser._mutually_exclusive_groups, 'a prefix ')
+        assert usage == """a prefix test file
 
-'''
+"""
 
         usage = formatter._format_usage(parser.usage, parser._get_positional_actions(), parser._mutually_exclusive_groups, 'a prefix ')
-        assert usage == '''
+        assert usage == """
 ### Usage
 
 ```bash
 test file
 ```
-'''
+"""
 
     def test_format_help(self) -> None:
         formatter = MarkdownFormatter.factory(0)('test')
@@ -139,7 +141,7 @@ test file
 
     def test_format_text(self) -> None:
         formatter = MarkdownFormatter('test-prog')
-        text = '''%(prog)s is awesome!
+        text = """%(prog)s is awesome!
 also, here is a sentence. and here is another one!
 
 ```bash
@@ -147,9 +149,9 @@ hostname -f
 ```
 
 you cannot belive it, it's another sentence.
-'''
+"""
         print(formatter._format_text(text))
-        assert formatter._format_text(text) == '''test-prog is awesome!
+        assert formatter._format_text(text) == """test-prog is awesome!
 also, here is a sentence. and here is another one!
 
 ```bash
@@ -157,7 +159,7 @@ hostname -f
 ```
 
 you cannot belive it, it's another sentence.
-'''
+"""
 
     def test_start_section(self) -> None:
         formatter = MarkdownFormatter.factory(0)('test-prog')
@@ -169,7 +171,7 @@ you cannot belive it, it's another sentence.
         assert formatter._current_section.parent is formatter._root_section
         assert formatter._current_section.heading == '## Test-section-01'
         assert len(formatter._current_section.items) == 0
-        assert formatter._current_section.parent.items[0] == (formatter._current_section.format_help, [],)
+        assert next(iter(formatter._current_section.parent.items)) == (formatter._current_section.format_help, [])
 
     def test__format_action(self) -> None:
         formatter = MarkdownFormatter.factory(0)('test-prog')
@@ -226,7 +228,7 @@ you cannot belive it, it's another sentence.
 
             format_help_text = formatter._current_section.format_help()
             assert capsys.readouterr().out == ''
-            assert format_help_text == '''
+            assert format_help_text == """
 
 ## Root section
 
@@ -236,7 +238,7 @@ you cannot belive it, it's another sentence.
 | `--root-const` | `True` |  |
 
 
-'''
+"""
             formatter = MarkdownFormatter('test-prog')
             formatter.level = 1
 
@@ -254,7 +256,7 @@ you cannot belive it, it's another sentence.
             format_help_text = formatter._current_section.format_help()
             assert capsys.readouterr().out == '\n'  # @TODO: whyyyyyyyyyy?!
             print(format_help_text)
-            assert format_help_text == '''
+            assert format_help_text == """
 
 #### Root section
 
@@ -264,4 +266,4 @@ you cannot belive it, it's another sentence.
 | `--root-const` | `True` |  |
 
 
-'''
+"""
