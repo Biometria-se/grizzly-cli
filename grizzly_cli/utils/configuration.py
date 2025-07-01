@@ -540,9 +540,7 @@ def _import_files(client: SecretClient, root: Path, secret: KeyVaultSecret) -> s
     return conf_value
 
 
-def load_configuration(configuration_file: str) -> str:
-    file = Path(configuration_file)
-
+def load_configuration(file: Path) -> Path:
     if not file.exists():
         message = f'{file.as_posix()} does not exist'
         raise ValueError(message)
@@ -572,7 +570,7 @@ def load_configuration(configuration_file: str) -> str:
     with environment_lock_file.open('w') as fd:
         yaml.dump(configuration, fd, Dumper=IndentDumper.use_indentation(file), default_flow_style=False, sort_keys=False, allow_unicode=True)
 
-    return configuration_file.replace(file.name, f'{file.stem}.lock{file.suffix}')
+    return file.with_name(f'{file.stem}.lock{file.suffix}')
 
 
 def load_configuration_file(file: Path) -> dict:

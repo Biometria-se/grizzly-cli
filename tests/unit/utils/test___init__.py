@@ -1090,7 +1090,7 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
             args = args[0]
             assert args[:-1] == ['git', 'clone', '--filter=blob:none', '-q', 'https://github.com/Biometria-se/grizzly.git']
             assert isinstance(args[-1], Path)
-            assert args[-1].as_posix().startswith(gettempdir())
+            assert args[-1].as_posix().startswith(Path(gettempdir()).as_posix())
             assert args[-1].as_posix().endswith('grizzly-loadtester_3f210f1809f6ca85ef414b2b4d450bf54353b5e0')
             assert not kwargs.get('shell', True)
             assert kwargs.get('stdout', None) == subprocess.DEVNULL
@@ -1113,7 +1113,7 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
             assert not kwargs.get('shell', True)
             kwarg_cwd = kwargs.get('cwd', None)
             assert isinstance(kwarg_cwd, Path)
-            assert kwarg_cwd.as_posix().startswith(gettempdir())
+            assert kwarg_cwd.as_posix().startswith(Path(gettempdir()).as_posix())
             assert kwarg_cwd.as_posix().endswith('grizzly-loadtester_3f210f1809f6ca85ef414b2b4d450bf54353b5e0')
             assert kwargs.get('universal_newlines', False)
 
@@ -1132,7 +1132,7 @@ def test_get_dependency_versions_git(mocker: MockerFixture, tmp_path_factory: Te
             args = args[0]
             assert args == ['git', 'checkout', '-b', 'v1.5.3', '--track', 'origin/v1.5.3']
             kwarg_cwd = kwargs.get('cwd', None)
-            assert kwarg_cwd.as_posix().startswith(gettempdir())
+            assert kwarg_cwd.as_posix().startswith(Path(gettempdir()).as_posix())
             assert kwarg_cwd.as_posix().endswith('grizzly-loadtester_3f210f1809f6ca85ef414b2b4d450bf54353b5e0')
             assert not kwargs.get('shell', True)
             assert kwargs.get('stdout', None) == subprocess.DEVNULL
@@ -1408,9 +1408,9 @@ def test_requirements(capsys: CaptureFixture, tmp_path_factory: TempPathFactory)
     try:
         assert not requirements_file.exists()
 
-        wrapped = requirements(str(test_context))(wrapped_test)
+        wrapped = requirements(test_context.as_posix())(wrapped_test)
         assert getattr(wrapped, '__wrapped__', None) is wrapped_test
-        assert getattr(getattr(wrapped, '__wrapped__'), '__value__') == str(test_context)  # noqa: B009
+        assert getattr(getattr(wrapped, '__wrapped__'), '__value__') == test_context.as_posix()  # noqa: B009
 
         assert wrapped(Namespace()) == 1337
 

@@ -59,13 +59,13 @@ def auth(args: Arguments) -> int:
         input_file = Path(args.input)
 
         if not input_file.exists():
-            message = f'file {input_file} does not exist'
+            message = f'file {input_file.as_posix()} does not exist'
             raise ValueError(message)
 
         secret = input_file.read_text().strip()
 
         if ' ' in secret or len(secret.split('\n')) > 1 or secret == '':
-            message = f'file {input_file} does not seem to contain a single line with a valid OTP secret'
+            message = f'file {input_file.as_posix()} does not seem to contain a single line with a valid OTP secret'
             raise ValueError(message)
 
     try:

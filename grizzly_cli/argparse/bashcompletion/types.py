@@ -3,9 +3,9 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentTypeError
 from fnmatch import filter as fnmatch_filter
-from os.path import sep as path_separator
+from os.path import sep as path_sep
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 __all__ = [
     'BashCompletionTypes',
@@ -47,13 +47,23 @@ class BashCompletionTypes:
 
             return value
 
+        @classmethod
+        def _transform_path(cls, value: str) -> str:
+            value = value.translate(str.maketrans(ESCAPE_CHARACTERS))
+            if sys.platform == 'win32':
+                value = value.replace('/', path_sep)
+
+            return value
+
         def list_files(self, value: Optional[str]) -> dict[str, str]:
             matches: dict[str, str] = {}
 
             if value is not None:
-                if value.endswith('\\') and sys.platform != 'win32':
-                    value += ' '
-                value = value.replace('\\ ', ' ').replace('\\(', '(').replace('\\)', ')')
+                if sys.platform == 'win32':
+                    value = value.replace(path_sep, '/')  # posix style
+
+                for chr_with, chr_replace in ESCAPE_CHARACTERS.items():
+                    value = value.replace(cast('str', chr_replace), chr_with)
 
             for pattern in self.patterns:
                 for path in self.cwd.rglob(f'**/{pattern}'):
@@ -64,21 +74,30 @@ class BashCompletionTypes:
 
                     path_match_value = path_match.as_posix()
 
-                    if path_match_value.startswith('.') or (value is not None and not path_match_value.startswith(value)):
+                    # skip any paths where any part is hidden, or any path that is not (partially) relative to provided value
+                    if any(part.startswith('.') for part in path_match.parts) or (value is not None and not path_match_value.startswith(value)):
                         continue
 
                     match: Optional[dict[str, str]] = None
 
-                    if path_separator in path_match_value:
+                    # all paths are treated in posix style
+                    if '/' in path_match_value:  # there is a directory in the match
                         try:
+                            """
+                            find first part that matches with provided value;
+                            value = `hel`
+                            path_match_value = `hello/example.txt`
+                            should be `hello`, and a dir(ectory)
+                            """
                             index_match = len(value or '')
-                            index_sep = path_match_value[index_match:].index(path_separator) + index_match
-                            match = {path_match_value[:index_sep].translate(str.maketrans(ESCAPE_CHARACTERS)): 'dir'}
+                            index_sep = path_match_value.index('/', index_match)
+                            match = {self._transform_path(path_match_value[:index_sep]): 'dir'}
                         except ValueError:
+                            # no match against provided value, so assume file
                             pass
 
                     if match is None:
-                        match = {path_match_value.translate(str.maketrans(ESCAPE_CHARACTERS)): 'file'}
+                        match = {self._transform_path(path_match_value): 'file'}
 
                     matches.update(match)
 

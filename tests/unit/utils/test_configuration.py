@@ -273,10 +273,8 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
             password: hunter
 """)
 
-        env_file_lock_name = load_configuration(env_file_local.as_posix())
-        assert env_file_lock_name == f'{test_context.as_posix()}/local.lock.yaml'
-
-        env_file_lock = Path(env_file_lock_name)
+        env_file_lock = load_configuration(env_file_local)
+        assert env_file_lock.as_posix() == Path.joinpath(test_context, 'local.lock.yaml').as_posix()
 
         if system() != 'Windows':
             assert env_file_lock.stat().st_mode & 0x000FFF == 0o600
@@ -285,10 +283,9 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
         load_configuration_keyvault_mock.assert_not_called()
 
         with cwd(test_context):
-            env_file_lock_name = load_configuration('local.yaml')
-            assert env_file_lock_name == 'local.lock.yaml'
+            env_file_lock = load_configuration(Path('local.yaml'))
+            assert env_file_lock.as_posix() == 'local.lock.yaml'
 
-            env_file_lock = Path(env_file_lock_name)
             assert env_file_lock.read_text() == env_file_local.read_text()
             load_configuration_keyvault_mock.assert_not_called()
 
@@ -300,10 +297,8 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
             password: hunter
 """)
 
-        env_file_lock_name = load_configuration(env_file_local.as_posix())
-        assert env_file_lock_name == f'{test_context.as_posix()}/local.lock.yaml'
-
-        env_file_lock = Path(env_file_lock_name)
+        env_file_lock = load_configuration(env_file_local)
+        assert env_file_lock.as_posix() == Path.joinpath(test_context, 'local.lock.yaml').as_posix()
 
         assert env_file_lock.read_text() == env_file_local.read_text()
         load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'local', context_root, filter_keys=None)
@@ -318,23 +313,21 @@ def test_load_configuration(mocker: MockerFixture, tmp_path_factory: TempPathFac
             password: hunter
 """)
 
-        env_file_lock_name = load_configuration(env_file_local.as_posix())
-        assert env_file_lock_name == f'{test_context.as_posix()}/local.lock.yaml'
-
-        env_file_lock = Path(env_file_lock_name)
+        env_file_lock = load_configuration(env_file_local)
+        assert env_file_lock.as_posix() == Path.joinpath(test_context, 'local.lock.yaml').as_posix()
 
         assert env_file_lock.read_text() == env_file_local.read_text()
         load_configuration_keyvault_mock.assert_called_once_with(ANY(SecretClient), 'test', context_root, filter_keys=None)
         load_configuration_keyvault_mock.reset_mock()
 
-        with pytest.raises(ValueError, match='dummy.txt does not exist'):
-            load_configuration('dummy.txt')
-
         dummy_file = test_context / 'dummy.txt'
+        with pytest.raises(ValueError, match='dummy.txt does not exist'):
+            load_configuration(dummy_file)
+
         dummy_file.touch()
 
         with pytest.raises(ValueError, match='configuration file must have file extension yml or yaml'):
-            load_configuration(dummy_file.as_posix())
+            load_configuration(dummy_file)
     finally:
         rm_rf(test_context)
 

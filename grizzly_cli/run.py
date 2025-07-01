@@ -173,9 +173,8 @@ def should_prompt_notices(args: Arguments) -> None:
 
 def update_grizzly_environment(args: Arguments, environ: dict) -> None:
     if args.environment_file is not None:
-        environment_file = os.path.realpath(args.environment_file)
-        environment_lock_file = load_configuration(environment_file)
-        environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_lock_file})
+        environment_lock_file = load_configuration(Path(args.environment_file).resolve())
+        environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_lock_file.as_posix()})
 
     if args.dry_run:
         environ.update({'GRIZZLY_DRY_RUN': 'true'})

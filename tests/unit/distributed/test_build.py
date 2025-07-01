@@ -185,8 +185,8 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
 
     try:
         with cwd(test_context):
-            mocker.patch('grizzly_cli.EXECUTION_CONTEXT', str(test_context))
-            mocker.patch('grizzly_cli.distributed.build.EXECUTION_CONTEXT', str(test_context))
+            mocker.patch('grizzly_cli.EXECUTION_CONTEXT', test_context.as_posix())
+            mocker.patch('grizzly_cli.distributed.build.EXECUTION_CONTEXT', test_context.as_posix())
             mocker.patch('grizzly_cli.distributed.build.PROJECT_NAME', 'grizzly-scenarios')
             mocker.patch('grizzly_cli.distributed.build.getuser', return_value='test-user')
             mocker.patch('grizzly_cli.distributed.build.getuid', return_value=1337)
@@ -203,7 +203,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
                 RunCommandResult(return_code=0),
                 RunCommandResult(return_code=0),
             ])
-            setattr(getattr(build, '__wrapped__'), '__value__', str(test_context))  # noqa: B009, B010
+            setattr(getattr(build, '__wrapped__'), '__value__', test_context.as_posix())  # noqa: B009, B010
 
             test_args = Namespace(container_system='test', force_build=False, project_name=None, local_install=False, no_progress=False, verbose=False)
 
@@ -236,7 +236,7 @@ def test_build(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: 
                 '--build-arg', 'GRIZZLY_GID=2147483647',
                 '-f',
                 '-t', 'grizzly-scenarios:test-user',
-                str(test_context),
+                test_context.as_posix(),
             ]
 
             assert container_file_actual == container_file_expected

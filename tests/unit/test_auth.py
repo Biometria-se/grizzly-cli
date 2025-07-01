@@ -85,22 +85,22 @@ def test_auth_file(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_facto
     sys.argv = ['grizzly-cli', 'auth', str(file)]
     arguments = _parse_arguments()
 
-    with pytest.raises(ValueError, match=f'file {file} does not exist'):
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not exist'):
         auth(arguments)
 
     file.write_text(' ')
 
-    with pytest.raises(ValueError, match=f'file {file} does not seem to contain a single line with a valid OTP secret'):
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not seem to contain a single line with a valid OTP secret'):
         auth(arguments)
 
     file.write_text('aasdf\nasdfasdf\n')
 
-    with pytest.raises(ValueError, match=f'file {file} does not seem to contain a single line with a valid OTP secret'):
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not seem to contain a single line with a valid OTP secret'):
         auth(arguments)
 
     file.write_text('hello world\n')
 
-    with pytest.raises(ValueError, match=f'file {file} does not seem to contain a single line with a valid OTP secret'):
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not seem to contain a single line with a valid OTP secret'):
         auth(arguments)
 
     file.write_text('f00bar=\n')

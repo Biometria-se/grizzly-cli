@@ -4,6 +4,7 @@ import os
 from argparse import SUPPRESS
 from argparse import Namespace as Arguments
 from getpass import getuser
+from pathlib import Path
 from socket import gaierror, gethostbyname
 from typing import TYPE_CHECKING
 
@@ -130,7 +131,7 @@ def build(args: Arguments) -> int:
 
     build_command = _create_build_command(
         args,
-        f'{STATIC_CONTEXT}{os.path.sep}Containerfile',
+        Path.joinpath(Path(STATIC_CONTEXT), 'Containerfile').as_posix(),
         image_name,
         EXECUTION_CONTEXT,
     )

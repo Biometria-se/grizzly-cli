@@ -43,8 +43,8 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
     create_parser(sub_parsers, parent='local')
 
     try:
-        mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', str(execution_context))
-        mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', str(mount_context))
+        mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', execution_context.as_posix())
+        mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', mount_context.as_posix())
         mocker.patch('grizzly_cli.run.get_hostname', return_value='localhost')
         mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], [], [], []])
         mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], [], [], []])
@@ -54,12 +54,12 @@ def test_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: Te
         local_mock = mocker.MagicMock(return_value=0)
         get_input_mock = mocker.patch('grizzly_cli.run.get_input', side_effect=['bar', 'foo'])
 
-        setattr(getattr(run, '__wrapped__'), '__value__', str(execution_context))  # noqa: B009, B010
+        setattr(getattr(run, '__wrapped__'), '__value__', execution_context.as_posix())  # noqa: B009, B010
 
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
-            f'{execution_context}/features/test.feature',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
+            f'{execution_context.as_posix()}/features/test.feature',
             '--verbose',
         ])
         arguments.file = ' '.join(arguments.file)
@@ -79,8 +79,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
                 'TESTDATA_VARIABLE_foo': 'bar',
                 'TESTDATA_VARIABLE_bar': 'foo',
@@ -113,8 +113,8 @@ bar = foo
 
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
-            f'{execution_context}/features/test.feature',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
+            f'{execution_context.as_posix()}/features/test.feature',
         ])
         arguments.file = ' '.join(arguments.file)
 
@@ -127,8 +127,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
             }, {
                 'master': [],
@@ -148,9 +148,9 @@ bar = foo
         # with --yes, notices should only be printed, and not needed to be confirmed via ask_yes_no
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
         ])
         arguments.file = ' '.join(arguments.file)
 
@@ -162,8 +162,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
             }, {
                 'master': [],
@@ -182,9 +182,9 @@ bar = foo
         # no `csv_prefix` nothing should be added
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
             '--csv-interval', '20',
         ])
         arguments.file = ' '.join(arguments.file)
@@ -195,8 +195,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
             }, {
                 'master': [],
@@ -210,9 +210,9 @@ bar = foo
         # static csv-prefix
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
             '--csv-interval', '20',
             '--csv-prefix', 'test test',
         ])
@@ -225,8 +225,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
             }, {
                 'master': [],
@@ -244,9 +244,9 @@ bar = foo
         datetime_mock.now.return_value = datetime(2022, 12, 6, 13, 1, 13)  # noqa: DTZ001
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
             '--csv-prefix',
             '--csv-interval', '20',
             '--csv-flush-interval', '60',
@@ -260,8 +260,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
             }, {
                 'master': [],
@@ -277,10 +277,10 @@ bar = foo
         # --log-dir
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
             '--log-dir', 'foobar',
-            f'{execution_context}/features/test.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
         ])
         arguments.file = ' '.join(arguments.file)
 
@@ -291,8 +291,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
                 'GRIZZLY_LOG_DIR': 'foobar',
             }, {
@@ -308,10 +308,10 @@ bar = foo
         # --dry-run
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
             '--log-dir', 'foobar',
-            f'{execution_context}/features/test.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
             '--dry-run',
         ])
         arguments.file = ' '.join(arguments.file)
@@ -323,8 +323,8 @@ bar = foo
             arguments,
             {
                 'GRIZZLY_CLI_HOST': 'localhost',
-                'GRIZZLY_EXECUTION_CONTEXT': str(execution_context),
-                'GRIZZLY_MOUNT_CONTEXT': str(mount_context),
+                'GRIZZLY_EXECUTION_CONTEXT': execution_context.as_posix(),
+                'GRIZZLY_MOUNT_CONTEXT': mount_context.as_posix(),
                 'GRIZZLY_CONFIGURATION_FILE': CaseInsensitive(Path.joinpath(execution_context, 'configuration.lock.yaml').as_posix()),
                 'GRIZZLY_LOG_DIR': 'foobar',
                 'GRIZZLY_DRY_RUN': 'true',
@@ -341,9 +341,9 @@ bar = foo
         # --dump
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
             '--dump',
         ])
         arguments.file = ' '.join(arguments.file)
@@ -384,8 +384,8 @@ def test_run_dump(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factor
     create_parser(sub_parsers, parent='local')
 
     try:
-        mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', str(execution_context))
-        mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', str(mount_context))
+        mocker.patch('grizzly_cli.run.grizzly_cli.EXECUTION_CONTEXT', execution_context.as_posix())
+        mocker.patch('grizzly_cli.run.grizzly_cli.MOUNT_CONTEXT', mount_context.as_posix())
         mocker.patch('grizzly_cli.run.get_hostname', return_value='localhost')
         mocker.patch('grizzly_cli.run.find_variable_names_in_questions', side_effect=[['foo', 'bar'], [], [], [], [], [], [], []])
         mocker.patch('grizzly_cli.run.find_metadata_notices', side_effect=[[], ['is the event log cleared?'], ['hello world', 'foo bar'], [], [], [], [], []])
@@ -393,7 +393,7 @@ def test_run_dump(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factor
         distributed_mock = mocker.MagicMock(return_value=0)
         local_mock = mocker.MagicMock(return_value=0)
 
-        setattr(getattr(run, '__wrapped__'), '__value__', str(execution_context))  # noqa: B009, B010
+        setattr(getattr(run, '__wrapped__'), '__value__', execution_context.as_posix())  # noqa: B009, B010
 
         # --dump output.feature
         feature_file.write_text("""Feature: a feature
@@ -520,10 +520,10 @@ def test_run_dump(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factor
 
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
-            '--dump', f'{execution_context}/output.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
+            '--dump', f'{execution_context.as_posix()}/output.feature',
         ])
         arguments.file = ' '.join(arguments.file)
 
@@ -603,10 +603,10 @@ def test_run_dump(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factor
 
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
-            '--dump', f'{execution_context}/output.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
+            '--dump', f'{execution_context.as_posix()}/output.feature',
         ])
         arguments.file = ' '.join(arguments.file)
 
@@ -669,10 +669,10 @@ the following variables was used in ../second.feature#second but was not declare
 
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
-            '--dump', f'{execution_context}/output.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
+            '--dump', f'{execution_context.as_posix()}/output.feature',
         ])
         arguments.file = ' '.join(arguments.file)
 
@@ -725,10 +725,10 @@ the following variables was used in ../second.feature#second but was not declare
 
         arguments = parser.parse_args([
             'run',
-            '-e', f'{execution_context}/configuration.yaml',
+            '-e', f'{execution_context.as_posix()}/configuration.yaml',
             '--yes',
-            f'{execution_context}/features/test.feature',
-            '--dump', f'{execution_context}/output.feature',
+            f'{execution_context.as_posix()}/features/test.feature',
+            '--dump', f'{execution_context.as_posix()}/output.feature',
         ])
         arguments.file = ' '.join(arguments.file)
 
