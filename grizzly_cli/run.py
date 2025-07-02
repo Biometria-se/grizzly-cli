@@ -1,37 +1,39 @@
 from __future__ import annotations
 
-import sys
 import os
-
+import sys
+from contextlib import suppress
+from datetime import datetime
+from pathlib import Path
+from platform import node as get_hostname
 from typing import (
-    List,
-    Dict,
-    Any,
+    TYPE_CHECKING,
     Callable,
     TextIO,
     cast,
 )
-from argparse import Namespace as Arguments
-from platform import node as get_hostname
-from datetime import datetime
-from pathlib import Path
-from contextlib import suppress
+
 from jinja2 import Environment
 
 import grizzly_cli
-from .utils import (
-    logger,
-    find_variable_names_in_questions,
-    ask_yes_no, get_input,
+from grizzly_cli.argparse.bashcompletion import BashCompletionTypes
+from grizzly_cli.utils import (
+    ask_yes_no,
     distribution_of_users_per_scenario,
-    requirements,
     find_metadata_notices,
+    find_variable_names_in_questions,
+    get_input,
+    logger,
     parse_feature_file,
+    requirements,
     rm_rf,
 )
-from .utils.configuration import ScenarioTag, load_configuration, get_context_root
-from .argparse import ArgumentSubParser
-from .argparse.bashcompletion import BashCompletionTypes
+from grizzly_cli.utils.configuration import ScenarioTag, get_context_root, load_configuration
+
+if TYPE_CHECKING:
+    from argparse import Namespace as Arguments
+
+    from grizzly_cli.argparse import ArgumentSubParser
 
 
 def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
@@ -44,7 +46,7 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         help=(
             'changes the log level to `DEBUG`, regardless of what it says in the feature file. gives more verbose logging '
             'that can be useful when troubleshooting a problem with a scenario.'
-        )
+        ),
     )
     run_parser.add_argument(
         '-T', '--testdata-variable',
@@ -53,7 +55,7 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         required=False,
         help=(
             'specified in the format `<name>=<value>`. avoids being asked for an initial value for a scenario variable.'
-        )
+        ),
     )
     run_parser.add_argument(
         '-y', '--yes',
@@ -132,10 +134,91 @@ def create_parser(sub_parser: ArgumentSubParser, parent: str) -> None:
         run_parser.prog = f'grizzly-cli {parent} run'
 
 
+def should_prompt_questions(args: Arguments, environ: dict) -> None:
+    variables = find_variable_names_in_questions(args.file)
+    questions = len(variables)
+    manual_input = False
+
+    if questions > 0 and not getattr(args, 'validate_config', False):
+        logger.info(f'feature file requires values for {questions} variables')
+
+        for variable in variables:
+            name = f'TESTDATA_VARIABLE_{variable}'
+            value = os.environ.get(name, '')
+            while len(value) < 1:
+                value = get_input(f'initial value for "{variable}": ')
+                manual_input = True
+
+            environ[name] = value
+
+        logger.info('the following values was provided:')
+        for key, value in environ.items():
+            if not key.startswith('TESTDATA_VARIABLE_'):
+                continue
+            logger.info(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
+
+        if manual_input:
+            ask_yes_no('continue?')
+
+
+def should_prompt_notices(args: Arguments) -> None:
+    notices = find_metadata_notices(args.file)
+
+    if len(notices) > 0:
+        output_func = cast('Callable[[str], None]', logger.info) if args.yes else ask_yes_no
+
+        for notice in notices:
+            output_func(notice)
+
+
+def update_grizzly_environment(args: Arguments, environ: dict) -> None:
+    if args.environment_file is not None:
+        environment_lock_file = load_configuration(Path(args.environment_file).resolve())
+        environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_lock_file.as_posix()})
+
+    if args.dry_run:
+        environ.update({'GRIZZLY_DRY_RUN': 'true'})
+
+    if args.log_dir is not None:
+        environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
+
+
+def build_run_arguments(args: Arguments) -> dict[str, list[str]]:
+    run_arguments: dict[str, list[str]] = {
+        'master': [],
+        'worker': [],
+        'common': [],
+    }
+
+    if args.verbose:
+        run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
+
+    if args.csv_prefix is not None:
+        if args.csv_prefix is True:
+            parse_feature_file(args.file)
+            if grizzly_cli.FEATURE_DESCRIPTION is None:
+                message = 'feature file does not seem to have a `Feature:` description to use as --csv-prefix'
+                raise ValueError(message)
+
+            csv_prefix = grizzly_cli.FEATURE_DESCRIPTION.replace(' ', '_')
+            timestamp = datetime.now().astimezone().strftime('%Y%m%dT%H%M%S')
+            args.csv_prefix = f'{csv_prefix}_{timestamp}'
+
+        run_arguments['common'] += [f'-Dcsv-prefix="{args.csv_prefix}"']
+
+        if args.csv_interval is not None:
+            run_arguments['common'] += [f'-Dcsv-interval={args.csv_interval}']
+
+        if args.csv_flush_interval is not None:
+            run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
+
+    return run_arguments
+
+
 @requirements(grizzly_cli.EXECUTION_CONTEXT)
-def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str, List[str]]], int]) -> int:
+def run(args: Arguments, run_func: Callable[[Arguments, dict, dict[str, list[str]]], int]) -> int:
     # always set hostname of host where grizzly-cli was executed, could be useful
-    environ: Dict[str, Any] = {
+    environ: dict = {
         'GRIZZLY_CLI_HOST': get_hostname(),
         'GRIZZLY_EXECUTION_CONTEXT': grizzly_cli.EXECUTION_CONTEXT,
         'GRIZZLY_MOUNT_CONTEXT': grizzly_cli.MOUNT_CONTEXT,
@@ -150,7 +233,7 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
     feature_lock_file = feature_file.parent / f'{feature_file.stem}.lock{feature_file.suffix}'
 
     try:
-        buffer: List[str] = []
+        buffer: list[str] = []
         remove_endif = False
 
         # remove if-statements containing variables (`{$ .. $}`)
@@ -176,94 +259,27 @@ def run(args: Arguments, run_func: Callable[[Arguments, Dict[str, Any], Dict[str
         feature_lock_file.write_text(feature_content)
 
         if args.dump:
-            output: TextIO
-            if isinstance(args.dump, str):
-                output = Path(args.dump).open('w+')
-            else:
-                output = sys.stdout
+            output: TextIO = Path(args.dump).open('w+') if isinstance(args.dump, str) else sys.stdout  # noqa: SIM115
 
-            print(feature_content, file=output)
+            try:
+                print(feature_content, file=output)
+            finally:
+                # do not close stdout...
+                if output is not sys.stdout:
+                    output.close()
 
             return 0
 
         args.file = feature_lock_file.as_posix()
 
-        variables = find_variable_names_in_questions(args.file)
-        questions = len(variables)
-        manual_input = False
-
-        if questions > 0 and not getattr(args, 'validate_config', False):
-            logger.info(f'feature file requires values for {questions} variables')
-
-            for variable in variables:
-                name = f'TESTDATA_VARIABLE_{variable}'
-                value = os.environ.get(name, '')
-                while len(value) < 1:
-                    value = get_input(f'initial value for "{variable}": ')
-                    manual_input = True
-
-                environ[name] = value
-
-            logger.info('the following values was provided:')
-            for key, value in environ.items():
-                if not key.startswith('TESTDATA_VARIABLE_'):
-                    continue
-                logger.info(f'{key.replace("TESTDATA_VARIABLE_", "")} = {value}')
-
-            if manual_input:
-                ask_yes_no('continue?')
-
-        notices = find_metadata_notices(args.file)
-
-        if len(notices) > 0:
-            if args.yes:
-                output_func = cast(Callable[[str], None], logger.info)
-            else:
-                output_func = ask_yes_no
-
-            for notice in notices:
-                output_func(notice)
-
-        if args.environment_file is not None:
-            environment_file = os.path.realpath(args.environment_file)
-            environment_lock_file = load_configuration(environment_file)
-            environ.update({'GRIZZLY_CONFIGURATION_FILE': environment_lock_file})
-
-        if args.dry_run:
-            environ.update({'GRIZZLY_DRY_RUN': 'true'})
-
-        if args.log_dir is not None:
-            environ.update({'GRIZZLY_LOG_DIR': args.log_dir})
+        should_prompt_questions(args, environ)
+        should_prompt_notices(args)
+        update_grizzly_environment(args, environ)
 
         if not getattr(args, 'validate_config', False):
             distribution_of_users_per_scenario(args, environ)
 
-        run_arguments: Dict[str, List[str]] = {
-            'master': [],
-            'worker': [],
-            'common': [],
-        }
-
-        if args.verbose:
-            run_arguments['common'] += ['--verbose', '--no-logcapture', '--no-capture', '--no-capture-stderr']
-
-        if args.csv_prefix is not None:
-            if args.csv_prefix is True:
-                parse_feature_file(args.file)
-                if grizzly_cli.FEATURE_DESCRIPTION is None:
-                    raise ValueError('feature file does not seem to have a `Feature:` description to use as --csv-prefix')
-
-                csv_prefix = grizzly_cli.FEATURE_DESCRIPTION.replace(' ', '_')
-                timestamp = datetime.now().astimezone().strftime('%Y%m%dT%H%M%S')
-                setattr(args, 'csv_prefix', f'{csv_prefix}_{timestamp}')
-
-            run_arguments['common'] += [f'-Dcsv-prefix="{args.csv_prefix}"']
-
-            if args.csv_interval is not None:
-                run_arguments['common'] += [f'-Dcsv-interval={args.csv_interval}']
-
-            if args.csv_flush_interval is not None:
-                run_arguments['common'] += [f'-Dcsv-flush-interval={args.csv_flush_interval}']
+        run_arguments = build_run_arguments(args)
 
         return run_func(args, environ, run_arguments)
     finally:

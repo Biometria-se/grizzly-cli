@@ -1,19 +1,23 @@
+from __future__ import annotations
+
 from argparse import Namespace
+from typing import TYPE_CHECKING
 
-from pytest_mock import MockerFixture
-
-from grizzly_cli.utils import RunCommandResult
 from grizzly_cli.distributed.clean import clean
+from grizzly_cli.utils import RunCommandResult
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 
-def test_clean(mocker: MockerFixture) -> None:
-    import grizzly_cli.distributed.clean
-    mocker.patch.object(grizzly_cli.distributed.clean, 'STATIC_CONTEXT', '/tmp/static-context')
+def test_clean(mocker: MockerFixture) -> None:  # noqa: PLR0915
+    import grizzly_cli.distributed.clean  # noqa: PLC0415
+    mocker.patch.object(grizzly_cli.distributed.clean, 'STATIC_CONTEXT', '/srv/grizzly/static-context')
     mocker.patch.object(grizzly_cli.distributed.clean, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
     arguments = Namespace(networks=True, images=True, project_name='foobar', container_system='docker', id=None)
     mocker.patch('grizzly_cli.distributed.clean.getuser', return_value='root')
-    mocker.patch('grizzly_cli.distributed.clean.get_terminal_size', return_value=(1024, 1024,))
+    mocker.patch('grizzly_cli.distributed.clean.get_terminal_size', return_value=(1024, 1024))
 
     run_command_spy = mocker.patch('grizzly_cli.distributed.clean.run_command', side_effect=[
         RunCommandResult(return_code=0),
@@ -33,7 +37,7 @@ def test_clean(mocker: MockerFixture) -> None:
     args, kwargs = run_command_spy.call_args_list[0]
     assert args[0] == [
         'docker', 'compose',
-        '-f', '/tmp/static-context/compose.yaml',
+        '-f', '/srv/grizzly/static-context/compose.yaml',
         '-p', 'foobar-root',
         'rm', '-f', '-s', '-v',
     ]
@@ -79,7 +83,7 @@ def test_clean(mocker: MockerFixture) -> None:
     args, kwargs = run_command_spy.call_args_list[0]
     assert args[0] == [
         'docker', 'compose',
-        '-f', '/tmp/static-context/compose.yaml',
+        '-f', '/srv/grizzly/static-context/compose.yaml',
         '-p', 'grizzly-cli-test-project-foobar-root',
         'rm', '-f', '-s', '-v',
     ]
@@ -108,7 +112,7 @@ def test_clean(mocker: MockerFixture) -> None:
     args, kwargs = run_command_spy.call_args_list[0]
     assert args[0] == [
         'docker', 'compose',
-        '-f', '/tmp/static-context/compose.yaml',
+        '-f', '/srv/grizzly/static-context/compose.yaml',
         '-p', 'grizzly-cli-test-project-root',
         'rm', '-f', '-s', '-v',
     ]

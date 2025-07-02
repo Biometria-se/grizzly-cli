@@ -1,14 +1,13 @@
 import os
-
-from typing import List, Dict, Any
 from argparse import Namespace as Arguments
 
-from . import register_parser
-from .utils import (
+from grizzly_cli import register_parser
+from grizzly_cli.argparse import ArgumentSubParser
+from grizzly_cli.run import create_parser as run_create_parser
+from grizzly_cli.run import run
+from grizzly_cli.utils import (
     run_command,
 )
-from .run import create_parser as run_create_parser, run
-from .argparse import ArgumentSubParser
 
 
 @register_parser(order=2)
@@ -26,11 +25,12 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
 def local(args: Arguments) -> int:
     if args.subcommand == 'run':
         return run(args, local_run)
-    else:
-        raise ValueError(f'unknown subcommand {args.subcommand}')
+
+    message = f'unknown subcommand {args.subcommand}'
+    raise ValueError(message)
 
 
-def local_run(args: Arguments, environ: Dict[str, Any], run_arguments: Dict[str, List[str]]) -> int:
+def local_run(args: Arguments, environ: dict, run_arguments: dict[str, list[str]]) -> int:
     for key, value in environ.items():
         if key not in os.environ:
             os.environ[key] = value

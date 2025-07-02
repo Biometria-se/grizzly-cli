@@ -1,15 +1,19 @@
-import sys
+from __future__ import annotations
 
+import sys
+from contextlib import suppress
 from os import environ
+from typing import TYPE_CHECKING
 
 import pytest
 
-from _pytest.tmpdir import TempPathFactory
-from _pytest.capture import CaptureFixture
-from pytest_mock import MockerFixture
-
 from grizzly_cli.__main__ import _parse_arguments
 from grizzly_cli.auth import auth
+
+if TYPE_CHECKING:  # pragma: no cover
+    from _pytest.capture import CaptureFixture
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock import MockerFixture
 
 
 def test_auth_env(capsys: CaptureFixture, mocker: MockerFixture) -> None:
@@ -17,19 +21,17 @@ def test_auth_env(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         sys.argv = ['grizzly-cli', 'auth']
         arguments = _parse_arguments()
 
-        with pytest.raises(ValueError) as ve:
+        with pytest.raises(ValueError, match='environment variable OTP_SECRET is not set'):
             auth(arguments)
 
-        assert str(ve.value) == 'environment variable OTP_SECRET is not set'
         capsys.readouterr()
 
-        environ['OTP_SECRET'] = 'f00bar='
+        environ['OTP_SECRET'] = 'f00bar='  # noqa: S105
 
-        with pytest.raises(ValueError) as ve:
+        with pytest.raises(ValueError, match='unable to generate TOTP code: Non-base32 digit found'):
             auth(arguments)
-        assert str(ve.value) == 'unable to generate TOTP code: Non-base32 digit found'
 
-        environ['OTP_SECRET'] = 'asdfasdf'
+        environ['OTP_SECRET'] = 'asdfasdf'  # noqa: S105
         mocker.patch('grizzly_cli.auth.TOTP.now', return_value=111111)
 
         assert auth(arguments) == 0
@@ -39,10 +41,8 @@ def test_auth_env(capsys: CaptureFixture, mocker: MockerFixture) -> None:
         assert capture.err == ''
         assert capture.out == '111111\n'
     finally:
-        try:
+        with suppress(KeyError):
             del environ['OTP_SECRET']
-        except:
-            pass
 
 
 def test_auth_stdin(capsys: CaptureFixture, mocker: MockerFixture) -> None:
@@ -51,21 +51,18 @@ def test_auth_stdin(capsys: CaptureFixture, mocker: MockerFixture) -> None:
 
     mocker.patch('sys.stdin.read', return_value=None)
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match='OTP secret could not be read from stdin'):
         auth(arguments)
-    assert str(ve.value) == 'OTP secret could not be read from stdin'
 
     mocker.patch('sys.stdin.read', return_value=' ')
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match='OTP secret could not be read from stdin'):
         auth(arguments)
-    assert str(ve.value) == 'OTP secret could not be read from stdin'
 
     mocker.patch('sys.stdin.read', return_value='f00bar=')
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match='unable to generate TOTP code: Non-base32 digit found'):
         auth(arguments)
-    assert str(ve.value) == 'unable to generate TOTP code: Non-base32 digit found'
 
     capsys.readouterr()
 
@@ -88,33 +85,28 @@ def test_auth_file(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_facto
     sys.argv = ['grizzly-cli', 'auth', str(file)]
     arguments = _parse_arguments()
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not exist'):
         auth(arguments)
-    assert str(ve.value) == f'file {file} does not exist'
 
     file.write_text(' ')
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not seem to contain a single line with a valid OTP secret'):
         auth(arguments)
-    assert str(ve.value) == f'file {file} does not seem to contain a single line with a valid OTP secret'
 
     file.write_text('aasdf\nasdfasdf\n')
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not seem to contain a single line with a valid OTP secret'):
         auth(arguments)
-    assert str(ve.value) == f'file {file} does not seem to contain a single line with a valid OTP secret'
 
     file.write_text('hello world\n')
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match=f'file {file.as_posix()} does not seem to contain a single line with a valid OTP secret'):
         auth(arguments)
-    assert str(ve.value) == f'file {file} does not seem to contain a single line with a valid OTP secret'
 
     file.write_text('f00bar=\n')
 
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match='unable to generate TOTP code: Non-base32 digit found'):
         auth(arguments)
-    assert str(ve.value) == 'unable to generate TOTP code: Non-base32 digit found'
 
     file.write_text('asdfasdf')
     mocker.patch('grizzly_cli.auth.TOTP.now', return_value=333333)

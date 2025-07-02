@@ -1,28 +1,32 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
-from contextlib import suppress
-from textwrap import dedent
-from typing import Any, Iterable, ClassVar, cast
 from base64 import b64decode
-from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography.hazmat.primitives._serialization import PBES, KeySerializationEncryptionBuilder, PrivateFormat, KeySerializationEncryption
-from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
-from cryptography.x509 import Certificate
-from cryptography.hazmat.primitives import serialization
+from contextlib import suppress
+from pathlib import Path
 from shutil import which
+from textwrap import dedent
+from typing import TYPE_CHECKING, ClassVar, Optional, cast
 
 import yaml
-from azure.identity import AzureCliCredential, ManagedIdentityCredential, ChainedTokenCredential
-from azure.keyvault.secrets import SecretClient, KeyVaultSecret
+from azure.identity import AzureCliCredential, ChainedTokenCredential, ManagedIdentityCredential
+from azure.keyvault.secrets import KeyVaultSecret, SecretClient
+from behave.parser import parse_feature
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives._serialization import PBES, KeySerializationEncryption, KeySerializationEncryptionBuilder, PrivateFormat
+from cryptography.hazmat.primitives.serialization import pkcs12
 from jinja2 import Environment
 from jinja2.lexer import Token, TokenStream
 from jinja2_simple_tags import StandaloneTag
-from behave.parser import parse_feature
-from behave.model import Scenario
 
-from grizzly_cli.utils import IndentDumper, merge_dicts, logger, unflatten, run_command
+from grizzly_cli.utils import IndentDumper, logger, merge_dicts, run_command, unflatten
+
+if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Iterable
+
+    from behave.model import Scenario
+    from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+    from cryptography.x509 import Certificate
 
 
 def get_context_root() -> Path:
@@ -39,20 +43,21 @@ def get_context_root() -> Path:
             context_root = possible_context_root
 
     if context_root is None:
-        raise ValueError('context root not found, are you in a grizzly project?')
+        message = 'context root not found, are you in a grizzly project?'
+        raise ValueError(message)
 
     return context_root.parent
 
 
 class ScenarioTag(StandaloneTag):
-    tags = {'scenario'}
+    tags: ClassVar[set[str]] = {'scenario'}
 
     def preprocess(
-        self, source: str, name: str | None, filename: str | None = None
+        self, source: str, name: str | None, filename: str | None = None,
     ) -> str:
         self._source = source
 
-        return cast(str, super().preprocess(source, name, filename))
+        return cast('str', super().preprocess(source, name, filename))
 
     @classmethod
     def get_scenario_text(cls, name: str, file: Path) -> str:
@@ -64,11 +69,13 @@ class ScenarioTag(StandaloneTag):
         assert len(content.splitlines()) == len(content_skel.splitlines()), 'oops, there is not a 1:1 match between lines!'
 
         feature = parse_feature(content_skel, filename=file.as_posix())
-        scenarios = cast(list[Scenario], feature.scenarios)
+        scenarios = cast('list[Scenario]', feature.scenarios)
         lines = content.splitlines()
 
-        for scenario_index, scenario in enumerate(scenarios):
+        scenario_index: int
+        for index, scenario in enumerate(scenarios):
             if scenario.name == name:
+                scenario_index = index
                 break
 
         # check if there are scenarios after our scenario in the source
@@ -155,7 +162,7 @@ class ScenarioTag(StandaloneTag):
 
         return scenario_content
 
-    def filter_stream(self, stream: TokenStream) -> TokenStream | Iterable[Token]:  # type: ignore[return]
+    def filter_stream(self, stream: TokenStream) -> TokenStream | Iterable[Token]:  # type: ignore[return]  # noqa: PLR0912
         """Everything outside of `{% scenario ... %}` (and `{% if ... %}...{% endif %}`) should be treated as "data", e.g. plain text.
 
         Overloaded from `StandaloneTag`, must match method signature, which is not `Generator`, even though we yield
@@ -230,7 +237,7 @@ class MergeYamlTag(StandaloneTag):  # pragma: no cover
         self, source: str, name: str | None, filename: str | None = None,
     ) -> str:
         self._source = source
-        return cast(str, super().preprocess(source, name, filename))
+        return cast('str', super().preprocess(source, name, filename))
 
     def render(self, filename: str, *filenames: str) -> str:
         buffer: list[str] = []
@@ -388,7 +395,8 @@ def _write_mqm_cert(
     runmqakm_path = which('runmqakm')
 
     if runmqakm_path is None:
-        raise ValueError('runmqakm could not be found, install IBM MQC Redist, and make sure that it\'s bin/ directory is added to PATH')
+        message = "runmqakm could not be found, install IBM MQC Redist, and make sure that it's bin/ directory is added to PATH"
+        raise ValueError(message)
 
     runmqakm_cmd: list[str] = [
         runmqakm_path,
@@ -415,7 +423,8 @@ def _write_mqm_cert(
             for line in result.output or []:
                 logger.error(line.decode('utf-8').strip())
 
-            raise ValueError(f'failed to create {relative_file}')
+            message = f'failed to create {relative_file}'
+            raise ValueError(message)
     finally:
         p12_file.unlink()
         cms_file.with_suffix('.crl').unlink(missing_ok=True)
@@ -446,7 +455,7 @@ def _write_pem_public(root: Path, name: str, public_certificate: Certificate, ad
 
     certificate_data: list[bytes] = []
 
-    for certificate in [public_certificate] + additional_certificates:
+    for certificate in [public_certificate, *additional_certificates]:
         certificate_pem = certificate.public_bytes(encoding=serialization.Encoding.PEM)
         certificate_data.append(certificate_pem)
 
@@ -459,7 +468,8 @@ def _write_file(root: Path, content_type: str, encoded_content: str) -> str:
     file_name = _get_metadata(content_type, 'file')
 
     if file_name is None:
-        raise ValueError('could not find `file:` in content type')
+        message = 'could not find `file:` in content type'
+        raise ValueError(message)
 
     file = _create_safe_file_and_parent(root / 'files' / file_name)
 
@@ -530,9 +540,7 @@ def _import_files(client: SecretClient, root: Path, secret: KeyVaultSecret) -> s
     return conf_value
 
 
-def load_configuration(configuration_file: str) -> str:
-    file = Path(configuration_file)
-
+def load_configuration(file: Path) -> Path:
     if not file.exists():
         message = f'{file.as_posix()} does not exist'
         raise ValueError(message)
@@ -562,12 +570,12 @@ def load_configuration(configuration_file: str) -> str:
     with environment_lock_file.open('w') as fd:
         yaml.dump(configuration, fd, Dumper=IndentDumper.use_indentation(file), default_flow_style=False, sort_keys=False, allow_unicode=True)
 
-    return configuration_file.replace(file.name, f'{file.stem}.lock{file.suffix}')
+    return file.with_name(f'{file.stem}.lock{file.suffix}')
 
 
-def load_configuration_file(file: Path) -> dict[str, Any]:
+def load_configuration_file(file: Path) -> dict:
     """Load a grizzly environment file and flatten the structure."""
-    configuration: dict[str, Any] = {}
+    configuration: dict = {}
 
     environment = Environment(autoescape=False, extensions=[MergeYamlTag])
     environment.extend(source_file=file)
@@ -586,13 +594,9 @@ def load_configuration_file(file: Path) -> dict[str, Any]:
     return configuration
 
 
-def load_configuration_keyvault(client: SecretClient, environment: str, root: Path, *, filter_keys: list[str] | None) -> tuple[dict[str, Any], int]:
-    environment_filter = ['global', environment]
-
+def filter_secrets(client: SecretClient, environment_filter: list[str]) -> dict[str, str]:
     secret_properties = client.list_properties_of_secrets()
-
     keys: dict[str, str] = {}
-    configuration: dict[str, Any] = {}
 
     # loop through all secrets to find the ones that match the environment filter
     for secret_property in secret_properties:
@@ -617,6 +621,107 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
 
         keys.update({secret_property.name: name})
 
+    return keys
+
+def get_certificate_encryption_algorithm(client: SecretClient, password_key: str | None) -> tuple[KeySerializationEncryption, Optional[str]]:
+    # build encryption algorithm
+    if password_key is not None:
+        password_secret = client.get_secret(password_key)
+        password = password_secret.value
+    else:
+        password = None
+
+    if password is not None:
+        encryption_algorithm = KeySerializationEncryptionBuilder(
+            PrivateFormat.PKCS12,
+            _key_cert_algorithm=PBES.PBESv1SHA1And3KeyTripleDESCBC,
+        ).build(password.encode('utf-8'))
+    else:
+        encryption_algorithm = serialization.NoEncryption()
+
+    return encryption_algorithm, password
+
+
+def encode_certificate(client: SecretClient, root: Path, secret: KeyVaultSecret, content_type: str) -> str:
+    assert secret.value is not None
+    arguments: dict[str, str] = {}
+
+    for part in secret.value.split(',', 1) + content_type.split(','):
+        argument, value = part.split(':', 1)
+        arguments.update({argument: value})
+
+    cert_key = arguments['cert']
+    cert_secret = client.get_secret(cert_key)
+
+    if cert_secret.value is None:
+        message = f'unable to download certificate secret {cert_key}'
+        raise ValueError(message)
+
+    if arguments.get('name') is None:
+        name, _ = cert_key.split('-', 1)
+        arguments.update({'name': name.lower()})
+
+    certificate = b64decode(cert_secret.value)
+
+    private_key, public_certificate, additional_certificates = pkcs12.load_key_and_certificates(data=certificate, password=None)
+
+    encryption_algorithm, password = get_certificate_encryption_algorithm(client, arguments.get('pass'))
+
+    # write files
+    cert_format = arguments.get('format')
+    if cert_format == 'pem-private':
+        if private_key is None:
+            message = f'could not find a private key in {cert_key}'
+            raise ValueError(message)
+
+        conf_value = _write_pem_private(root, arguments['name'], encryption_algorithm, private_key)
+    elif cert_format == 'pem-public':
+        if public_certificate is None:
+            message = f'could not find a public certificate in {cert_key}'
+            raise ValueError(message)
+
+        conf_value = _write_pem_public(root, arguments['name'], public_certificate, additional_certificates)
+    elif cert_format == 'mqm':
+        conf_value = _write_mqm_cert(
+            root,
+            arguments['name'],
+            password,
+            cast('pkcs12.PKCS12PrivateKeyTypes | None', private_key),
+            public_certificate,
+            additional_certificates,
+            encryption_algorithm,
+        )
+    else:
+        message = f'{cert_format} is not a supported certificate format'
+        raise ValueError(message)
+
+    return conf_value
+
+
+def encode_secret_value(client: SecretClient, root: Path, secret: KeyVaultSecret, secret_key: str) -> str:
+    assert secret.value is not None
+    assert secret.properties.content_type is not None
+
+    content_type = secret.properties.content_type
+
+    if content_type.startswith('files'):
+        conf_value = _import_files(client, root, secret)
+        if all(keyword in secret_key for keyword in ['mq', 'key']):
+            conf_value = Path(conf_value).with_suffix('').as_posix()
+    elif content_type.startswith('file:'):
+        conf_value = _write_file(root, content_type, secret.value)
+    elif content_type.startswith('format:') and secret.value.startswith('cert:'):
+        conf_value = encode_certificate(client, root, secret, content_type)
+    else:
+        message = f'unknown content type for secret {secret_key}: {content_type}'
+        raise ValueError(message)
+
+    return conf_value
+
+
+def load_configuration_keyvault(client: SecretClient, environment: str, root: Path, *, filter_keys: list[str] | None) -> tuple[dict, int]:
+    keys = filter_secrets(client, environment_filter=['global', environment])
+    configuration: dict = {}
     imported_secrets = 0
 
     # get the actual value for all secrets that matched environment filter
@@ -638,78 +743,7 @@ def load_configuration_keyvault(client: SecretClient, environment: str, root: Pa
 
         if content_type is not None:
             no_conf = 'noconf' in content_type
-
-            if content_type.startswith('files'):
-                conf_value = _import_files(client, root, secret)
-                if all(keyword in secret_key for keyword in ['mq', 'key']):
-                    conf_value = Path(conf_value).with_suffix('').as_posix()
-            elif content_type.startswith('file:'):
-                conf_value = _write_file(root, content_type, secret.value)
-            elif content_type.startswith('format:') and secret.value.startswith('cert:'):
-                arguments: dict[str, str] = {}
-
-                for part in secret.value.split(',', 1) + content_type.split(','):
-                    argument, value = part.split(':', 1)
-                    arguments.update({argument: value})
-
-                cert_key = arguments['cert']
-                cert_secret = client.get_secret(cert_key)
-
-                if arguments.get('name') is None:
-                    name, _ = cert_key.split('-', 1)
-                    arguments.update({'name': name.lower()})
-                if cert_secret.value is None:
-                    message = f'unable to download certificate secret {cert_key}'
-                    raise ValueError(message)
-
-                certificate = b64decode(cert_secret.value)
-
-                private_key, public_certificate, additional_certificates = pkcs12.load_key_and_certificates(data=certificate, password=None)
-
-                # build encryption algorithm
-                password_key = arguments.get('pass')
-                if password_key is not None:
-                    password_secret = client.get_secret(password_key)
-                    password = password_secret.value
-                else:
-                    password = None
-
-                if password is not None:
-                    encryption_algorithm = KeySerializationEncryptionBuilder(
-                        PrivateFormat.PKCS12,
-                        _key_cert_algorithm=PBES.PBESv1SHA1And3KeyTripleDESCBC,
-                    ).build(password.encode('utf-8'))
-                else:
-                    encryption_algorithm = serialization.NoEncryption()
-
-                # write files
-                cert_format = arguments.get('format')
-                if cert_format == 'pem-private':
-                    if private_key is None:
-                        raise ValueError(f'could not find a private key in {cert_key}')
-
-                    conf_value = _write_pem_private(root, arguments['name'], encryption_algorithm, private_key)
-                elif cert_format == 'pem-public':
-                    if public_certificate is None:
-                        raise ValueError(f'could not find a public certificate in {cert_key}')
-
-                    conf_value = _write_pem_public(root, arguments['name'], public_certificate, additional_certificates)
-                elif cert_format == 'mqm':
-                    conf_value = _write_mqm_cert(
-                        root,
-                        arguments['name'],
-                        password,
-                        cast(pkcs12.PKCS12PrivateKeyTypes | None, private_key),
-                        public_certificate,
-                        additional_certificates,
-                        encryption_algorithm,
-                    )
-                else:
-                    message = f'{cert_format} is not a supported certificate format'
-                    raise ValueError(message)
-            else:
-                message = f'unknown content type for secret {secret_key}: {content_type}'
-                raise ValueError(message)
+            conf_value = encode_secret_value(client, root, secret, secret_key)
 
         if not no_conf:
             logger.debug('mapping %s to %s', conf_key, conf_value if content_type is not None else '******')

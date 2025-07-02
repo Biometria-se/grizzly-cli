@@ -1,21 +1,25 @@
 from __future__ import annotations
 
-from _pytest.tmpdir import TempPathFactory
-from pytest_mock.plugin import MockerFixture
+from typing import TYPE_CHECKING
+
 from grizzly_cli.keyvault import (
-    _keyvault_normalize,
-    _should_export,
-    _determine_environment,
+    COMMON_FALSE_POSITIVES,
+    KEYWORDS,
+    KeyvaultSecretHolder,
     _build_key_name,
+    _determine_environment,
     _dict_to_yaml,
     _extract_metadata,
-    encode_mq_certificate,
+    _keyvault_normalize,
+    _should_export,
     encode_file,
-    KeyvaultSecretHolder,
-    KEYWORDS,
-    COMMON_FALSE_POSITIVES,
+    encode_mq_certificate,
 )
 from tests.helpers import SOME, rm_rf
+
+if TYPE_CHECKING:  # pragma: no cover
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock.plugin import MockerFixture
 
 
 def test__keyvault_normalize() -> None:
@@ -95,7 +99,7 @@ def test__dict_to_yaml(tmp_path_factory: TempPathFactory) -> None:
 
         content: dict = {
             'foo': {
-                'bar': 'hello world'
+                'bar': 'hello world',
             },
             'hello': 'world',
             'test': {
@@ -145,7 +149,7 @@ def test__extract_metadata(tmp_path_factory: TempPathFactory) -> None:
                 'env': 'test',
                 'foo': {
                     'bar': 'hello world',
-                }
+                },
             },
         }
 
@@ -165,7 +169,7 @@ def test__extract_metadata(tmp_path_factory: TempPathFactory) -> None:
             'configuration': {
                 'foo': {
                     'bar': 'hello world',
-                }
+                },
             },
         }
 

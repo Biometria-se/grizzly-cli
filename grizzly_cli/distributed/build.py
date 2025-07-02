@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import os
-
-from typing import List, cast
-from argparse import SUPPRESS, Namespace as Arguments
+from argparse import SUPPRESS
+from argparse import Namespace as Arguments
 from getpass import getuser
-from socket import gethostbyname, gaierror
+from pathlib import Path
+from socket import gaierror, gethostbyname
+from typing import TYPE_CHECKING
 
-from grizzly_cli.utils import get_dependency_versions, requirements, run_command
-from grizzly_cli.argparse import ArgumentSubParser
 from grizzly_cli import EXECUTION_CONTEXT, PROJECT_NAME, STATIC_CONTEXT
+from grizzly_cli.utils import get_dependency_versions, requirements, run_command
+
+if TYPE_CHECKING:  # pragma: no cover
+    from grizzly_cli.argparse import ArgumentSubParser
 
 
 def create_parser(sub_parser: ArgumentSubParser) -> None:
@@ -63,33 +68,27 @@ def create_parser(sub_parser: ArgumentSubParser) -> None:
 def getuid() -> int:
     if os.name == 'nt' or not hasattr(os, 'getuid'):
         return 1000
-    else:
-        return cast(int, getattr(os, 'getuid')())
+
+    return os.getuid()
 
 
 def getgid() -> int:
     if os.name == 'nt' or not hasattr(os, 'getgid'):
         return 1000
-    else:
-        return cast(int, getattr(os, 'getgid')())
+
+    return os.getuid()
 
 
-def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> List[str]:
+def _create_build_command(args: Arguments, containerfile: str, tag: str, context: str) -> list[str]:
     local_install = getattr(args, 'local_install', False)
 
-    if local_install:
-        install_type = 'local'
-    else:
-        install_type = 'remote'
+    install_type = 'local' if local_install else 'remote'
 
-    (_, grizzly_extras, ), _ = get_dependency_versions(local_install)
+    (_, grizzly_extras), _ = get_dependency_versions(local_install=local_install)
 
-    if grizzly_extras is not None and 'mq' in grizzly_extras:
-        grizzly_extra = 'mq'
-    else:
-        grizzly_extra = 'base'
+    grizzly_extra = 'mq' if grizzly_extras is not None and 'mq' in grizzly_extras else 'base'
 
-    extra_args: List[str] = []
+    extra_args: list[str] = []
 
     ibm_mq_lib_host = os.environ.get('IBM_MQ_LIB_HOST', None)
     if ibm_mq_lib_host is not None:
@@ -120,7 +119,7 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
         *extra_args,
         '-f', containerfile,
         '-t', tag,
-        context
+        context,
     ]
 
 
@@ -128,14 +127,11 @@ def _create_build_command(args: Arguments, containerfile: str, tag: str, context
 def build(args: Arguments) -> int:
     tag = getuser()
 
-    if args.project_name is None:
-        image_name = f'{PROJECT_NAME}:{tag}'
-    else:
-        image_name = f'{args.project_name}:{tag}'
+    image_name = f'{PROJECT_NAME}:{tag}' if args.project_name is None else f'{args.project_name}:{tag}'
 
     build_command = _create_build_command(
         args,
-        f'{STATIC_CONTEXT}{os.path.sep}Containerfile',
+        Path.joinpath(Path(STATIC_CONTEXT), 'Containerfile').as_posix(),
         image_name,
         EXECUTION_CONTEXT,
     )
@@ -171,8 +167,8 @@ def build(args: Arguments) -> int:
     if result.return_code != 0:
         print(f'\n!! failed to tag image {image_name} -> {args.registry}{image_name}')
         return result.return_code
-    else:
-        print(f'tagged image {image_name} -> {args.registry}{image_name}')
+
+    print(f'tagged image {image_name} -> {args.registry}{image_name}')
 
     push_command = [
         f'{args.container_system}',

@@ -20,16 +20,6 @@
       "settings": {
         "python.pythonPath": "/usr/local/bin/python",
         "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "pylint.path": [
-          "pylint"
-        ],
-        "flake8.path": [
-          "flake8"
-        ],
-        "mypy-type-checker.path": [
-          "mypy"
-        ],
-        "mypy-type-checker.ignorePatterns": ["tests/e2e/example/**/*.py"],
         "mypy.targets": [
           "grizzly_cli/",
           "tests/"
@@ -53,15 +43,13 @@
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "ms-python.pylint",
-        "ms-python.flake8",
         "ms-python.mypy-type-checker",
-        "editorconfig.editorconfig",
         "editorconfig.editorconfig",
         "eamodio.gitlens",
         "ryanluker.vscode-coverage-gutters",
         "matangover.mypy",
-        "oderwat.indent-rainbow"
+        "oderwat.indent-rainbow",
+        "charliermarsh.ruff"
       ]
     }
   },

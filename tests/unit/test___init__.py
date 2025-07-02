@@ -1,42 +1,41 @@
-from os import chdir, environ, path, getcwd
-from inspect import getfile
+
+from __future__ import annotations
+
+from contextlib import suppress
 from importlib import reload
+from inspect import getfile
+from os import environ
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-from _pytest.tmpdir import TempPathFactory
-from pytest_mock import MockerFixture
+from tests.helpers import cwd, rm_rf
 
-from tests.helpers import rm_rf
-
-
-CWD = getcwd()
+if TYPE_CHECKING:  # pragma: no cover
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock import MockerFixture
 
 
 def test___import__(tmp_path_factory: TempPathFactory, mocker: MockerFixture) -> None:
     test_context = tmp_path_factory.mktemp('test_context')
-    test_context_root = str(test_context)
-
-    chdir(test_context_root)
 
     try:
-        environ['GRIZZLY_MOUNT_CONTEXT'] = '/var/tmp'
+        with cwd(test_context):
+            environ['GRIZZLY_MOUNT_CONTEXT'] = '/srv/grizzly'
 
-        import grizzly_cli
-        reload(grizzly_cli)
-        mocker.patch.object(grizzly_cli, '__version__', '1.2.3')
+            import grizzly_cli  # noqa: PLC0415
+            reload(grizzly_cli)
+            mocker.patch.object(grizzly_cli, '__version__', '1.2.3')
 
-        static_context = path.join(path.dirname(getfile(grizzly_cli)), 'static')
+            static_context = Path.joinpath(Path(getfile(grizzly_cli)).parent, 'static')
 
-        assert grizzly_cli.__version__ == '1.2.3'
-        assert grizzly_cli.EXECUTION_CONTEXT == test_context_root
-        assert grizzly_cli.MOUNT_CONTEXT == '/var/tmp'
-        assert grizzly_cli.STATIC_CONTEXT == static_context
-        assert grizzly_cli.PROJECT_NAME == path.basename(test_context_root)
-        assert len(grizzly_cli.SCENARIOS) == 0
+            assert grizzly_cli.__version__ == '1.2.3'
+            assert test_context.as_posix() == grizzly_cli.EXECUTION_CONTEXT
+            assert grizzly_cli.MOUNT_CONTEXT == '/srv/grizzly'
+            assert static_context.as_posix() == grizzly_cli.STATIC_CONTEXT
+            assert test_context.name == grizzly_cli.PROJECT_NAME
+            assert len(grizzly_cli.SCENARIOS) == 0
     finally:
-        chdir(CWD)
-        rm_rf(test_context_root)
+        rm_rf(test_context)
 
-        try:
+        with suppress(KeyError):
             del environ['GRIZZLY_MOUNT_CONTEXT']
-        except:
-            pass

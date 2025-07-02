@@ -1,23 +1,24 @@
+from __future__ import annotations
+
 import argparse
 import inspect
-
-from typing import Optional, Generator
-from os import path, chdir, getcwd
+from os.path import sep
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 import pytest
 
-from pytest_mock import MockerFixture
-from _pytest.capture import CaptureFixture, CaptureResult
-from _pytest.tmpdir import TempPathFactory
-
-from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompletionAction, hook
-from grizzly_cli.argparse import ArgumentParser
 from grizzly_cli.__main__ import _create_parser
+from grizzly_cli.argparse import ArgumentParser
+from grizzly_cli.argparse.bashcompletion import BashCompleteAction, BashCompletionAction, hook
+from tests.helpers import cwd, rm_rf
 
-from tests.helpers import rm_rf
+if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Generator
 
-
-CWD = getcwd()
+    from _pytest.capture import CaptureFixture, CaptureResult
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock import MockerFixture
 
 
 @pytest.fixture
@@ -74,11 +75,10 @@ def test_file_structure(tmp_path_factory: TempPathFactory) -> Generator[str, Non
     file = hidden_dir / 'hidden.txt'
     file.write_text('hidden.txt file')
 
-    chdir(test_context)
     try:
-        yield str(test_context)
+        with cwd(test_context):
+            yield str(test_context)
     finally:
-        chdir(CWD)
         rm_rf(test_context)
 
 
@@ -98,12 +98,12 @@ class TestBashCompletionAction:
 
         with pytest.raises(SystemExit) as e:
             action(parser, parser.parse_args([]), None)
-        assert e.type == SystemExit
+        assert e.type is SystemExit
         assert e.value.code == 0
 
-        bash_script_path = path.join(path.dirname(inspect.getfile(action.__class__)), 'bashcompletion.bash')
+        bash_script_path = Path(inspect.getfile(action.__class__)).parent / 'bashcompletion.bash'
 
-        with open(bash_script_path, encoding='utf-8') as fd:
+        with bash_script_path.open(encoding='utf-8') as fd:
             bash_script = fd.read().replace('bashcompletion_template', parser.prog) + '\n'
 
         capture = capsys.readouterr()
@@ -173,34 +173,34 @@ class TestBashCompleteAction:
 
         suggestions = action.get_suggestions(test_parser)
         all_suggestions = suggestions.copy()
-        all_options_sorted = sorted(list(all_suggestions.keys()))
+        all_options_sorted = sorted(all_suggestions.keys())
         exclusive_suggestions = action.get_exclusive_suggestions(test_parser)
 
         assert action.remove_completed([], suggestions, exclusive_suggestions) == []
-        assert sorted(list(suggestions.keys())) == all_options_sorted
+        assert sorted(suggestions.keys()) == all_options_sorted
         assert action.remove_completed(['--verbose'], suggestions, exclusive_suggestions) == ['--verbose']
-        assert sorted(list(suggestions.keys())) == all_options_sorted
+        assert sorted(suggestions.keys()) == all_options_sorted
 
         assert action.remove_completed(['--verbose', '--file'], suggestions, exclusive_suggestions) == ['--file']
-        assert sorted(list(suggestions.keys()) + ['--verbose']) == all_options_sorted
+        assert sorted([*suggestions.keys(), '--verbose']) == all_options_sorted
 
         assert action.remove_completed(['--verbose', '--file', 'test.txt'], suggestions, exclusive_suggestions) == []
-        assert sorted(list(suggestions.keys()) + ['--verbose']) == all_options_sorted
+        assert sorted([*suggestions.keys(), '--verbose']) == all_options_sorted
 
         assert action.remove_completed(['--verbose', '--file', 'test.txt', 'a'], suggestions, exclusive_suggestions) == ['a']
-        assert sorted(list(suggestions.keys()) + ['--verbose']) == all_options_sorted
+        assert sorted([*suggestions.keys(), '--verbose']) == all_options_sorted
 
         # if subparsers are completed, then we move to another parser, with its own arguments
 
         assert action.remove_completed(['--verbose', '--file', 'test.txt', '--value'], suggestions, exclusive_suggestions) == ['--value']
-        assert sorted(list(suggestions.keys()) + ['--verbose']) == all_options_sorted
+        assert sorted([*suggestions.keys(), '--verbose']) == all_options_sorted
 
         assert action.remove_completed(['--verbose', '--file', 'test.txt', '--value', '8'], suggestions, exclusive_suggestions) == ['--value', '8']
-        assert sorted(list(suggestions.keys()) + ['--verbose']) == all_options_sorted
+        assert sorted([*suggestions.keys(), '--verbose']) == all_options_sorted
 
         # only one of --foo, --bar, --test is valid (mutually exclusive), so all should be removed from suggestions if one of them is specified
         assert action.remove_completed(['--verbose', '--file', 'test.txt', '--value', '8', '--foo'], suggestions, exclusive_suggestions) == []
-        assert sorted(list(suggestions.keys()) + ['--verbose', '--value', '--foo', '--bar', '--test']) == all_options_sorted
+        assert sorted([*suggestions.keys(), '--verbose', '--value', '--foo', '--bar', '--test']) == all_options_sorted
 
     def test_filter_suggestions(self, test_parser: ArgumentParser) -> None:
         action = BashCompleteAction(['--bash-complete'])
@@ -209,30 +209,30 @@ class TestBashCompleteAction:
         all_suggestions = suggestions.copy()
 
         assert action.filter_suggestions([], suggestions) == all_suggestions
-        assert sorted(list(action.filter_suggestions(['--'], suggestions).keys())) == sorted(['--help', '--test', '--foo', '--bar', '--value', '--verbose', '--file'])
-        assert sorted(list(action.filter_suggestions(['--v'], suggestions).keys())) == sorted(['--verbose', '--value'])
-        assert sorted(list(action.filter_suggestions(['--f'], suggestions).keys())) == sorted(['--file', '--foo'])
+        assert sorted(action.filter_suggestions(['--'], suggestions).keys()) == sorted(['--help', '--test', '--foo', '--bar', '--value', '--verbose', '--file'])
+        assert sorted(action.filter_suggestions(['--v'], suggestions).keys()) == sorted(['--verbose', '--value'])
+        assert sorted(action.filter_suggestions(['--f'], suggestions).keys()) == sorted(['--file', '--foo'])
 
     @pytest.mark.parametrize(
-        'input,expected',
+        ('command', 'expected'),
         [
-            ('grizzly-cli ', '-h\n--help\n--version\ninit\nkeyvault\nlocal\ndist\nauth',),
+            ('grizzly-cli ', '-h\n--help\n--version\ninit\nkeyvault\nlocal\ndist\nauth'),
             ('grizzly-cli -', '-h\n--help\n--version'),
             ('grizzly-cli --', '--help\n--version'),
             ('grizzly-cli lo', 'local'),
             ('grizzly-cli -h', ''),
-        ]
+        ],
     )
-    def test___call__(self, input: str, expected: str, capsys: CaptureFixture) -> None:
+    def test___call__(self, command: str, expected: str, capsys: CaptureFixture) -> None:
         parser = _create_parser()
 
         with pytest.raises(SystemExit):
-            parser.parse_args([f'--bash-complete={input}'])
+            parser.parse_args([f'--bash-complete={command}'])
         capture = capsys.readouterr()
         assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
 
     @pytest.mark.parametrize(
-        'input,expected', [
+        ('command', 'expected'), [
             (
                 'grizzly-cli local run ',
                 (
@@ -291,21 +291,21 @@ class TestBashCompleteAction:
             ),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test', 'test.feature\ntest-dir'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir', 'test-dir'),
-            (f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{path.sep}', f'test-dir{path.sep}test.feature'),
+            (f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{sep}', f'test-dir{sep}test.feature'),
             (
-                f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{path.sep}tes',
-                f'test-dir{path.sep}test.feature',
+                f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{sep}tes',
+                f'test-dir{sep}test.feature',
             ),
             (
-                f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{path.sep}test.feature',
+                f'grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test-dir{sep}test.feature',
                 '-h\n--help\n--verbose\n-T\n--testdata-variable\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n-l\n--log-file\n--log-dir\n--dump\n--dry-run',
             ),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
             ('grizzly-cli local run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
-        ]
+        ],
     )
-    def test___call___local_run(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+    def test___call___local_run(self, command: str, expected: str, capsys: CaptureFixture, test_file_structure: str) -> None:  # noqa: ARG002
         capture: Optional[CaptureResult] = None
 
         try:
@@ -313,10 +313,11 @@ class TestBashCompleteAction:
             hook(parser)
             _subparsers = getattr(parser, '_subparsers', None)
             assert _subparsers is not None
-            subparser: Optional[argparse.ArgumentParser]
+            subparser: Optional[argparse.ArgumentParser] = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'local':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
@@ -324,29 +325,29 @@ class TestBashCompleteAction:
 
             _subparsers = getattr(subparser, '_subparsers', None)
             assert _subparsers is not None
+            subparser = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'run':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
             assert subparser.prog == 'grizzly-cli local run'
 
             with pytest.raises(SystemExit):
-                subparser.parse_args([f'--bash-complete={input}'])
+                subparser.parse_args([f'--bash-complete={command}'])
             capture = capsys.readouterr()
             assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
-            print(f'input={input}')
+            print(f'input={command}')
             print(f'expected={expected}')
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
-        finally:
-            chdir(CWD)
 
     @pytest.mark.parametrize(
-        'input,expected', [
+        ('command', 'expected'), [
             (
                 'grizzly-cli dist run ',
                 (
@@ -370,7 +371,7 @@ class TestBashCompleteAction:
                 (
                     '-h\n--help\n--verbose\n-T\n--testdata-variable\n-e\n--environment-file\n--csv-prefix\n--csv-interval\n--csv-flush-interval\n'
                     '-l\n--log-file\n--log-dir\n--dump\n--dry-run'
-                )
+                ),
             ),
             ('grizzly-cli dist run --help --yes', ''),
             ('grizzly-cli dist run --yes -T', ''),
@@ -407,9 +408,9 @@ class TestBashCompleteAction:
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value test.fe', 'test.feature'),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help', ''),
             ('grizzly-cli dist run --yes -T key=value --environment-file test.yaml --testdata-variable key=value --help d', ''),
-        ]
+        ],
     )
-    def test___call___dist_run(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+    def test___call___dist_run(self, command: str, expected: str, capsys: CaptureFixture, test_file_structure: str) -> None:  # noqa: ARG002
         capture: Optional[CaptureResult] = None
 
         try:
@@ -417,10 +418,11 @@ class TestBashCompleteAction:
             hook(parser)
             _subparsers = getattr(parser, '_subparsers', None)
             assert _subparsers is not None
-            subparser: Optional[argparse.ArgumentParser]
+            subparser: Optional[argparse.ArgumentParser] = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'dist':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
@@ -428,36 +430,36 @@ class TestBashCompleteAction:
 
             _subparsers = getattr(subparser, '_subparsers', None)
             assert _subparsers is not None
+            subparser = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'run':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
             assert subparser.prog == 'grizzly-cli dist run'
 
             with pytest.raises(SystemExit):
-                subparser.parse_args([f'--bash-complete={input}'])
+                subparser.parse_args([f'--bash-complete={command}'])
             capture = capsys.readouterr()
             assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
-            print(f'input={input}')
+            print(f'input={command}')
             print(f'expected={expected}')
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
-        finally:
-            chdir(CWD)
 
     @pytest.mark.parametrize(
-        'input,expected',
+        ('command', 'expected'),
         [
             (
                 'grizzly-cli dist',
                 (
                     '-h\n--help\n--workers\n--id\n--limit-nofile\n--health-retries\n--health-timeout\n--health-interval\n--registry\n'
                     '--tty\n--wait-for-worker\n--project-name\n--force-build\n--build\n--validate-config\nbuild\nclean\nrun'
-                )
+                ),
             ),
             (
                 'grizzly-cli dist -',
@@ -497,7 +499,7 @@ class TestBashCompleteAction:
             ),
         ],
     )
-    def test___call__dist(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+    def test___call__dist(self, command: str, expected: str, capsys: CaptureFixture, test_file_structure: str) -> None:  # noqa: ARG002
         capture: Optional[CaptureResult] = None
 
         try:
@@ -505,30 +507,29 @@ class TestBashCompleteAction:
             hook(parser)
             _subparsers = getattr(parser, '_subparsers', None)
             assert _subparsers is not None
-            subparser: Optional[argparse.ArgumentParser]
+            subparser: Optional[argparse.ArgumentParser] = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'dist':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
             assert subparser.prog == 'grizzly-cli dist'
 
             with pytest.raises(SystemExit):
-                subparser.parse_args([f'--bash-complete={input}'])
+                subparser.parse_args([f'--bash-complete={command}'])
             capture = capsys.readouterr()
             assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
-            print(f'input={input}')
+            print(f'input={command}')
             print(f'expected={expected}')
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
-        finally:
-            chdir(CWD)
 
     @pytest.mark.parametrize(
-        'input,expected',
+        ('command', 'expected'),
         [
             (
                 'grizzly-cli dist build',
@@ -556,7 +557,7 @@ class TestBashCompleteAction:
             ),
         ],
     )
-    def test___call__dist_build(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+    def test___call__dist_build(self, command: str, expected: str, capsys: CaptureFixture, test_file_structure: str) -> None:  # noqa: ARG002
         capture: Optional[CaptureResult] = None
 
         try:
@@ -564,10 +565,11 @@ class TestBashCompleteAction:
             hook(parser)
             _subparsers = getattr(parser, '_subparsers', None)
             assert _subparsers is not None
-            subparser: Optional[argparse.ArgumentParser]
+            subparser: Optional[argparse.ArgumentParser] = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'dist':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
@@ -575,29 +577,29 @@ class TestBashCompleteAction:
 
             _subparsers = getattr(subparser, '_subparsers', None)
             assert _subparsers is not None
+            subparser = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'build':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
             assert subparser.prog == 'grizzly-cli dist build'
 
             with pytest.raises(SystemExit):
-                subparser.parse_args([f'--bash-complete={input}'])
+                subparser.parse_args([f'--bash-complete={command}'])
             capture = capsys.readouterr()
             assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
-            print(f'input={input}')
+            print(f'input={command}')
             print(f'expected={expected}')
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
-        finally:
-            chdir(CWD)
 
     @pytest.mark.parametrize(
-        'input,expected',
+        ('command', 'expected'),
         [
             (
                 'grizzly-cli dist clean',
@@ -609,7 +611,7 @@ class TestBashCompleteAction:
             ),
         ],
     )
-    def test___call__dist_clean(self, input: str, expected: str, capsys: CaptureFixture, test_file_structure: None) -> None:
+    def test___call__dist_clean(self, command: str, expected: str, capsys: CaptureFixture, test_file_structure: str) -> None:  # noqa: ARG002
         capture: Optional[CaptureResult] = None
 
         try:
@@ -617,10 +619,11 @@ class TestBashCompleteAction:
             hook(parser)
             _subparsers = getattr(parser, '_subparsers', None)
             assert _subparsers is not None
-            subparser: Optional[argparse.ArgumentParser]
+            subparser: Optional[argparse.ArgumentParser] = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'dist':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
@@ -628,26 +631,26 @@ class TestBashCompleteAction:
 
             _subparsers = getattr(subparser, '_subparsers', None)
             assert _subparsers is not None
+            subparser = None
             for subparsers in _subparsers._group_actions:
-                for name, subparser in subparsers.choices.items():
+                for name, possible_subparser in subparsers.choices.items():
                     if name == 'clean':
+                        subparser = possible_subparser
                         break
 
             assert subparser is not None
             assert subparser.prog == 'grizzly-cli dist clean'
 
             with pytest.raises(SystemExit):
-                subparser.parse_args([f'--bash-complete={input}'])
+                subparser.parse_args([f'--bash-complete={command}'])
             capture = capsys.readouterr()
             assert sorted(capture.out.split('\n')) == sorted(f'{expected}\n'.split('\n'))
         except:
-            print(f'input={input}')
+            print(f'input={command}')
             print(f'expected={expected}')
             if capture is not None:
                 print(f'actual={capture.out}')
             raise
-        finally:
-            chdir(CWD)
 
 
 def test_hook(mocker: MockerFixture) -> None:

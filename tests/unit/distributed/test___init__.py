@@ -1,22 +1,23 @@
-import sys
-import json
+from __future__ import annotations
 
-from os import getcwd, environ
-from tempfile import gettempdir
+import json
+import sys
 from argparse import ArgumentParser, Namespace
+from contextlib import suppress
 from datetime import datetime, timezone
+from os import environ
+from tempfile import gettempdir
+from typing import TYPE_CHECKING
 
 import pytest
 
-from _pytest.capture import CaptureFixture
-from _pytest.tmpdir import TempPathFactory
-from pytest_mock import MockerFixture
-
+from grizzly_cli.distributed import create_parser, distributed, distributed_run
 from grizzly_cli.utils import RunCommandResult, rm_rf
-from grizzly_cli.distributed import create_parser, distributed_run, distributed
 
-
-CWD = getcwd()
+if TYPE_CHECKING:  # pragma: no cover
+    from _pytest.capture import CaptureFixture
+    from _pytest.tmpdir import TempPathFactory
+    from pytest_mock import MockerFixture
 
 
 def test_distributed(mocker: MockerFixture) -> None:
@@ -54,12 +55,11 @@ def test_distributed(mocker: MockerFixture) -> None:
     assert args[0] is arguments
 
     arguments = Namespace(subcommand='foo')
-    with pytest.raises(ValueError) as ve:
+    with pytest.raises(ValueError, match='unknown subcommand foo'):
         distributed(arguments)
-    assert 'unknown subcommand foo' == str(ve.value)
 
 
-def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:
+def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path_factory: TempPathFactory) -> None:  # noqa: PLR0915
     test_context = tmp_path_factory.mktemp('test_context')
     (test_context / 'test.feature').write_text('Feature:')
 
@@ -68,10 +68,10 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     do_build_mock = mocker.patch('grizzly_cli.distributed.do_build', return_value=None)
     list_images_mock = mocker.patch('grizzly_cli.distributed.list_images', return_value=None)
 
-    import grizzly_cli.distributed
-    mocker.patch.object(grizzly_cli.distributed, 'EXECUTION_CONTEXT', '/tmp/execution-context')
-    mocker.patch.object(grizzly_cli.distributed, 'STATIC_CONTEXT', '/tmp/static-context')
-    mocker.patch.object(grizzly_cli.distributed, 'MOUNT_CONTEXT', '/tmp/mount-context')
+    import grizzly_cli.distributed  # noqa: PLC0415
+    mocker.patch.object(grizzly_cli.distributed, 'EXECUTION_CONTEXT', '/srv/grizzly/execution-context')
+    mocker.patch.object(grizzly_cli.distributed, 'STATIC_CONTEXT', '/srv/grizzly/static-context')
+    mocker.patch.object(grizzly_cli.distributed, 'MOUNT_CONTEXT', '/srv/grizzly/mount-context')
     mocker.patch.object(grizzly_cli.distributed, 'PROJECT_NAME', 'grizzly-cli-test-project')
 
     run_command_result = RunCommandResult(return_code=1)
@@ -92,11 +92,11 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         get_default_mtu_mock.return_value = '1500'
         sys.argv = ['grizzly-cli', 'dist', '--workers', '3', '--tty', 'run', f'{test_context}/test.feature']
         arguments = parser.parse_args()
-        setattr(arguments, 'container_system', 'docker')
-        setattr(arguments, 'file', ' '.join(arguments.file))
+        setattr(arguments, 'container_system', 'docker')  # noqa: B010
+        setattr(arguments, 'file', ' '.join(arguments.file))  # noqa: B010
 
         # this is set in the devcontainer
-        for key in environ.keys():
+        for key in environ:
             if key.startswith('GRIZZLY_'):
                 del environ[key]
 
@@ -108,10 +108,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             f'grizzly-cli dist --validate-config --workers 3 --tty run {test_context}/test.feature\n'
         )
 
-        try:
+        with suppress(KeyError):
             del environ['GRIZZLY_MTU']
-        except KeyError:
-            pass
 
         run_command_mock.return_value = RunCommandResult(return_code=0)
         do_build_mock.return_value = 255
@@ -127,9 +125,9 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '!! failed to build grizzly-cli-test-project, rc=255\n'
         )
         assert environ.get('GRIZZLY_MTU', None) == '1500'
-        assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/tmp/execution-context'
-        assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
-        assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
+        assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/srv/grizzly/execution-context'
+        assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/srv/grizzly/static-context'
+        assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/srv/grizzly/mount-context'
         assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'grizzly-cli-test-project'
         assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '3'
@@ -147,8 +145,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert environ.get('GRIZZLY_MOUNT_PATH', None) == ''
 
         # this is set in the devcontainer
-        for key in environ.keys():
-            if key.startswith('GRIZZLY_') or key.startswith('LOCUST_'):
+        for key in environ:
+            if key.startswith(('GRIZZLY_', 'LOCUST_')):
                 del environ[key]
 
         arguments = parser.parse_args([
@@ -165,8 +163,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             'run',
             f'{test_context}/test.feature',
         ])
-        setattr(arguments, 'container_system', 'docker')
-        setattr(arguments, 'file', ' '.join(arguments.file))
+        setattr(arguments, 'container_system', 'docker')  # noqa: B010
+        setattr(arguments, 'file', ' '.join(arguments.file))  # noqa: B010
 
         # docker-compose v2
         rcr = RunCommandResult(return_code=1)
@@ -182,7 +180,7 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert distributed_run(
             arguments,
             {
-                'GRIZZLY_CONFIGURATION_FILE': '/tmp/execution-context/configuration.yaml',
+                'GRIZZLY_CONFIGURATION_FILE': '/srv/grizzly/execution-context/configuration.yaml',
                 'GRIZZLY_TEST_VAR': 'True',
             },
             {
@@ -207,14 +205,14 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert args[0] == [
             'docker', 'compose',
             '-p', 'foobar-test-user',
-            '-f', '/tmp/static-context/compose.yaml',
+            '-f', '/srv/grizzly/static-context/compose.yaml',
             'config',
         ]
         args, _ = run_command_mock.call_args_list[-2]
         assert args[0] == [
             'docker', 'compose',
             '-p', 'foobar-test-user',
-            '-f', '/tmp/static-context/compose.yaml',
+            '-f', '/srv/grizzly/static-context/compose.yaml',
             'up',
             '--scale', 'worker=3',
             '--remove-orphans',
@@ -223,15 +221,15 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert args[0] == [
             'docker', 'compose',
             '-p', 'foobar-test-user',
-            '-f', '/tmp/static-context/compose.yaml',
+            '-f', '/srv/grizzly/static-context/compose.yaml',
             'stop',
         ]
 
         assert environ.get('GRIZZLY_RUN_FILE', None) == f'{test_context}/test.feature'
         assert environ.get('GRIZZLY_MTU', None) == '1400'
-        assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/tmp/execution-context'
-        assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
-        assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
+        assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/srv/grizzly/execution-context'
+        assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/srv/grizzly/static-context'
+        assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/srv/grizzly/mount-context'
         assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'foobar'
         assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '3'
@@ -251,8 +249,8 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         arguments.project_name = None
 
         # this is set in the devcontainer
-        for key in environ.keys():
-            if key.startswith('GRIZZLY_') or key.startswith('LOCUST_'):
+        for key in environ:
+            if key.startswith(('GRIZZLY_', 'LOCUST_')):
                 del environ[key]
 
         arguments = parser.parse_args([
@@ -267,21 +265,21 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
             '--wait-for-worker', '1.25 * WORKER_REPORT_INTERVAL',
             'run', f'{test_context}/test.feature',
         ])
-        setattr(arguments, 'container_system', 'docker')
-        setattr(arguments, 'file', ' '.join(arguments.file))
+        setattr(arguments, 'container_system', 'docker')  # noqa: B010
+        setattr(arguments, 'file', ' '.join(arguments.file))  # noqa: B010
 
         run_command_mock.return_value = None
         run_command_mock.side_effect = [RunCommandResult(return_code=13)]
         do_build_mock.return_value = 0
         check_output_mock.return_value = None
-        check_output_mock.side_effect = [json.dumps([{'Source': '/tmp/mount-context', 'Destination': '/tmp'}]), '13']
+        check_output_mock.side_effect = [json.dumps([{'Source': '/srv/grizzly/mount-context', 'Destination': '/srv/grizzly'}]), '13']
         get_default_mtu_mock.return_value = '1800'
         list_images_mock.return_value = {'grizzly-cli-test-project': {'test-user': {}}}
 
         assert distributed_run(
             arguments,
             {
-                'GRIZZLY_CONFIGURATION_FILE': '/tmp/execution-context/configuration.yaml',
+                'GRIZZLY_CONFIGURATION_FILE': '/srv/grizzly/execution-context/configuration.yaml',
                 'GRIZZLY_TEST_VAR': 'True',
             },
             {
@@ -299,15 +297,15 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
         assert args[0] == [
             'docker', 'compose',
             '-p', 'grizzly-cli-test-project-suffix-test-user',
-            '-f', '/tmp/static-context/compose.yaml',
+            '-f', '/srv/grizzly/static-context/compose.yaml',
             'config',
         ]
 
         assert environ.get('GRIZZLY_RUN_FILE', None) == f'{test_context}/test.feature'
         assert environ.get('GRIZZLY_MTU', None) == '1800'
-        assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/tmp/execution-context'
-        assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/tmp/static-context'
-        assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/tmp/mount-context'
+        assert environ.get('GRIZZLY_EXECUTION_CONTEXT', None) == '/srv/grizzly/execution-context'
+        assert environ.get('GRIZZLY_STATIC_CONTEXT', None) == '/srv/grizzly/static-context'
+        assert environ.get('GRIZZLY_MOUNT_CONTEXT', None) == '/srv/grizzly/mount-context'
         assert environ.get('GRIZZLY_PROJECT_NAME', None) == 'grizzly-cli-test-project'
         assert environ.get('GRIZZLY_USER_TAG', None) == 'test-user'
         assert environ.get('GRIZZLY_EXPECTED_WORKERS', None) == '1'
@@ -325,6 +323,6 @@ def test_distributed_run(capsys: CaptureFixture, mocker: MockerFixture, tmp_path
     finally:
         rm_rf(test_context)
 
-        for key in environ.keys():
+        for key in environ:
             if key.startswith('GRIZZLY_'):
                 del environ[key]

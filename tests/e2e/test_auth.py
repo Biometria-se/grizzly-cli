@@ -1,19 +1,23 @@
-import re
+from __future__ import annotations
 
+import re
+from contextlib import contextmanager, suppress
 from os import environ
-from typing import Generator, Optional, Tuple
-from contextlib import contextmanager
+from typing import TYPE_CHECKING, Optional
 
 import pytest
 
-from _pytest.tmpdir import TempPathFactory
+from tests.helpers import rm_rf, run_command
 
-from tests.helpers import run_command, rm_rf
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from _pytest.tmpdir import TempPathFactory
 
 
 @contextmanager
-def auth_via(tmp_path_factory: TempPathFactory, method: str) -> Generator[Tuple[Optional[str], Optional[str]], None, None]:
-    secret = 'asdfasdf'
+def auth_via(tmp_path_factory: TempPathFactory, method: str) -> Generator[tuple[Optional[str], Optional[str]], None, None]:
+    secret = 'asdfasdf'  # noqa: S105
     test_context = tmp_path_factory.mktemp('test_context')
     argument: Optional[str] = None
     stdin: Optional[str] = None
@@ -30,13 +34,11 @@ def auth_via(tmp_path_factory: TempPathFactory, method: str) -> Generator[Tuple[
         argument = str(file)
 
     try:
-        yield (argument, stdin,)
+        yield (argument, stdin)
     finally:
         if method == 'env':
-            try:
+            with suppress(KeyError):
                 del environ['OTP_SECRET']
-            except:
-                pass
 
         rm_rf(test_context)
 

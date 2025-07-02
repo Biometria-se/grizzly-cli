@@ -16,3 +16,6 @@ indent_size = 2
 
 [*.feature]
 indent_size = 2
+
+[tests/unit/utils/test___init__.py]
+trim_trailing_whitespace = false

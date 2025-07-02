@@ -1,28 +1,31 @@
-import os
+from __future__ import annotations
 
-from typing import Callable, List, Optional
+from os import environ
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, ClassVar, Optional
 
-from behave.model import Scenario
+from grizzly_cli.__version__ import __version__
 
-from .argparse import ArgumentSubParser
-from .__version__ import __version__
+if TYPE_CHECKING:  # pragma: no cover
+    from behave.model import Scenario
 
+    from grizzly_cli.argparse import ArgumentSubParser
 
-EXECUTION_CONTEXT = os.getcwd()
+EXECUTION_CONTEXT = Path.cwd().as_posix()
 
-STATIC_CONTEXT = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static')
+STATIC_CONTEXT = Path.joinpath(Path(__file__).parent.absolute(), 'static').as_posix()
 
-MOUNT_CONTEXT = os.environ.get('GRIZZLY_MOUNT_CONTEXT', EXECUTION_CONTEXT)
+MOUNT_CONTEXT = environ.get('GRIZZLY_MOUNT_CONTEXT', EXECUTION_CONTEXT)
 
-PROJECT_NAME = os.path.basename(EXECUTION_CONTEXT)
+PROJECT_NAME = Path(EXECUTION_CONTEXT).name
 
-SCENARIOS: List[Scenario] = []
+SCENARIOS: list[Scenario] = []
 
 FEATURE_DESCRIPTION: Optional[str] = None
 
 
 class register_parser:
-    registered: List[Callable[[ArgumentSubParser], None]] = []
+    registered: ClassVar[list[Callable[[ArgumentSubParser], None]]] = []
     order: Optional[int]
 
     def __init__(self, order: Optional[int] = None) -> None:

@@ -1,16 +1,16 @@
-from os import chdir, getcwd, sep
+from __future__ import annotations
+
 from argparse import ArgumentTypeError
+from os import sep
+from typing import TYPE_CHECKING
 
 import pytest
 
-from _pytest.tmpdir import TempPathFactory
-
 from grizzly_cli.argparse.bashcompletion.types import BashCompletionTypes
+from tests.helpers import cwd, rm_rf
 
-from tests.helpers import rm_rf
-
-
-CWD = getcwd()
+if TYPE_CHECKING:
+    from _pytest.tmpdir import TempPathFactory
 
 
 class TestBashCompletionTypes:
@@ -35,38 +35,35 @@ class TestBashCompletionTypes:
             file = test_context / 'test.xml'
             file.touch()
             file.write_text('<value>test.xml file</value>')
-            test_context_root = str(test_context)
-
-            chdir(test_context_root)
 
             try:
-                impl = BashCompletionTypes.File('*.txt')
+                with cwd(test_context):
+                    impl = BashCompletionTypes.File('*.txt')
 
-                with pytest.raises(ArgumentTypeError) as ate:
-                    impl('non-existing-directory/')
-                assert 'non-existing-directory/ does not exist' in str(ate)
+                    with pytest.raises(ArgumentTypeError) as ate:
+                        impl('non-existing-directory/')
+                    assert 'non-existing-directory/ does not exist' in str(ate)
 
-                with pytest.raises(ArgumentTypeError) as ate:
-                    impl('test-dir/')
-                assert 'test-dir/ is not a file' in str(ate)
+                    with pytest.raises(ArgumentTypeError) as ate:
+                        impl('test-dir/')
+                    assert 'test-dir/ is not a file' in str(ate)
 
-                with pytest.raises(ArgumentTypeError) as ate:
-                    impl('test.xml')
-                assert 'test.xml does not match *.txt' in str(ate)
+                    with pytest.raises(ArgumentTypeError) as ate:
+                        impl('test.xml')
+                    assert 'test.xml does not match *.txt' in str(ate)
 
-                assert impl('test.txt') == 'test.txt'
+                    assert impl('test.txt') == 'test.txt'
 
-                impl = BashCompletionTypes.File('*.txt', '*.json')
+                    impl = BashCompletionTypes.File('*.txt', '*.json')
 
-                with pytest.raises(ArgumentTypeError) as ate:
-                    impl('test.xml')
-                assert 'test.xml does not match *.txt' in str(ate)
+                    with pytest.raises(ArgumentTypeError) as ate:
+                        impl('test.xml')
+                    assert 'test.xml does not match *.txt' in str(ate)
 
-                assert impl('test.txt') == 'test.txt'
-                assert impl('test.json') == 'test.json'
+                    assert impl('test.txt') == 'test.txt'
+                    assert impl('test.json') == 'test.json'
             finally:
-                chdir(CWD)
-                rm_rf(test_context_root)
+                rm_rf(test_context)
 
         def test_list_files(self, tmp_path_factory: TempPathFactory) -> None:
             test_context = tmp_path_factory.mktemp('test_context')
@@ -81,36 +78,32 @@ class TestBashCompletionTypes:
             hidden_dir = test_context / '.hidden'
             hidden_dir.mkdir()
             (hidden_dir / 'hidden.txt').write_text('hidden.txt file')
-            test_context_root = str(test_context)
-
-            chdir(test_context_root)
-
             try:
-                impl = BashCompletionTypes.File('*.txt')
-                assert impl.list_files(None) == {
-                    'test.txt': 'file',
-                    'test-dir': 'dir',
-                }
-                assert impl.list_files('te') == {
-                    'test.txt': 'file',
-                    'test-dir': 'dir',
-                }
+                with cwd(test_context):
+                    impl = BashCompletionTypes.File('*.txt')
+                    assert impl.list_files(None) == {
+                        'test.txt': 'file',
+                        'test-dir': 'dir',
+                    }
+                    assert impl.list_files('te') == {
+                        'test.txt': 'file',
+                        'test-dir': 'dir',
+                    }
 
-                assert impl.list_files('test-') == {
-                    'test-dir': 'dir',
-                }
+                    assert impl.list_files('test-') == {
+                        'test-dir': 'dir',
+                    }
 
-                assert impl.list_files(f'test-dir{sep}') == {
-                    f'test-dir{sep}test.txt': 'file',
-                }
+                    assert impl.list_files(f'test-dir{sep}') == {
+                        f'test-dir{sep}test.txt': 'file',
+                    }
 
-                impl = BashCompletionTypes.File('*.txt', '*.json', '*.xml')
-                assert impl.list_files('te') == {
-                    'test.txt': 'file',
-                    'test.json': 'file',
-                    'test.xml': 'file',
-                    'test-dir': 'dir',
-                }
+                    impl = BashCompletionTypes.File('*.txt', '*.json', '*.xml')
+                    assert impl.list_files('te') == {
+                        'test.txt': 'file',
+                        'test.json': 'file',
+                        'test.xml': 'file',
+                        'test-dir': 'dir',
+                    }
             finally:
-                chdir(CWD)
-                rm_rf(test_context_root)
+                rm_rf(test_context)

@@ -1,19 +1,25 @@
-from os import environ
-from tempfile import NamedTemporaryFile
-from argparse import Namespace as Arguments
-from getpass import getuser
-from shutil import get_terminal_size
+from __future__ import annotations
 
-from grizzly_cli.argparse import ArgumentSubParser
-from grizzly_cli.utils import run_command
+from getpass import getuser
+from os import environ
+from shutil import get_terminal_size
+from tempfile import NamedTemporaryFile
+from typing import TYPE_CHECKING
+
 from grizzly_cli import PROJECT_NAME, STATIC_CONTEXT
+from grizzly_cli.utils import run_command
+
+if TYPE_CHECKING:  # pragma: no cover
+    from argparse import Namespace as Arguments
+
+    from grizzly_cli.argparse import ArgumentSubParser
 
 
 def create_parser(sub_parser: ArgumentSubParser) -> None:
     # grizzly-cli dist clean ...
     clean_parser = sub_parser.add_parser('clean', description=(
         'clean all grizzly compose project resources; containers, images, networks and volumes'
-    ),)
+    ))
 
     clean_parser.add_argument(
         '--no-images',
@@ -41,10 +47,7 @@ def clean(args: Arguments) -> int:
     suffix = '' if args.id is None else f'-{args.id}'
     tag = getuser()
 
-    if args.project_name is not None:
-        project_name = args.project_name
-    else:
-        project_name = PROJECT_NAME
+    project_name = args.project_name if args.project_name is not None else PROJECT_NAME
 
     columns, lines = get_terminal_size()
     env = environ.copy()
@@ -72,7 +75,7 @@ def clean(args: Arguments) -> int:
     if args.images:
         command = [
             args.container_system,
-            'image', 'rm', f'{project_name}:{tag}'
+            'image', 'rm', f'{project_name}:{tag}',
         ]
 
         run_command(command)
