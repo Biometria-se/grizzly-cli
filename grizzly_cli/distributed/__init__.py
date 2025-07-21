@@ -296,7 +296,7 @@ def distributed_run(args: Arguments, environ: dict, run_arguments: dict[str, lis
         write_env_file(fd, environ, args)
 
         rc = should_validate_config(args, compose_args)
-        if rc != 0:
+        if rc != 0 or getattr(args, 'validate_config', False):
             return rc
 
         rc = should_build_image(args, project_name, tag)
