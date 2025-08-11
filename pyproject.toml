@@ -15,7 +15,7 @@ dependencies = [
     "behave ==1.2.6",
     "Jinja2 ==3.1.6",
     "requests ==2.32.4",
-    "packaging ==24.1",
+    "packaging ==25.0",
     "chardet ==5.2.0",
     "tomli ==2.0.1",
     "pyotp ==2.9.0",
